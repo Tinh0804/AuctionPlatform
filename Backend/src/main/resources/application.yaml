@@ -1,3 +1,69 @@
+server:
+  port: 8080
+  servlet:
+    context-path: "/AuctionPlatform"
 spring:
   application:
-    name: auctionplatform
+    name: AuctionPlatform
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: jdbc:postgresql://localhost:5432;databaseName=auctiondb;encrypt=true;trustServerCertificate=true;
+    username: root
+    password: "@Tinh0804"
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: true
+    format-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+  security:
+    user:
+      name: "admin"
+      password: "12345"
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: 302708839710-4t8374p6qbp4ut1jpcgo4t9396vqigvk.apps.googleusercontent.com
+            client-secret: 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
+            grant-type: authorization_code
+            scope:
+              - profile
+              - email
+            redirect-uri: com.googleusercontent.apps.302708839710-uqnlsf5el1b8t3vocto720e76iv6slad:/oauth2redirect/google
+            token-uri: https://oauth2.googleapis.com/token
+            user-info-uri: https://www.googleapis.com/oauth2/v2/userinfo
+          facebook:
+            client-id: 1914479109126836
+            client-secret: 135f66ad30951094e01c6adb990afa15
+            scope:
+              - public_profile
+              - email
+            redirect-uri: https://fa78b0550c6f.ngrok-free.app/RideBook/auth/oauth2/facebook
+            token-uri: https://graph.facebook.com/v17.0/oauth/access_token
+            user-info-uri: https://graph.facebook.com/me?fields=id,name,email,picture
+
+        provider:
+          #                    do google đã có provider mặt định
+          facebook:
+            authorization-uri: https://www.facebook.com/v20.0/dialog/oauth
+            token-uri: https://graph.facebook.com/v20.0/oauth/access_token
+            user-info-uri: https://graph.facebook.com/me?fields=id,name,email,picture
+            user-name-attribute: id
+jwt:
+  signerKey: "5be00bd883e235f0aca7bdd710ec6abf06d87a3e5a8222662868ba3f6fbcac39"
+  valid-duration : 3600
+  refreshable-duration : 36000
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
