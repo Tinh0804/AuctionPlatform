@@ -1,27 +1,18 @@
 -- ==========================================
--- AUCTION SYSTEM - FULL SCHEMA
+-- AUCTION SYSTEM - FINAL SCHEMA
 -- PostgreSQL
+-- Tổng: 18 bảng
 -- ==========================================
 
 -- ==========================================
 -- ENUMS
 -- ==========================================
 
-CREATE TYPE auction_status AS ENUM (
-    'PENDING',      -- chờ duyệt
-    'APPROVED',     -- đã duyệt, chưa mở
-    'ACTIVE',       -- đang diễn ra
-    'EXTENDED',     -- gia hạn (có bid vào phút cuối)
-    'CLOSED',       -- kết thúc, chờ xử lý
-    'CANCELLED',    -- bị huỷ
-    'FAILED'        -- không có người thắng
-);
-
-CREATE TYPE auction_record_status AS ENUM (
-    'WIN',
-    'LOSE',
-    'CANCELLED',
-    'PENDING_PAYMENT'
+CREATE TYPE verification_status AS ENUM (
+    'UNVERIFIED',
+    'PENDING',
+    'VERIFIED',
+    'REJECTED'
 );
 
 CREATE TYPE product_condition AS ENUM (
@@ -33,23 +24,28 @@ CREATE TYPE product_condition AS ENUM (
 );
 
 CREATE TYPE product_status AS ENUM (
-    'PENDING',      -- chờ duyệt
-    'APPROVED',     -- đã duyệt
-    'REJECTED',     -- bị từ chối
-    'IN_AUCTION',   -- đang trong phiên đấu giá
-    'SOLD'          -- đã bán
+    'PENDING',       -- chờ duyệt
+    'APPROVED',      -- đã duyệt
+    'REJECTED',      -- bị từ chối
+    'IN_AUCTION',    -- đang trong phiên đấu giá
+    'SOLD'           -- đã bán
 );
 
-CREATE TYPE verification_status AS ENUM (
-    'UNVERIFIED',
-    'PENDING',
-    'VERIFIED',
-    'REJECTED'
+CREATE TYPE auction_status AS ENUM (
+    'PENDING',       -- chờ duyệt
+    'APPROVED',      -- đã duyệt, chưa mở
+    'ACTIVE',        -- đang diễn ra
+    'EXTENDED',      -- gia hạn do bid phút cuối
+    'CLOSED',        -- kết thúc, chờ xử lý
+    'CANCELLED',     -- bị huỷ
+    'FAILED'         -- không có người thắng
 );
 
-CREATE TYPE wallet_type AS ENUM (
-    'PERSONAL',
-    'SYSTEM'
+CREATE TYPE auction_record_status AS ENUM (
+    'PENDING_PAYMENT', -- chờ thanh toán
+    'WIN',             -- đã thanh toán, thắng
+    'LOSE',            -- không thắng
+    'CANCELLED'        -- bị huỷ
 );
 
 CREATE TYPE wallet_status AS ENUM (
@@ -59,14 +55,14 @@ CREATE TYPE wallet_status AS ENUM (
 );
 
 CREATE TYPE transaction_type AS ENUM (
-    'DEPOSIT',              -- nạp tiền
-    'WITHDRAWAL',           -- rút tiền
-    'AUCTION_DEPOSIT',      -- nộp cọc đấu giá
-    'AUCTION_DEPOSIT_REFUND', -- hoàn cọc
-    'AUCTION_DEPOSIT_FORFEIT', -- mất cọc
-    'AUCTION_PAYMENT',      -- thanh toán tiền thắng đấu giá
-    'PLATFORM_FEE',         -- phí nền tảng
-    'CANCELLATION_FEE'      -- phí huỷ
+    'DEPOSIT',                 -- nạp tiền vào ví
+    'WITHDRAWAL',              -- rút tiền khỏi ví
+    'AUCTION_DEPOSIT',         -- nộp cọc tham gia đấu giá
+    'AUCTION_DEPOSIT_REFUND',  -- hoàn cọc
+    'AUCTION_DEPOSIT_FORFEIT', -- tịch thu cọc
+    'AUCTION_PAYMENT',         -- thanh toán tiền thắng
+    'PLATFORM_FEE',            -- phí nền tảng
+    'CANCELLATION_FEE'         -- phí huỷ phiên
 );
 
 CREATE TYPE transaction_status AS ENUM (
@@ -77,24 +73,24 @@ CREATE TYPE transaction_status AS ENUM (
 );
 
 CREATE TYPE registration_status AS ENUM (
-    'PENDING',      -- chờ admin duyệt
-    'APPROVED',     -- được tham gia
-    'REJECTED',     -- bị từ chối
-    'CANCELLED'     -- tự huỷ
+    'PENDING',     -- chờ duyệt
+    'APPROVED',    -- được tham gia
+    'REJECTED',    -- bị từ chối
+    'CANCELLED'    -- tự huỷ
 );
 
 CREATE TYPE deposit_status AS ENUM (
     'PENDING',
     'PAID',
     'REFUNDED',
-    'FORFEITED'     -- bị tịch thu (thắng mà không thanh toán)
+    'FORFEITED'    -- bị tịch thu
 );
 
 CREATE TYPE order_status AS ENUM (
-    'PENDING_PAYMENT',  -- chờ thanh toán
-    'PAID',             -- đã thanh toán
-    'MEETING_SCHEDULED',-- đã hẹn gặp
-    'COMPLETED',        -- hoàn thành
+    'PENDING_PAYMENT',   -- chờ thanh toán
+    'PAID',              -- đã thanh toán
+    'MEETING_SCHEDULED', -- đã hẹn gặp
+    'COMPLETED',         -- hoàn thành
     'CANCELLED',
     'DISPUTED'
 );
@@ -106,135 +102,108 @@ CREATE TYPE dispute_status AS ENUM (
     'CLOSED'
 );
 
-CREATE TYPE payment_provider AS ENUM (
-    'VNPAY',
-    'MOMO',
-    'INTERNAL'
-);
-
-CREATE TYPE payment_request_status AS ENUM (
-    'PENDING',
-    'SUCCESS',
-    'FAILED',
-    'EXPIRED',
-    'REFUNDED'
-);
-
-CREATE TYPE payment_request_type AS ENUM (
-    'DEPOSIT',      -- nạp ví
-    'WITHDRAWAL'    -- rút ví
-);
+CREATE TYPE provider_type as ENUM(
+    'LOCAL',          -- Tài khoản do hệ thống quản lý
+    'GOOGLE',         -- Đăng nhập bằng Google
+    'FACEBOOK',       -- Đăng nhập bằng Facebook
+)
 
 -- ==========================================
--- BẢNG GỐC (đã có, chuẩn hóa lại)
+-- 1. PHÂN QUYỀN & TÀI KHOẢN
 -- ==========================================
 
-CREATE TABLE "role" (
+-- Bỏ: permissions, role_permissions, account_role
+-- Đơn giản hóa: accounts.role_id → roles trực tiếp
+
+CREATE TABLE roles (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        VARCHAR(50) NOT NULL UNIQUE,
+    name        VARCHAR(50)  NOT NULL UNIQUE, -- 'ADMIN', 'STAFF', 'USER'
     description VARCHAR(255)
 );
 
-CREATE TABLE permission (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        VARCHAR(100) NOT NULL UNIQUE,
-    description VARCHAR(255)
-);
-
-CREATE TABLE role_permission (
-    role_id        UUID NOT NULL REFERENCES "role"(id),
-    permission_id  UUID NOT NULL REFERENCES permission(id),
-    effective_date DATE,
-    PRIMARY KEY (role_id, permission_id)
-);
-
-CREATE TABLE account (
+CREATE TABLE accounts (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username   VARCHAR(100) NOT NULL UNIQUE,
     password   VARCHAR(255) NOT NULL,
-    is_active  BOOLEAN DEFAULT TRUE,
+    role_id    UUID NOT NULL REFERENCES roles(id), -- FK thẳng vào roles
+    is_active  BOOLEAN   DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE account_role (
-    account_id UUID NOT NULL REFERENCES account(id),
-    role_id    UUID NOT NULL REFERENCES "role"(id),
-    PRIMARY KEY (account_id, role_id)
-);
+-- ==========================================
+-- 2. NGƯỜI DÙNG & ĐỊA CHỈ
+-- ==========================================
 
-CREATE TABLE "user" (
-    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    account_id          UUID UNIQUE REFERENCES account(id),
-    full_name           VARCHAR(100) NOT NULL,
-    phone_number        VARCHAR(20) NOT NULL,
-    email               VARCHAR(100) NOT NULL UNIQUE,
-    identity_card       VARCHAR(20) UNIQUE,
-    gender              BOOLEAN,
-    reputation_score    INTEGER DEFAULT 100,
-    verification_status verification_status DEFAULT 'UNVERIFIED',
+CREATE TABLE users (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    account_id           UUID UNIQUE NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    full_name            VARCHAR(100) NOT NULL,
+    phone_number         VARCHAR(20)  NOT NULL,
+    email                VARCHAR(100) NOT NULL UNIQUE,
+    identity_card        VARCHAR(20)  UNIQUE,
+    gender               BOOLEAN,
+    reputation_score     INTEGER     DEFAULT 100,
+    verification_status  verification_status DEFAULT 'UNVERIFIED',
     identity_front_image VARCHAR(500),
     identity_back_image  VARCHAR(500),
-    created_at          TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMP
 );
 
-CREATE TABLE address (
+CREATE TABLE addresses (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID REFERENCES "user"(id),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     ward         VARCHAR(100),
     district     VARCHAR(100),
     city         VARCHAR(100),
     address_line VARCHAR(255),
-    is_default   BOOLEAN DEFAULT FALSE,        -- thêm: địa chỉ mặc định
+    is_default   BOOLEAN   DEFAULT FALSE,
     created_at   TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE category (
+-- ==========================================
+-- 3. DANH MỤC & SẢN PHẨM
+-- ==========================================
+
+CREATE TABLE categories (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100) NOT NULL,
     description VARCHAR(255),
-    parent_id   UUID REFERENCES category(id)   -- thêm: category cha/con
+    parent_id   UUID REFERENCES categories(id) -- tự tham chiếu: cha/con
 );
 
-CREATE TABLE product (
+CREATE TABLE products (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id             UUID REFERENCES "user"(id),  -- thêm: chủ sản phẩm
-    category_id         UUID REFERENCES category(id),
-    name                VARCHAR(255) NOT NULL,
+    user_id             UUID REFERENCES users(id),
+    category_id         UUID REFERENCES categories(id),
+    name                VARCHAR(255)      NOT NULL,
     condition           product_condition NOT NULL,
     description         VARCHAR(2000),
     origin              VARCHAR(255),
     provenance_file_url VARCHAR(500),
     manufacture_year    VARCHAR(10),
-    has_certificate     BOOLEAN DEFAULT FALSE,
+    has_certificate     BOOLEAN        DEFAULT FALSE,
     status              product_status DEFAULT 'PENDING',
     created_at          TIMESTAMP DEFAULT NOW(),
     updated_at          TIMESTAMP
 );
 
-CREATE TABLE image (
+CREATE TABLE images (
     id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID REFERENCES product(id) ON DELETE CASCADE,
-    name       VARCHAR(255),
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     file_url   VARCHAR(500) NOT NULL,
-    is_cover   BOOLEAN DEFAULT FALSE,
+    is_cover   BOOLEAN   DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE fee_config (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name        VARCHAR(100) NOT NULL,
-    percentage  NUMERIC(5,2),
-    minimum_fee NUMERIC(18,2),
-    valid_from  DATE NOT NULL,
-    valid_to    DATE,
-    description VARCHAR(255)
-);
+-- ==========================================
+-- 4. VÍ & GIAO DỊCH
+-- Gộp payment_requests + wallet_transactions → transactions
+-- ==========================================
 
-CREATE TABLE wallet (
+CREATE TABLE wallets (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id           UUID UNIQUE REFERENCES "user"(id),
-    wallet_type       wallet_type NOT NULL,
+    user_id           UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     available_balance NUMERIC(18,2) DEFAULT 0,
     frozen_balance    NUMERIC(18,2) DEFAULT 0,
     pin_code          VARCHAR(255),
@@ -244,53 +213,39 @@ CREATE TABLE wallet (
     updated_at        TIMESTAMP
 );
 
--- ==========================================
--- BẢNG MỚI CẦN THÊM #1: payment_request
--- Nạp/rút tiền qua VNPay, MoMo
--- ==========================================
-
-CREATE TABLE payment_request (
-    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    wallet_id               UUID NOT NULL REFERENCES wallet(id),
-    user_id                 UUID NOT NULL REFERENCES "user"(id),
-    type                    payment_request_type NOT NULL,
-    provider                payment_provider NOT NULL,
-    amount                  NUMERIC(18,2) NOT NULL,
-    provider_transaction_id VARCHAR(255),       -- mã giao dịch từ VNPay/MoMo
-    provider_response       TEXT,               -- raw response lưu debug
-    status                  payment_request_status DEFAULT 'PENDING',
-    expired_at              TIMESTAMP,          -- link thanh toán hết hạn
-    created_at              TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMP
+CREATE TABLE transactions (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wallet_id         UUID NOT NULL REFERENCES wallets(id), -- ví chịu tác động
+    related_wallet_id UUID REFERENCES wallets(id),          -- ví đối ứng (chuyển khoản nội bộ)
+    type              transaction_type   NOT NULL,
+    amount            NUMERIC(18,2)      NOT NULL,
+    status            transaction_status DEFAULT 'PENDING',
+    -- Cổng thanh toán (NULL nếu là giao dịch nội bộ)
+    gateway_provider  VARCHAR(20),   -- 'VNPAY', 'MOMO'
+    gateway_tx_id     VARCHAR(255),  -- mã GD từ đối tác
+    gateway_response  TEXT,          -- raw response để debug
+    expired_at        TIMESTAMP,     -- link thanh toán hết hạn
+    -- Tham chiếu nghiệp vụ
+    reference_type    VARCHAR(20),   -- 'REGISTRATION', 'ORDER', 'AUCTION'
+    reference_id      UUID,          -- trỏ tới bảng tương ứng
+    note              VARCHAR(500),
+    created_at        TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ==========================================
--- BẢNG GỐC (tiếp theo)
+-- 5. ĐẤU GIÁ
 -- ==========================================
 
-CREATE TABLE wallet_transaction (
-    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_wallet_id     UUID REFERENCES wallet(id),
-    destination_wallet_id UUID REFERENCES wallet(id),
-    payment_request_id   UUID REFERENCES payment_request(id), -- thêm: liên kết nạp/rút
-    reference_id         VARCHAR(255),
-    transaction_type     transaction_type NOT NULL,
-    amount               NUMERIC(18,2) NOT NULL,
-    note                 VARCHAR(500),                         -- thêm: mô tả giao dịch
-    transaction_time     TIMESTAMP NOT NULL DEFAULT NOW(),
-    status               transaction_status DEFAULT 'PENDING'
-);
-
-CREATE TABLE auction (
+CREATE TABLE auctions (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID REFERENCES "user"(id),
-    product_id       UUID REFERENCES product(id),
+    user_id          UUID REFERENCES users(id),
+    product_id       UUID REFERENCES products(id),
     start_price      NUMERIC(18,2) NOT NULL,
     current_price    NUMERIC(18,2) NOT NULL,
     step_price       NUMERIC(18,2) NOT NULL,
     deposit_amount   NUMERIC(18,2) NOT NULL,
-    platform_fee     NUMERIC(18,2),
-    cancellation_fee NUMERIC(18,2),
+    platform_fee     NUMERIC(18,2),   -- snapshot từ application.yml lúc tạo auction
+    cancellation_fee NUMERIC(18,2),   -- snapshot từ application.yml lúc tạo auction
     start_time       TIMESTAMP NOT NULL,
     end_time         TIMESTAMP NOT NULL,
     status           auction_status DEFAULT 'PENDING',
@@ -299,75 +254,58 @@ CREATE TABLE auction (
     updated_at       TIMESTAMP
 );
 
--- ==========================================
--- BẢNG MỚI CẦN THÊM #2: auction_registration
--- Đăng ký + nộp cọc trước khi bid
--- ==========================================
-
-CREATE TABLE auction_registration (
-    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    auction_id           UUID NOT NULL REFERENCES auction(id),
-    user_id              UUID NOT NULL REFERENCES "user"(id),
-    deposit_amount       NUMERIC(18,2) NOT NULL,
-    deposit_status       deposit_status DEFAULT 'PENDING',
-    registration_status  registration_status DEFAULT 'PENDING',
-    transaction_id       UUID REFERENCES wallet_transaction(id), -- giao dịch nộp cọc
-    refund_transaction_id UUID REFERENCES wallet_transaction(id),-- giao dịch hoàn cọc
-    registered_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-    approved_at          TIMESTAMP,
-    note                 VARCHAR(500),
+CREATE TABLE auction_registrations (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auction_id          UUID NOT NULL REFERENCES auctions(id),
+    user_id             UUID NOT NULL REFERENCES users(id),
+    deposit_amount      NUMERIC(18,2)       NOT NULL,
+    deposit_status      deposit_status      DEFAULT 'PENDING',
+    registration_status registration_status DEFAULT 'PENDING',
+    -- Tra transactions bằng reference_type='REGISTRATION', reference_id=id
+    registered_at       TIMESTAMP NOT NULL DEFAULT NOW(),
+    approved_at         TIMESTAMP,
+    note                VARCHAR(500),
     UNIQUE (auction_id, user_id)
 );
 
-CREATE TABLE bid (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID REFERENCES "user"(id),
-    auction_id   UUID REFERENCES auction(id),
-    bid_amount   NUMERIC(18,2) NOT NULL,
-    bid_time     TIMESTAMP NOT NULL DEFAULT NOW(),
-    is_winning   BOOLEAN DEFAULT FALSE           -- thêm: đánh dấu bid thắng hiện tại
+CREATE TABLE bids (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auction_id      UUID NOT NULL REFERENCES auctions(id),
+    user_id         UUID NOT NULL REFERENCES users(id),
+    bid_amount      NUMERIC(18,2) NOT NULL,
+    bid_time        TIMESTAMP NOT NULL DEFAULT NOW(),
+    is_winning      BOOLEAN DEFAULT FALSE, -- true = đang là bid cao nhất
+    -- Gộp auction_extension_logs vào đây
+    triggered_extend BOOLEAN   DEFAULT FALSE, -- bid này có kích hoạt gia hạn không
+    new_end_time     TIMESTAMP               -- end_time mới nếu có gia hạn
 );
 
-CREATE TABLE auction_record (
+CREATE TABLE auction_records (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    auction_id   UUID REFERENCES auction(id),
-    user_id      UUID REFERENCES "user"(id),
-    bid_id       UUID REFERENCES bid(id),        -- thêm: bid tương ứng
-    winning_rank INTEGER,
-    final_price  NUMERIC(18,2),                  -- thêm: giá thắng cuối cùng
+    auction_id   UUID REFERENCES auctions(id),
+    user_id      UUID REFERENCES users(id),
+    bid_id       UUID REFERENCES bids(id),
+    winning_rank INTEGER,         -- 1 = winner, 2 = backup
+    final_price  NUMERIC(18,2),
     status       auction_record_status DEFAULT 'PENDING_PAYMENT',
-    expiry_time  TIMESTAMP NOT NULL,             -- deadline thanh toán
+    expiry_time  TIMESTAMP NOT NULL,  -- deadline thanh toán
     created_at   TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- ==========================================
--- BẢNG MỚI CẦN THÊM #3: auction_extension_log
--- Log khi phiên đấu giá bị gia hạn (bid vào phút cuối)
+-- 6. ĐƠN HÀNG & KHIẾU NẠI
 -- ==========================================
 
-CREATE TABLE auction_extension_log (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    auction_id      UUID NOT NULL REFERENCES auction(id),
-    old_end_time    TIMESTAMP NOT NULL,
-    new_end_time    TIMESTAMP NOT NULL,
-    triggered_by_bid_id UUID REFERENCES bid(id),
-    extended_at     TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
--- ==========================================
--- BẢNG GỐC (tiếp theo)
--- ==========================================
-
-CREATE TABLE "order" (
+CREATE TABLE orders (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    auction_record_id UUID REFERENCES auction_record(id),
-    user_id           UUID NOT NULL REFERENCES "user"(id),   -- thêm: buyer rõ ràng
-    total_amount      NUMERIC(18,2),
+    auction_record_id UUID REFERENCES auction_records(id),
+    buyer_id          UUID NOT NULL REFERENCES users(id),
+    seller_id         UUID NOT NULL REFERENCES users(id),  -- thêm để query nhanh
+    total_amount      NUMERIC(18,2) NOT NULL,
     status            order_status DEFAULT 'PENDING_PAYMENT',
-    -- gặp trực tiếp, không ship
-    meeting_address   VARCHAR(500),                           -- địa điểm gặp
-    meeting_time      TIMESTAMP,                              -- thời gian hẹn gặp
-    met_at            TIMESTAMP,                              -- thực tế gặp lúc nào
+    meeting_address   VARCHAR(500),
+    meeting_time      TIMESTAMP,
+    met_at            TIMESTAMP,
     note              VARCHAR(500),
     rating_score      INTEGER CHECK (rating_score BETWEEN 1 AND 5),
     review_content    VARCHAR(1000),
@@ -376,60 +314,106 @@ CREATE TABLE "order" (
     updated_at        TIMESTAMP
 );
 
-CREATE TABLE dispute (
+CREATE TABLE disputes (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id     UUID REFERENCES "order"(id),
-    user_id      UUID REFERENCES "user"(id),
-    reason       VARCHAR(255),
+    order_id     UUID NOT NULL REFERENCES orders(id),
+    claimant_id  UUID NOT NULL REFERENCES users(id),  -- người tạo khiếu nại
+    reason       VARCHAR(255) NOT NULL,
     description  VARCHAR(2000),
     evidence_url VARCHAR(500),
     status       dispute_status DEFAULT 'OPEN',
-    resolved_by  UUID REFERENCES "user"(id),    -- thêm: admin xử lý
-    resolution   VARCHAR(1000),                  -- thêm: kết quả xử lý
+    resolved_by  UUID REFERENCES users(id),           -- admin xử lý
+    resolution   VARCHAR(1000),
     created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
     resolved_at  TIMESTAMP
 );
 
-CREATE TABLE reputation_history (
+-- ==========================================
+-- 7. UY TÍN
+-- ==========================================
+
+CREATE TABLE reputation_histories (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID REFERENCES "user"(id),
-    score_change INTEGER NOT NULL,
+    user_id      UUID NOT NULL REFERENCES users(id),
+    score_change INTEGER NOT NULL,   -- +5, -10
     reason       VARCHAR(255),
-    reference_id UUID,                           -- thêm: order_id hoặc dispute_id
-    created_at   TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE notification (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    notification_type VARCHAR(50),
-    title             VARCHAR(255) NOT NULL,
-    content           VARCHAR(1000),
-    link_type         VARCHAR(50),
-    reference_id      UUID,
-    created_at        TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE user_notification (
-    user_id         UUID NOT NULL REFERENCES "user"(id),
-    notification_id UUID NOT NULL REFERENCES notification(id),
-    is_read         BOOLEAN DEFAULT FALSE,
-    read_at         TIMESTAMP,                   -- thêm: đọc lúc nào
-    PRIMARY KEY (user_id, notification_id)
+    order_id     UUID REFERENCES orders(id),
+    dispute_id   UUID REFERENCES disputes(id),
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_reputation_ref CHECK (
+        (order_id IS NOT NULL AND dispute_id IS NULL)
+        OR
+        (order_id IS NULL   AND dispute_id IS NOT NULL)
+    )
 );
 
 -- ==========================================
--- INDEXES (performance)
+-- 8. THÔNG BÁO
+-- Gộp notifications + user_notifications → notifications
 -- ==========================================
 
-CREATE INDEX idx_auction_status       ON auction(status);
-CREATE INDEX idx_auction_end_time     ON auction(end_time);
-CREATE INDEX idx_bid_auction_id       ON bid(auction_id);
-CREATE INDEX idx_bid_user_id          ON bid(user_id);
-CREATE INDEX idx_registration_auction ON auction_registration(auction_id);
-CREATE INDEX idx_registration_user    ON auction_registration(user_id);
-CREATE INDEX idx_wallet_tx_source     ON wallet_transaction(source_wallet_id);
-CREATE INDEX idx_wallet_tx_dest       ON wallet_transaction(destination_wallet_id);
-CREATE INDEX idx_payment_request_user ON payment_request(user_id);
-CREATE INDEX idx_order_user           ON "order"(user_id);
-CREATE INDEX idx_product_user         ON product(user_id);
-CREATE INDEX idx_product_status       ON product(status);
+CREATE TABLE notifications (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type           VARCHAR(50),    -- 'BID_PLACED', 'AUCTION_WON', 'DEPOSIT_REFUNDED'
+    title          VARCHAR(255) NOT NULL,
+    content        VARCHAR(1000),
+    reference_type VARCHAR(20),   -- 'AUCTION', 'ORDER', 'DISPUTE'
+    reference_id   UUID,
+    is_read        BOOLEAN   DEFAULT FALSE,
+    read_at        TIMESTAMP,
+    created_at     TIMESTAMP DEFAULT NOW()
+);
+
+-- ==========================================
+-- INDEXES
+-- ==========================================
+
+-- Accounts
+CREATE INDEX idx_accounts_role_id         ON accounts(role_id);
+
+-- Users
+CREATE INDEX idx_users_account_id         ON users(account_id);
+
+-- Products
+CREATE INDEX idx_products_user_id         ON products(user_id);
+CREATE INDEX idx_products_status          ON products(status);
+CREATE INDEX idx_products_category_id     ON products(category_id);
+
+-- Auctions
+CREATE INDEX idx_auctions_status          ON auctions(status);
+CREATE INDEX idx_auctions_end_time        ON auctions(end_time);
+CREATE INDEX idx_auctions_user_id         ON auctions(user_id);
+
+-- Bids
+CREATE INDEX idx_bids_auction_id          ON bids(auction_id);
+CREATE INDEX idx_bids_user_id             ON bids(user_id);
+CREATE INDEX idx_bids_auction_winning     ON bids(auction_id, is_winning);
+
+-- Registrations
+CREATE INDEX idx_registrations_auction_id ON auction_registrations(auction_id);
+CREATE INDEX idx_registrations_user_id    ON auction_registrations(user_id);
+
+-- Transactions
+CREATE INDEX idx_transactions_wallet_id   ON transactions(wallet_id);
+CREATE INDEX idx_transactions_type        ON transactions(type);
+CREATE INDEX idx_transactions_status      ON transactions(status);
+CREATE INDEX idx_transactions_ref         ON transactions(reference_type, reference_id);
+
+-- Orders
+CREATE INDEX idx_orders_buyer_id          ON orders(buyer_id);
+CREATE INDEX idx_orders_seller_id         ON orders(seller_id);
+CREATE INDEX idx_orders_status            ON orders(status);
+
+-- Disputes
+CREATE INDEX idx_disputes_order_id        ON disputes(order_id);
+CREATE INDEX idx_disputes_status          ON disputes(status);
+
+-- Reputation
+CREATE INDEX idx_reputation_user_id       ON reputation_histories(user_id);
+CREATE INDEX idx_reputation_order_id      ON reputation_histories(order_id);
+CREATE INDEX idx_reputation_dispute_id    ON reputation_histories(dispute_id);
+
+-- Notifications
+CREATE INDEX idx_notifications_user_id    ON notifications(user_id);
+CREATE INDEX idx_notifications_unread     ON notifications(user_id, is_read);
