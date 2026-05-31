@@ -7,6 +7,11 @@ spring:
     name: AuctionPlatform
   main:
     allow-bean-definition-overriding: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
   datasource:
     url: jdbc:postgresql://localhost:5432;databaseName=auctiondb;encrypt=true;trustServerCertificate=true;
     username: root

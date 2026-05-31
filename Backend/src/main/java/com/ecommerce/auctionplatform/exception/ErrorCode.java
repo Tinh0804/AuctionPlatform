@@ -17,7 +17,13 @@ public enum ErrorCode {
     UNAUTHORIZED(401,"Unauthorized", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(403,"Forbidden", HttpStatus.FORBIDDEN),
     BAD_REQUEST(400,"Bad request", HttpStatus.BAD_REQUEST),
-    UNCATEGORIZED_EXCEPTION(1000,"Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR);
+    UNCATEGORIZED_EXCEPTION(1000,"Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    TOKEN_BLACKLISTED(401,"Token is blacklisted", HttpStatus.UNAUTHORIZED),
+    TOKEN_EXPIRED(401,"Token has expired", HttpStatus.UNAUTHORIZED),
+    TOKEN_INVALID(401,"Token is invalid", HttpStatus.UNAUTHORIZED),
+    TOKEN_NOT_FOUND(404,"Token not found", HttpStatus.NOT_FOUND),
+    ACCOUNT_LOCKED(403,"Account is locked", HttpStatus.FORBIDDEN);
 
 
     private final String message;
