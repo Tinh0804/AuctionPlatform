@@ -12,8 +12,10 @@ spring:
       host: localhost
       port: 6379
       database: 0
+  cache:
+    type: redis
   datasource:
-    url: jdbc:postgresql://localhost:5432;databaseName=auctiondb;encrypt=true;trustServerCertificate=true;
+    url: jdbc:postgresql://localhost:5432/auctiondb
     username: root
     password: "@Tinh0804"
     driver-class-name: org.postgresql.Driver
@@ -72,3 +74,8 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
+
+app:
+  cors:
+    allowed-origins: ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+

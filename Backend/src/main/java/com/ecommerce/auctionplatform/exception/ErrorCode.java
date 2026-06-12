@@ -23,7 +23,10 @@ public enum ErrorCode {
     TOKEN_EXPIRED(401,"Token has expired", HttpStatus.UNAUTHORIZED),
     TOKEN_INVALID(401,"Token is invalid", HttpStatus.UNAUTHORIZED),
     TOKEN_NOT_FOUND(404,"Token not found", HttpStatus.NOT_FOUND),
-    ACCOUNT_LOCKED(403,"Account is locked", HttpStatus.FORBIDDEN);
+    ACCOUNT_LOCKED(403,"Account is locked", HttpStatus.FORBIDDEN),
+    UNAUTHENTACATED(401,"Unauthenticated", HttpStatus.UNAUTHORIZED),
+    ACCOUNT_INACTIVE(403,"Account is inactive", HttpStatus.FORBIDDEN),
+    ROLE_NOT_FOUND(404,"Role not found", HttpStatus.NOT_FOUND);
 
 
     private final String message;

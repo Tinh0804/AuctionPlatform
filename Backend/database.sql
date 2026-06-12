@@ -1,13 +1,4 @@
--- ==========================================
--- AUCTION SYSTEM - FINAL SCHEMA
--- PostgreSQL
--- Tổng: 18 bảng
--- ==========================================
-
--- ==========================================
--- ENUMS
--- ==========================================
-
+CREATE DATABASE auctiondb;
 CREATE TYPE verification_status AS ENUM (
     'UNVERIFIED',
     'PENDING',
@@ -102,11 +93,11 @@ CREATE TYPE dispute_status AS ENUM (
     'CLOSED'
 );
 
-CREATE TYPE provider_type as ENUM(
+CREATE TYPE provider_type as  ENUM(
     'LOCAL',          -- Tài khoản do hệ thống quản lý
     'GOOGLE',         -- Đăng nhập bằng Google
-    'FACEBOOK',       -- Đăng nhập bằng Facebook
-)
+    'FACEBOOK'      -- Đăng nhập bằng Facebook
+);
 
 -- ==========================================
 -- 1. PHÂN QUYỀN & TÀI KHOẢN
@@ -127,7 +118,9 @@ CREATE TABLE accounts (
     password   VARCHAR(255) NOT NULL,
     role_id    UUID NOT NULL REFERENCES roles(id), -- FK thẳng vào roles
     is_active  BOOLEAN   DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    provider provider_type  NOT null default "LOCAL",
+    provider_id  VARCHAR(255)
 );
 
 -- ==========================================

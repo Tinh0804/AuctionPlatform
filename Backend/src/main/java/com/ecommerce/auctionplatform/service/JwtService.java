@@ -46,33 +46,7 @@ public class JwtService {
     @Value("${jwt.refreshable-duration}")
     protected long REFRESHABLE_DURATION;
 
-    public String generateToken(Account account,long durationInSeconds){
-        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
 
-        User user = userRepository.findByAccountId(account.getId())
-                .orElseThrow(()->new AppException(ErrorCode.USER_NOT_FOUND));
-
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(account.getId().toString())
-                .issuer("AuctionPlatform")
-                .issueTime(new Date())
-                .expirationTime(Date.from(Instant.now().plus(durationInSeconds, ChronoUnit.SECONDS)))
-                .claim("scope",buildScope(account))
-                .claim("profile_id",user.getId())
-                .jwtID(UUID.randomUUID().toString())
-                .build();
-
-        Payload payload = new Payload(jwtClaimsSet.toJSONObject());
-        JWSObject jwsObject=new JWSObject(header,payload);
-        try {
-            jwsObject.sign(new MACSigner(SIGNER_KEY));
-            return jwsObject.serialize();
-        } catch (JOSEException e) {
-            throw new RuntimeException(e);
-        }
-
-
-    }
 
     public boolean introspect(String token) throws JOSEException, ParseException {
         try {
@@ -82,7 +56,12 @@ public class JwtService {
             return false;
         }
     }
-
+    public String generateAccessToken(Account account){
+        return generateToken(account, VALID_DURATION);
+    }
+    public String generateRefreshToken(Account account){
+        return generateToken(account, REFRESHABLE_DURATION);
+    }
     public String refreshToken(String refreshToken) throws JOSEException, ParseException {
         String token = SecurityUtils.getCurrentToken()
                 .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
@@ -108,7 +87,35 @@ public class JwtService {
 
         Account account = accountRepository.findById(UUID.fromString(accessSubject))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        return generateToken(account, VALID_DURATION);
+        return generateAccessToken(account);
+
+    }
+
+    private String generateToken(Account account,long duration){
+        JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
+
+        User user = userRepository.findByAccountId(account.getId())
+                .orElseThrow(()->new AppException(ErrorCode.USER_NOT_FOUND));
+
+        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
+                .subject(account.getId().toString())
+                .issuer("AuctionPlatform")
+                .issueTime(new Date())
+                .expirationTime(Date.from(Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS)))
+                .claim("scope",buildScope(account))
+                .claim("profile_id",user.getId())
+                .jwtID(UUID.randomUUID().toString())
+                .build();
+
+        Payload payload = new Payload(jwtClaimsSet.toJSONObject());
+        JWSObject jwsObject=new JWSObject(header,payload);
+        try {
+            jwsObject.sign(new MACSigner(SIGNER_KEY));
+            return jwsObject.serialize();
+        } catch (JOSEException e) {
+            throw new RuntimeException(e);
+        }
+
 
     }
     public String extractUsername(String token) {
@@ -122,7 +129,7 @@ public class JwtService {
         }
     }
 
-    private SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
+    public SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
         JWSVerifier verifier=new MACVerifier(SIGNER_KEY.getBytes());
         SignedJWT signedJWT=SignedJWT.parse(token);
         boolean verified= signedJWT.verify(verifier);

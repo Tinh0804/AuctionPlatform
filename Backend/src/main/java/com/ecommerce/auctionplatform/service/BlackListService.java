@@ -23,6 +23,7 @@ public class BlackListService {
         redisTemplate.opsForValue().set(key,"revoked",remainingTime, TimeUnit.MILLISECONDS);
     }
 
+
     public boolean isBlackListed(String token) {
         String key = BLACKLIST_PREFIX + ":" + token;
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));

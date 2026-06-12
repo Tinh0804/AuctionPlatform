@@ -23,11 +23,11 @@ public class User {
     @JoinColumn(name = "account_id", referencedColumnName = "id", nullable = false)
     Account account;
 
-    @Column(name = "full_name", nullable = false, length = 100)
-    String fullName;
+    @Column(name = "name", nullable = false, length = 100)
+    String name;
 
     @Column(name = "phone_number", nullable = false, length = 20)
-    String phoneNumber;
+    String phone;
 
     @Column(nullable = false, unique = true, length = 100)
     String email;

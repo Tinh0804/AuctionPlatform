@@ -1,0 +1,113 @@
+package com.ecommerce.auctionplatform.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private List<String> allowedOrigins;
+
+    @Autowired
+    private JwtDecoder jwtDecoder;
+
+    private final String[] AUTH_ENDPOINTS = {
+            "/auth/login",
+            "/auth/register",
+            "/customer/register",
+            "/drivers/register",
+    };
+
+    private final String[] SWAGGER_ENDPOINTS = {
+            "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
+    };
+    private final String[] SOCKET_ENDPOINTS = {
+            "/ws/**", "/topic/**", "/app/**"
+    };
+    private  final String[] PAYMENT_ENDPOINTS={
+            "/payments/momo/return",
+            "/payments/vnpay/return",
+            "/payments/momo/notify",
+            "/payments/vnpay/notify",
+            "/payments/momo/callback",
+            "/payments/vnpay/callback",
+    };
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
+        http
+                .csrf(Customizer.withDefaults())
+                .headers(headers-> headers
+                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
+                        .xssProtection(Customizer.withDefaults())
+                )
+                .authorizeHttpRequests(auth->auth
+                        .requestMatchers(AUTH_ENDPOINTS).permitAll()
+                        .requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+                        .requestMatchers(SOCKET_ENDPOINTS).permitAll()
+                        .requestMatchers(PAYMENT_ENDPOINTS).permitAll()
+                        .anyRequest().authenticated()
+                )
+                .csrf(AbstractHttpConfigurer::disable);
+        http
+                .oauth2ResourceServer(oauth2->oauth2
+                        .jwt(
+                                jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
+                                        .jwtAuthenticationConverter(this.jwtAuthenticationConverter())//Convert tên mặt định spring security trong token
+                        )
+                        .authenticationEntryPoint(new JWTAuthentication())
+                ) .oauth2Login(Customizer.withDefaults());
+        return http.build();
+    }
+
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter(){
+        JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        grantedAuthoritiesConverter.setAuthorityPrefix("");   // Không thêm prefix vì token đã có "ROLE_"
+        grantedAuthoritiesConverter.setAuthoritiesClaimName("roles"); // Đọc từ claim "roles" thay vì "scope"
+
+        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+        return jwtAuthenticationConverter;
+    }
+
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token"));
+        configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
+        configuration.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+}

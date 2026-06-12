@@ -1,17 +1,18 @@
 package com.ecommerce.auctionplatform.entity;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 import java.util.UUID;
 
+@Entity
+@Table(name = "roles")
 @Data
 @Builder
-@Entity
-@FieldDefaults(makeFinal = true,level = AccessLevel.PRIVATE)
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class Role {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
