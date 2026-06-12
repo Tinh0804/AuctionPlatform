@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="The Curator auction favicon">
+  <rect width="64" height="64" rx="14" fill="#15100B"/>
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#9A6A2F" stroke-width="3" opacity="0.95"/>
+  <path d="M18 47h28" stroke="#FFF8ED" stroke-width="4" stroke-linecap="round"/>
+  <path d="M24 41h16" stroke="#B8863B" stroke-width="5" stroke-linecap="round"/>
+  <path d="M26 18l20 20" stroke="#FFF8ED" stroke-width="6" stroke-linecap="round"/>
+  <path d="M21 23l10-10" stroke="#B8863B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M41 43l8-8" stroke="#B8863B" stroke-width="6" stroke-linecap="round"/>
+  <path d="M20 24l9-9M40 44l9-9" stroke="#15100B" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+</svg>
