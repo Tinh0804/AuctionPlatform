@@ -5,6 +5,9 @@ import com.ecommerce.auctionplatform.entity.enums.TransactionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -29,15 +32,18 @@ public class Transaction {
     @JoinColumn(name = "related_wallet_id")
     Wallet relatedWallet;
 
-    @Column(nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "transaction_type")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     TransactionType type;
 
     @Column(nullable = false, precision = 18, scale = 2)
     BigDecimal amount;
 
     @Builder.Default
+    @Column(name = "status", nullable = false, columnDefinition = "transaction_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     TransactionStatus status = TransactionStatus.PENDING;
 
     @Column(name = "gateway_provider", length = 20)

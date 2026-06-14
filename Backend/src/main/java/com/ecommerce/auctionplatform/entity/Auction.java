@@ -4,6 +4,9 @@ import com.ecommerce.auctionplatform.entity.enums.AuctionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -53,7 +56,9 @@ public class Auction {
     LocalDateTime endTime;
 
     @Builder.Default
+    @Column(name = "status", nullable = false, columnDefinition = "auction_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     AuctionStatus status = AuctionStatus.PENDING;
 
     @Column(length = 2000)

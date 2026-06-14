@@ -4,6 +4,9 @@ import com.ecommerce.auctionplatform.entity.enums.DisputeStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -37,7 +40,9 @@ public class Dispute {
     String evidenceUrl;
 
     @Builder.Default
+    @Column(name = "status", nullable = false, columnDefinition = "dispute_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     DisputeStatus status = DisputeStatus.OPEN;
 
     @ManyToOne
