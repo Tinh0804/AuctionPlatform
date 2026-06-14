@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Locale;
 
 @Slf4j
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @RequiredArgsConstructor
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public class ApplicationInitial {
@@ -70,8 +70,6 @@ public class ApplicationInitial {
                         .isActive(true)
                         .provider(ProviderType.LOCAL)
                         .build();
-
-                account = accountRepository.save(account);
 
                 User adminProfile = User.builder()
                         .name("System Admin")

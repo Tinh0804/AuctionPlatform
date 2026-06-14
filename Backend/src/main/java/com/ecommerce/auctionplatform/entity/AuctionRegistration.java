@@ -5,6 +5,9 @@ import com.ecommerce.auctionplatform.entity.enums.RegistrationStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -35,13 +38,15 @@ public class AuctionRegistration {
     BigDecimal depositAmount;
 
     @Builder.Default
-    @Column(name = "deposit_status")
+    @Column(name = "deposit_status", nullable = false, columnDefinition = "deposit_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     DepositStatus depositStatus = DepositStatus.PENDING;
 
     @Builder.Default
-    @Column(name = "registration_status")
+    @Column(name = "registration_status", nullable = false, columnDefinition = "registration_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     RegistrationStatus registrationStatus = RegistrationStatus.PENDING;
 
     @Builder.Default

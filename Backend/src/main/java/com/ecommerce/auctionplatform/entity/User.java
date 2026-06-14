@@ -4,6 +4,9 @@ import com.ecommerce.auctionplatform.entity.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -42,8 +45,9 @@ public class User {
     Integer reputationScore = 100;
 
     @Builder.Default
-    @Column(name = "verification_status")
+    @Column(name = "verification_status",nullable = false, columnDefinition = "verification_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
 
     @Column(name = "identity_front_image", length = 500)

@@ -5,6 +5,9 @@ import com.ecommerce.auctionplatform.entity.enums.ProductStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -31,8 +34,9 @@ public class Product {
     @Column(nullable = false, length = 255)
     String name;
 
-    @Column(nullable = false)
+    @Column(name = "condition", nullable = false, columnDefinition = "product_condition")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     ProductCondition condition;
 
     @Column(length = 2000)
@@ -51,7 +55,9 @@ public class Product {
     Boolean hasCertificate = false;
 
     @Builder.Default
+    @Column(name = "status", nullable = false, columnDefinition = "product_status")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     ProductStatus status = ProductStatus.PENDING;
 
     @Builder.Default

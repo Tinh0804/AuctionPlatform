@@ -5,6 +5,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -41,8 +45,9 @@ public class Account {
     LocalDateTime createdAt = LocalDateTime.now();
 
     @Builder.Default
-    @Column(name = "provider", length = 20)
+    @Column(name = "provider", columnDefinition = "provider_type")
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     ProviderType provider = ProviderType.LOCAL;
 
     @Column(name = "provider_id", length = 255)
