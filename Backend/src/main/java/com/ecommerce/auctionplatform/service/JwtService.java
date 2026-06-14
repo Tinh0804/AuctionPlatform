@@ -1,10 +1,13 @@
 package com.ecommerce.auctionplatform.service;
 
+import com.ecommerce.auctionplatform.dto.request.RefreshRequest;
+import com.ecommerce.auctionplatform.dto.respose.AuthenticationResponse;
 import com.ecommerce.auctionplatform.entity.Account;
 import com.ecommerce.auctionplatform.entity.Role;
 import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
+import com.ecommerce.auctionplatform.mapper.AccountMapper;
 import com.ecommerce.auctionplatform.repository.AccountRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
@@ -13,7 +16,9 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE , makeFinal = true)
 public class JwtService {
 
 
@@ -33,6 +39,8 @@ public class JwtService {
     BlackListService blackListService;
     AccountRepository accountRepository;
 
+
+    AccountMapper accountMapper;
 
     @NonFinal
     @Value("${jwt.signerKey}")
@@ -62,34 +70,45 @@ public class JwtService {
     public String generateRefreshToken(Account account){
         return generateToken(account, REFRESHABLE_DURATION);
     }
-    public String refreshToken(String refreshToken) throws JOSEException, ParseException {
-        String token = SecurityUtils.getCurrentToken()
-                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_NOT_FOUND));
 
-        SignedJWT signedRefresh = verifyToken(refreshToken, true);
-        SignedJWT signedAccess = verifyToken(token, false);
+    public AuthenticationResponse refreshToken(RefreshRequest request) throws JOSEException, ParseException {
+        SignedJWT signedRefresh = verifyToken(request.getRefreshToken(), false);
+        SignedJWT signedAccess = verifyToken(request.getToken(), true);
 
-        String refreshSubject = signedRefresh.getJWTClaimsSet().getSubject(); // Thường là username hoặc userId
+        String refreshSubject = signedRefresh.getJWTClaimsSet().getSubject();
         String accessSubject = signedAccess.getJWTClaimsSet().getSubject();
-        String accessJti = signedAccess.getJWTClaimsSet().getJWTID(); // ID của access token cũ
+        String accessJti = signedAccess.getJWTClaimsSet().getJWTID();
+        String refreshJti = signedRefresh.getJWTClaimsSet().getJWTID();
 
         if (!refreshSubject.equals(accessSubject)) {
-            throw new AppException(ErrorCode.INVALID_TOKEN); // Hoặc INVALID_TOKEN
+            throw new AppException(ErrorCode.INVALID_TOKEN);
         }
 
-        Date accessExpiryTime = signedAccess.getJWTClaimsSet().getExpirationTime();
+        java.util.Date accessExpiryTime = signedAccess.getJWTClaimsSet().getExpirationTime();
         long remainingTime = accessExpiryTime.getTime() - System.currentTimeMillis();
-
         if (remainingTime > 0) {
-            // Hàm này gọi tới TokenBlacklistService đã viết ở trên
             blackListService.addToBlackList(accessJti, remainingTime);
+        }
+
+        java.util.Date refreshExpiryTime = signedRefresh.getJWTClaimsSet().getExpirationTime();
+        long refreshRemainingTime = refreshExpiryTime.getTime() - System.currentTimeMillis();
+        if (refreshRemainingTime > 0) {
+            blackListService.addToBlackList(refreshJti, refreshRemainingTime);
         }
 
         Account account = accountRepository.findById(UUID.fromString(accessSubject))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        return generateAccessToken(account);
 
+        String newToken = generateAccessToken(account);
+        String newRefreshToken = generateRefreshToken(account);
+
+        return AuthenticationResponse.builder()
+                .token(newToken)
+                .refreshToken(newRefreshToken)
+                .account(accountMapper.toAccountResponse(account))
+                .build();
     }
+
 
     private String generateToken(Account account,long duration){
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS512);
@@ -101,7 +120,7 @@ public class JwtService {
                 .subject(account.getId().toString())
                 .issuer("AuctionPlatform")
                 .issueTime(new Date())
-                .expirationTime(Date.from(Instant.now().plus(VALID_DURATION, ChronoUnit.SECONDS)))
+                .expirationTime(Date.from(Instant.now().plus(duration, ChronoUnit.SECONDS)))
                 .claim("scope",buildScope(account))
                 .claim("profile_id",user.getId())
                 .jwtID(UUID.randomUUID().toString())
@@ -129,20 +148,21 @@ public class JwtService {
         }
     }
 
-    public SignedJWT verifyToken(String token, boolean isRefresh) throws JOSEException, ParseException {
+    public SignedJWT verifyToken(String token, boolean ignoreExpiration) throws JOSEException, ParseException {
         JWSVerifier verifier=new MACVerifier(SIGNER_KEY.getBytes());
         SignedJWT signedJWT=SignedJWT.parse(token);
         boolean verified= signedJWT.verify(verifier);
-        Date expiryTime=(isRefresh) ?
-                new Date(signedJWT.getJWTClaimsSet().getIssueTime().toInstant().plus(VALID_DURATION,ChronoUnit.SECONDS).toEpochMilli())//kiểm tra token refresh hết hạn
-                :signedJWT.getJWTClaimsSet().getExpirationTime();//kiểm tra tokenVerify hết hạn
+        Date expiryTime=signedJWT.getJWTClaimsSet().getExpirationTime();
 
-        if(!(verified && expiryTime.after(new Date())))
-            throw  new AppException(ErrorCode.INVALID_TOKEN);
+        if(!verified)
+            throw new AppException(ErrorCode.INVALID_TOKEN);
+
+        if(!expiryTime.after(new Date()) && !ignoreExpiration)
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
 
         if(blackListService.isBlackListed(token))
-            throw  new AppException(ErrorCode.TOKEN_BLACKLISTED);
-        return  signedJWT;
+            throw new AppException(ErrorCode.TOKEN_BLACKLISTED);
+        return signedJWT;
     }
 
     private String buildScope(Account account) {

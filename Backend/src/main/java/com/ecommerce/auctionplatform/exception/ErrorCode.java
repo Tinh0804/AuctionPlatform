@@ -26,7 +26,10 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(403,"Account is locked", HttpStatus.FORBIDDEN),
     UNAUTHENTACATED(401,"Unauthenticated", HttpStatus.UNAUTHORIZED),
     ACCOUNT_INACTIVE(403,"Account is inactive", HttpStatus.FORBIDDEN),
-    ROLE_NOT_FOUND(404,"Role not found", HttpStatus.NOT_FOUND);
+    ROLE_NOT_FOUND(404,"Role not found", HttpStatus.NOT_FOUND),
+    USERNAME_EXISTED(400, "Username already exists", HttpStatus.BAD_REQUEST),
+    EMAIL_EXISTED(400, "Email already exists", HttpStatus.BAD_REQUEST),
+    PHONE_EXISTED(400, "Phone number already exists", HttpStatus.BAD_REQUEST);
 
 
     private final String message;

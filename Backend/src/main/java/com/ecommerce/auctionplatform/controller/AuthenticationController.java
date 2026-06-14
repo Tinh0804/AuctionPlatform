@@ -1,12 +1,19 @@
 package com.ecommerce.auctionplatform.controller;
 
 import com.ecommerce.auctionplatform.dto.request.LoginRequest;
+import com.ecommerce.auctionplatform.dto.request.RefreshRequest;
+import com.ecommerce.auctionplatform.dto.request.RegisterRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuthenticationResponse;
 import com.ecommerce.auctionplatform.service.AuthenticationService;
+import com.nimbusds.jose.JOSEException;
+
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+
+import java.text.ParseException;
+
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,13 +26,31 @@ public class AuthenticationController {
 
     @PostMapping("/login")
     APIResponse<AuthenticationResponse> login(@RequestBody LoginRequest request){
-        // Implement login logic here
         AuthenticationResponse response = authenticationService.login(request);
-        // Set response fields based on login result
         return APIResponse.<AuthenticationResponse>builder()
                 .result(response)
-                .status(200) // Set appropriate status code
-                .message("Login successful") // Set appropriate message
+                .status(200)
+                .message("Login successful")
+                .build();
+    }
+
+
+    @PostMapping("/register")
+    APIResponse<Void> register(@RequestBody RegisterRequest request) {
+        authenticationService.register(request);
+        return APIResponse.<Void>builder()
+                .status(200)
+                .message("Registration successful")
+                .build();
+    }
+
+    @PostMapping("/refresh")
+    APIResponse<AuthenticationResponse> refresh(@RequestBody RefreshRequest request) throws ParseException, JOSEException {
+        AuthenticationResponse response = authenticationService.refreshToken(request);
+        return APIResponse.<AuthenticationResponse>builder()
+                .result(response)
+                .status(200)
+                .message("Token refreshed successfully")
                 .build();
     }
 

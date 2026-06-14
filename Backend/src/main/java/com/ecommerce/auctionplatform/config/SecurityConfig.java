@@ -26,88 +26,86 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000}")
-    private List<String> allowedOrigins;
+        @Value("${app.cors.allowed-origins:http://localhost:3000}")
+        private List<String> allowedOrigins;
 
-    @Autowired
-    private JwtDecoder jwtDecoder;
+        @Autowired
+        private JwtDecoder jwtDecoder;
 
-    private final String[] AUTH_ENDPOINTS = {
-            "/auth/login",
-            "/auth/register",
-            "/customer/register",
-            "/drivers/register",
-    };
+        private final String[] AUTH_ENDPOINTS = {
+                        "/auth/login",
+                        "/auth/register",
+                        "/auth/refresh",
+                        "/customer/register",
+                        "/drivers/register",
+                        "/error"
+        };
 
-    private final String[] SWAGGER_ENDPOINTS = {
-            "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
-    };
-    private final String[] SOCKET_ENDPOINTS = {
-            "/ws/**", "/topic/**", "/app/**"
-    };
-    private  final String[] PAYMENT_ENDPOINTS={
-            "/payments/momo/return",
-            "/payments/vnpay/return",
-            "/payments/momo/notify",
-            "/payments/vnpay/notify",
-            "/payments/momo/callback",
-            "/payments/vnpay/callback",
-    };
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
-        http
-                .csrf(Customizer.withDefaults())
-                .headers(headers-> headers
-                        .frameOptions(frameOptions -> frameOptions.sameOrigin())
-                        .xssProtection(Customizer.withDefaults())
-                )
-                .authorizeHttpRequests(auth->auth
-                        .requestMatchers(AUTH_ENDPOINTS).permitAll()
-                        .requestMatchers(SWAGGER_ENDPOINTS).permitAll()
-                        .requestMatchers(SOCKET_ENDPOINTS).permitAll()
-                        .requestMatchers(PAYMENT_ENDPOINTS).permitAll()
-                        .anyRequest().authenticated()
-                )
-                .csrf(AbstractHttpConfigurer::disable);
-        http
-                .oauth2ResourceServer(oauth2->oauth2
-                        .jwt(
-                                jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
-                                        .jwtAuthenticationConverter(this.jwtAuthenticationConverter())//Convert tên mặt định spring security trong token
-                        )
-                        .authenticationEntryPoint(new JWTAuthentication())
-                ) .oauth2Login(Customizer.withDefaults());
-        return http.build();
-    }
-
-    @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter(){
-        JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        grantedAuthoritiesConverter.setAuthorityPrefix("");   // Không thêm prefix vì token đã có "ROLE_"
-        grantedAuthoritiesConverter.setAuthoritiesClaimName("roles"); // Đọc từ claim "roles" thay vì "scope"
-
-        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
-        return jwtAuthenticationConverter;
-    }
+        private final String[] SWAGGER_ENDPOINTS = {
+                        "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**", "/swagger-resources",
+                        "/swagger-resources/**", "/configuration/ui", "/configuration/security", "/webjars/**"
+        };
+        private final String[] SOCKET_ENDPOINTS = {
+                        "/ws/**", "/topic/**", "/app/**"
+        };
+        private final String[] PAYMENT_ENDPOINTS = {
+                        "/payments/momo/return",
+                        "/payments/vnpay/return",
+                        "/payments/momo/notify",
+                        "/payments/vnpay/notify",
+                        "/payments/momo/callback",
+                        "/payments/vnpay/callback",
+        };
 
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token"));
-        configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
-        configuration.setAllowCredentials(true);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                http
+                                .csrf(Customizer.withDefaults())
+                                .headers(headers -> headers
+                                                .frameOptions(frameOptions -> frameOptions.sameOrigin())
+                                                .xssProtection(Customizer.withDefaults()))
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers(AUTH_ENDPOINTS).permitAll()
+                                                .requestMatchers(SWAGGER_ENDPOINTS).permitAll()
+                                                .requestMatchers(SOCKET_ENDPOINTS).permitAll()
+                                                .requestMatchers(PAYMENT_ENDPOINTS).permitAll()
+                                                .anyRequest().authenticated())
+                                .csrf(AbstractHttpConfigurer::disable);
+                http
+                                .oauth2ResourceServer(oauth2 -> oauth2
+                                                .jwt(
+                                                                jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
+                                                                                .jwtAuthenticationConverter(this
+                                                                                                .jwtAuthenticationConverter())
+                                                )
+                                                .authenticationEntryPoint(new JWTAuthentication()))
+                                .oauth2Login(Customizer.withDefaults());
+                return http.build();
+        }
+
+        @Bean
+        public JwtAuthenticationConverter jwtAuthenticationConverter() {
+                JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+                grantedAuthoritiesConverter.setAuthorityPrefix(""); // Không thêm prefix vì token đã có "ROLE_"
+                grantedAuthoritiesConverter.setAuthoritiesClaimName("roles"); // Đọc từ claim "roles" thay vì "scope"
+
+                JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
+                jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+                return jwtAuthenticationConverter;
+        }
+
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOrigins(allowedOrigins);
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token"));
+                configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
+                configuration.setAllowCredentials(true);
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 
 }

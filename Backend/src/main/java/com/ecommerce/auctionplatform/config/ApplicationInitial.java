@@ -26,30 +26,30 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Locale;
 
 @Slf4j
-@Configuration(proxyBeanMethods = false)
-@RequiredArgsConstructor
-@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
+@Configuration
 public class ApplicationInitial {
-    PasswordEncoder passwordEncoder;
-    RoleRepository roleRepository;
-    AccountRepository accountRepository;
-    UserRepository userRepository;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RoleRepository roleRepository;
+
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     static final String USERNAME_ADMIN = "admin";
     static final String PASSWORD_ADMIN = "admin";
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
 
     @Bean
-    @Transactional   // thêm transaction để đảm bảo toàn vẹn dữ liệu
+    @Transactional
     ApplicationRunner applicationRunner() {
         return args -> {
-            // 1. Tạo role ADMIN nếu chưa có
             if (!roleRepository.existsByName(PredefinedRole.RoleName.ADMIN)) {
-                Role adminRoleEntity = Role.builder()// nếu id là String
+                Role adminRoleEntity = Role.builder()
                         .name(PredefinedRole.RoleName.ADMIN)
                         .description("Quản trị viên")
                         .build();
@@ -57,11 +57,9 @@ public class ApplicationInitial {
                 log.info("Đã tạo Role ADMIN");
             }
 
-            // Lấy role Admin (đã tồn tại)
             Role adminRole = roleRepository.findByName(PredefinedRole.RoleName.ADMIN.toUpperCase())
                     .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
-            // 2. Tạo tài khoản admin nếu chưa tồn tại
             if (!accountRepository.existsByUsername(USERNAME_ADMIN)) {
                 Account account = Account.builder()
                         .username(USERNAME_ADMIN)

@@ -11,8 +11,8 @@ import java.util.concurrent.TimeUnit;
 
 
 @Service
-@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 @RequiredArgsConstructor
+@FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public class BlackListService {
     RedisTemplate<String, Object> redisTemplate;
 

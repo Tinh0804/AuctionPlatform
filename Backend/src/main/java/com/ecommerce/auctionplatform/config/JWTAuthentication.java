@@ -11,21 +11,24 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
-@Configuration
+@Component
 public class JWTAuthentication extends OncePerRequestFilter implements AuthenticationEntryPoint {
 
    @Autowired
@@ -34,39 +37,34 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
    @Autowired
    private BlackListService tokenBlacklistService;
 
+
    @SneakyThrows
    @Override
    protected void doFilterInternal(HttpServletRequest request,
                                    HttpServletResponse response,
                                    FilterChain filterChain) throws ServletException, IOException {
-
-      String token =extractTokenFromRequest(request);
+      String token = extractTokenFromRequest(request);
 
       if (token != null && jwtService.introspect(token)) {
-
          if (tokenBlacklistService.isBlackListed(token)) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Token has been blacklisted (Logged out).");
-            return; // Chặn luôn, không cho đi tiếp xuống Controller
+            return;
          }
-
          setAuthenticationContext(token, request);
       }
-
+      // Nếu token null hoặc invalid -> vẫn cho đi tiếp (public endpoints)
       filterChain.doFilter(request, response);
    }
 
-    private void setAuthenticationContext(String token, HttpServletRequest request) {
-       String username = jwtService.extractUsername(token);
-
-
-       UsernamePasswordAuthenticationToken authentication =
-               new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
-
-       authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-       SecurityContextHolder.getContext().setAuthentication(authentication);
-    }
+   private void setAuthenticationContext(String token, HttpServletRequest request) {
+      String username = jwtService.extractUsername(token);
+      // Nếu có authorities thì load ở đây
+      UsernamePasswordAuthenticationToken authentication =
+              new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
+      authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+      SecurityContextHolder.getContext().setAuthentication(authentication);
+   }
 
    private String extractTokenFromRequest(HttpServletRequest request) {
       String bearerToken = request.getHeader("Authorization");
@@ -77,12 +75,10 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
    }
 
    @Override
-   public void commence(
-           HttpServletRequest request,
-           HttpServletResponse response,
-           AuthenticationException authException) throws IOException, ServletException {
+   public void commence(HttpServletRequest request,
+                        HttpServletResponse response,
+                        AuthenticationException authException) throws IOException {
       ErrorCode errorCode = ErrorCode.ACCESS_DENIED;
-
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
@@ -90,8 +86,7 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
               .status(errorCode.getStatus())
               .message(errorCode.getMessage())
               .build();
-
-      ObjectMapper mapper = new ObjectMapper();
-      response.getWriter().write(mapper.writeValueAsString(apiResponse));
+      ObjectMapper objectMapper = new ObjectMapper();
+      response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
    }
 }
