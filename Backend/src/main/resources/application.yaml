@@ -79,3 +79,8 @@ app:
   cors:
     allowed-origins: ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
 
+cloudinary:
+  cloud_name: dtjuem2ns
+  api_key: 473712557111937
+  api_secret: kI_1-xuoC1J1pZcZqBLR6Nldc4k
+
