@@ -18,12 +18,20 @@ public class CloudinaryService {
 
     private final Cloudinary cloudinary;
 
-    public String uploadFile(MultipartFile file,String folderName) throws IOException {
+    public String uploadFile(MultipartFile file, String folderName) throws IOException {
+        return uploadFile(file, folderName, null);
+    }
+
+    public String uploadFile(MultipartFile file, String folderName, Map<String, Object> extraOptions) throws IOException {
         try {
-            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
-                    "folder", "auction_platform/"+folderName,
-                    "public_id", UUID.randomUUID().toString()
-            ));
+            String targetFolder = folderName.startsWith("auction_") ? folderName : "auction_platform/" + folderName;
+            java.util.Map<String, Object> options = new java.util.HashMap<>();
+            options.put("folder", targetFolder);
+            options.put("public_id", java.util.UUID.randomUUID().toString());
+            if (extraOptions != null) {
+                options.putAll(extraOptions);
+            }
+            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), options);
             return uploadResult.get("secure_url").toString();
         } catch (IOException e) {
             log.error("Error uploading file to Cloudinary", e);
