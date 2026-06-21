@@ -5,6 +5,7 @@ import com.ecommerce.auctionplatform.dto.request.RefreshRequest;
 import com.ecommerce.auctionplatform.dto.request.RegisterRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuthenticationResponse;
+import com.ecommerce.auctionplatform.dto.respose.UserResponse;
 import com.ecommerce.auctionplatform.service.AuthenticationService;
 import com.nimbusds.jose.JOSEException;
 
@@ -36,11 +37,12 @@ public class AuthenticationController {
 
 
     @PostMapping("/register")
-    APIResponse<Void> register(@RequestBody RegisterRequest request) {
-        authenticationService.register(request);
-        return APIResponse.<Void>builder()
+    APIResponse<UserResponse> register(@RequestBody RegisterRequest request) {
+        UserResponse user = authenticationService.register(request);
+        return APIResponse.<UserResponse>builder()
                 .status(200)
                 .message("Registration successful")
+                .result(user)
                 .build();
     }
 

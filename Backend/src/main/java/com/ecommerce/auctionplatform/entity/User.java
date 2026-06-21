@@ -56,4 +56,7 @@ public class User {
     @Column(name = "identity_back_image", length = 500)
     String identityBackImage;
 
+    @Column(name = "avatar_image", length = 500)
+    String avatarImage;
+
 }

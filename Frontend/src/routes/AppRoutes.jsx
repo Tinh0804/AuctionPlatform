@@ -14,6 +14,7 @@ import AuctionDetail from '@/pages/public/AuctionDetail';
 
 // Auth pages
 import Login from '@/pages/auth/Login';
+import Register from '@/pages/auth/Register';
 
 // Bidder pages
 import Profile from '@/pages/bidder/Profile';
@@ -33,6 +34,7 @@ const AppRoutes = () => {
       {/* ── Auth Layout ── */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
       </Route>
 
       {/* ── Main Layout ── */}

@@ -12,6 +12,7 @@ import {
   Award, Gem, ChevronRight,
 } from 'lucide-react';
 import apiClient, { WS_URL } from '@/services/apiClient';
+import { getMyInfo, getNotifications, markNotificationRead } from '@/features/auth/api';
 
 const MainLayout = () => {
   const navigate = useNavigate();
@@ -28,12 +29,12 @@ const MainLayout = () => {
 
   useEffect(() => {
     if (localStorage.getItem('token')) {
-      apiClient.get('/auth/me')
-        .then(res => setProfile(res.data))
+      getMyInfo()
+        .then(res => setProfile(res.result || res))
         .catch(() => setProfile(null));
 
-      apiClient.get('/auth/me/notifications')
-        .then(res => setNotifications(res.data))
+      getNotifications()
+        .then(res => setNotifications(res.result || res))
         .catch(console.error);
     }
   }, [navigate]);
@@ -228,7 +229,7 @@ const MainLayout = () => {
                               to={n.type === 'auction_won' ? `/invoices/${n.reference_id}/checkout` : n.type === 'auction_failed' ? `/auctions/create?relist_id=${n.reference_id}` : '/profile'}
                               onClick={() => {
                                 if (!n.is_read) {
-                                  apiClient.post(`/auth/notifications/${n.id}/read`).then(() => {
+                                  markNotificationRead(n.id).then(() => {
                                     setNotifications(notifications.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
                                   });
                                 }

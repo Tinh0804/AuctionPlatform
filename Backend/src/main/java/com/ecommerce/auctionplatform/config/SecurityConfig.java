@@ -26,7 +26,7 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
-        @Value("${app.cors.allowed-origins:http://localhost:3000}")
+        @Value("${app.cors.allowed-origins:http://localhost:5174}")
         private List<String> allowedOrigins;
 
         @Autowired
@@ -61,6 +61,7 @@ public class SecurityConfig {
         @Bean
         public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
                 http
+                                .cors(Customizer.withDefaults())
                                 .csrf(Customizer.withDefaults())
                                 .headers(headers -> headers
                                                 .frameOptions(frameOptions -> frameOptions.sameOrigin())
@@ -87,25 +88,25 @@ public class SecurityConfig {
         @Bean
         public JwtAuthenticationConverter jwtAuthenticationConverter() {
                 JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-                grantedAuthoritiesConverter.setAuthorityPrefix(""); // Không thêm prefix vì token đã có "ROLE_"
-                grantedAuthoritiesConverter.setAuthoritiesClaimName("roles"); // Đọc từ claim "roles" thay vì "scope"
-
+                grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_"); 
+                grantedAuthoritiesConverter.setAuthoritiesClaimName("scope"); 
+ 
                 JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
                 jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
                 return jwtAuthenticationConverter;
         }
 
         @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+        public org.springframework.web.filter.CorsFilter corsFilter() {
                 CorsConfiguration configuration = new CorsConfiguration();
                 configuration.setAllowedOrigins(allowedOrigins);
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token"));
+                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "x-auth-token", "ngrok-skip-browser-warning"));
                 configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
                 configuration.setAllowCredentials(true);
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
                 source.registerCorsConfiguration("/**", configuration);
-                return source;
+                return new org.springframework.web.filter.CorsFilter(source);
         }
 
 }

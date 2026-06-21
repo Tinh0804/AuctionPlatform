@@ -4,29 +4,28 @@ import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.service.BlackListService;
 import com.ecommerce.auctionplatform.service.JwtService;
-import com.ecommerce.auctionplatform.utils.SecurityUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.SneakyThrows;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class JWTAuthentication extends OncePerRequestFilter implements AuthenticationEntryPoint {
@@ -38,7 +37,10 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
    private BlackListService tokenBlacklistService;
 
    @Autowired
-   private ObjectMapper objectMapper; // inject bean
+   private ObjectMapper objectMapper = new ObjectMapper(); // inject bean
+
+   @Autowired
+   private JwtDecoder jwtDecoder;
 
    @SneakyThrows
    @Override
@@ -60,10 +62,19 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
    }
 
    private void setAuthenticationContext(String token, HttpServletRequest request) {
-      String username = jwtService.extractUsername(token);
-      // Nếu có authorities thì load ở đây
-      UsernamePasswordAuthenticationToken authentication =
-              new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
+      Jwt jwt = jwtDecoder.decode(token);
+      List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+      try {
+         String scope = jwt.getClaimAsString("scope");
+         if (scope != null && !scope.trim().isEmpty()) {
+            for (String role : scope.split(" ")) {
+               authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            }
+         }
+      } catch (Exception e) {
+         // ignore
+      }
+      JwtAuthenticationToken authentication = new JwtAuthenticationToken(jwt, authorities);
       authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
       SecurityContextHolder.getContext().setAuthentication(authentication);
    }

@@ -2,10 +2,12 @@ package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.LoginRequest;
 import com.ecommerce.auctionplatform.dto.respose.AuthenticationResponse;
+import com.ecommerce.auctionplatform.dto.respose.UserResponse;
 import com.ecommerce.auctionplatform.entity.Account;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.mapper.AccountMapper;
+import com.ecommerce.auctionplatform.mapper.UserMapper;
 import com.ecommerce.auctionplatform.repository.AccountRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
@@ -41,11 +43,12 @@ public class AuthenticationService {
 
     PasswordEncoder encoder;
     JwtService jwtService;
+    UserMapper userMapper;
 
     AccountMapper accountMapper;
 
     @Transactional
-    public void register(RegisterRequest request) {
+    public UserResponse register(RegisterRequest request) {
         if (accountRepository.existsByUsername(request.getUserName())) {
             throw new AppException(ErrorCode.USERNAME_EXISTED);
         }
@@ -56,7 +59,7 @@ public class AuthenticationService {
             throw new AppException(ErrorCode.PHONE_EXISTED);
         }
 
-        Role customerRole = roleRepository.findByName(PredefinedRole.RoleName.CUSTOMER)
+        Role customerRole = roleRepository.findByName(PredefinedRole.RoleName.USER)
                 .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
 
         Account account = Account.builder()
@@ -76,7 +79,7 @@ public class AuthenticationService {
                 .account(account)
                 .build();
 
-        userRepository.save(user);
+        return userMapper.toUserResponse(userRepository.save(user));
     }
 
     public AuthenticationResponse login(LoginRequest request) {

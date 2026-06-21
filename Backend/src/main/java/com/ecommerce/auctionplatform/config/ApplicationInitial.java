@@ -56,9 +56,18 @@ public class ApplicationInitial {
                 roleRepository.save(adminRoleEntity);
                 log.info("Đã tạo Role ADMIN");
             }
+            if(!roleRepository.existsByName(PredefinedRole.RoleName.USER)){
+                Role userRoleEntity = Role.builder()
+                        .name(PredefinedRole.RoleName.USER)
+                        .description("Người dùng")
+                        .build();
+                roleRepository.save(userRoleEntity);
+                log.info("Đã tạo Role USER");
+            }
 
             Role adminRole = roleRepository.findByName(PredefinedRole.RoleName.ADMIN.toUpperCase())
                     .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
 
             if (!accountRepository.existsByUsername(USERNAME_ADMIN)) {
                 Account account = Account.builder()
