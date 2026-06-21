@@ -10,7 +10,6 @@ import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.mapper.AccountMapper;
 import com.ecommerce.auctionplatform.repository.AccountRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
-import com.ecommerce.auctionplatform.utils.SecurityUtils;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
@@ -137,6 +136,7 @@ public class JwtService {
 
 
     }
+
     public String extractUsername(String token) {
         try {
             SignedJWT signedJWT = SignedJWT.parse(token);

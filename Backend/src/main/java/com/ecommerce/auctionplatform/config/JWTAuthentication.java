@@ -37,6 +37,8 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
    @Autowired
    private BlackListService tokenBlacklistService;
 
+   @Autowired
+   private ObjectMapper objectMapper; // inject bean
 
    @SneakyThrows
    @Override
@@ -86,7 +88,7 @@ public class JWTAuthentication extends OncePerRequestFilter implements Authentic
               .status(errorCode.getStatus())
               .message(errorCode.getMessage())
               .build();
-      ObjectMapper objectMapper = new ObjectMapper();
+
       response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
    }
 }

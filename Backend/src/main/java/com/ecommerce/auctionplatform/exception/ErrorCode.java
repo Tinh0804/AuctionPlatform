@@ -31,6 +31,7 @@ public enum ErrorCode {
     EMAIL_EXISTED(400, "Email already exists", HttpStatus.BAD_REQUEST),
     PHONE_EXISTED(400, "Phone number already exists", HttpStatus.BAD_REQUEST),
 
+
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
 
 
