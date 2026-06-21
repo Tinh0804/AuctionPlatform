@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import client from '../api/client';
+import apiClient from '@/services/apiClient';
 import { LogOut, ShieldCheck, User as UserIcon, Award, Wallet as WalletIcon, Lock, Loader, Star, Package, Truck, CreditCard, Settings, CheckCircle, AlertCircle } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth } from '@/services/firebase';
 
 export default function Profile() {
     const navigate = useNavigate();
@@ -41,15 +41,15 @@ export default function Profile() {
     }, [location, navigate]);
 
     useEffect(() => {
-        client.get('/auth/me')
+        apiClient.get('/auth/me')
             .then(res => setProfile(res.data))
             .catch(() => { navigate('/login'); });
             
-        client.get('/orders/me/purchases')
+        apiClient.get('/orders/me/purchases')
             .then(res => setPurchases(res.data))
             .catch(console.error);
 
-        client.get('/orders/me/sales')
+        apiClient.get('/orders/me/sales')
             .then(res => setSales(res.data))
             .catch(console.error);
     }, [navigate]);
@@ -60,10 +60,10 @@ export default function Profile() {
             return;
         }
         try {
-            await client.post(`/orders/${showShippingModal}/shipping`, shippingInfo);
+            await apiClient.post(`/orders/${showShippingModal}/shipping`, shippingInfo);
             alert("Cập nhật vận đơn thành công!");
             setShowShippingModal(null);
-            client.get('/orders/me/sales').then(res => setSales(res.data));
+            apiClient.get('/orders/me/sales').then(res => setSales(res.data));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi cập nhật vận đơn");
         }
@@ -72,9 +72,9 @@ export default function Profile() {
     const handleConfirmReceipt = async (orderId) => {
         if(!window.confirm("Bạn xác nhận đã nhận được hàng và hài lòng với sản phẩm?")) return;
         try {
-            await client.post(`/orders/${orderId}/confirm-receipt`);
+            await apiClient.post(`/orders/${orderId}/confirm-receipt`);
             alert("Xác nhận đã nhận hàng!");
-            client.get('/orders/me/purchases').then(res => setPurchases(res.data));
+            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi xác nhận");
         }
@@ -82,10 +82,10 @@ export default function Profile() {
 
     const handleReview = async () => {
         try {
-            await client.post(`/orders/${showReviewModal}/complete`, reviewInfo);
+            await apiClient.post(`/orders/${showReviewModal}/complete`, reviewInfo);
             alert("Đã gửi đánh giá thành công!");
             setShowReviewModal(null);
-            client.get('/orders/me/purchases').then(res => setPurchases(res.data));
+            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi gửi đánh giá");
         }
@@ -102,7 +102,7 @@ export default function Profile() {
             return;
         }
         try {
-            const res = await client.post(`/wallets/deposit/request?amount=${depositAmount}&provider=${provider}`);
+            const res = await apiClient.post(`/wallets/deposit/request?amount=${depositAmount}&provider=${provider}`);
             if (res.data.payment_url) {
                 window.location.href = res.data.payment_url;
             }
@@ -194,7 +194,7 @@ export default function Profile() {
         setPinLoading(true);
         try {
             const idToken = await auth.currentUser.getIdToken();
-            await client.post('/wallets/pin/setup', { firebase_id_token: idToken, new_pin: newPin });
+            await apiClient.post('/wallets/pin/setup', { firebase_id_token: idToken, new_pin: newPin });
             if (profile && profile.wallet) {
                 setProfile({...profile, wallet: {...profile.wallet, has_pin: true}});
             }

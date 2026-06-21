@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import client from '../api/client';
-import { useToast } from '../components/Toast';
+import apiClient from '@/services/apiClient';
+import { useToast } from '@/components/Elements/Toast';
 import {
     Wallet as WalletIcon, Lock, MapPin, CheckCircle,
     AlertTriangle, Loader, Edit3, User, Phone, ShieldCheck, ArrowLeft, Package
@@ -29,7 +29,7 @@ export default function Checkout() {
 
     useEffect(() => {
         setLoading(true);
-        client.get(`/invoices/${invoice_id}`)
+        apiClient.get(`/invoices/${invoice_id}`)
             .then(res => {
                 setInvoice(res.data);
                 setShippingName(res.data.buyer_name || '');
@@ -59,7 +59,7 @@ export default function Checkout() {
         setPaying(true);
         try {
             const fullAddress = `${shippingName} — ${shippingPhone}\n${shippingAddress}`;
-            await client.post(`/invoices/${invoice_id}/checkout`, {
+            await apiClient.post(`/invoices/${invoice_id}/checkout`, {
                 dia_chi_giao_hang: fullAddress,
                 ghi_chu: '',
                 pin_code: pinCode

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Gavel, Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, LogIn, CheckCircle2, Sparkles } from 'lucide-react';
-import client from '../api/client';
+import apiClient from '@/services/apiClient';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -24,7 +24,7 @@ export default function Login() {
                  const params = new URLSearchParams();
                  params.append('username', formData.username);
                  params.append('password', formData.password);
-                 const res = await client.post('/auth/login', params, {
+                 const res = await apiClient.post('/auth/login', params, {
                       headers: {'Content-Type': 'application/x-www-form-urlencoded'}
                  });
                  localStorage.setItem('token', res.data.access_token);
@@ -32,7 +32,7 @@ export default function Login() {
              } else {
                   const registeredUsername = formData.username;
                   const registeredPassword = formData.password;
-                  await client.post('/auth/register', formData);
+                  await apiClient.post('/auth/register', formData);
                   setSuccess("Tài khoản đã được tạo thành công. Bạn có thể đăng nhập ngay.");
                    setFormData({ username: registeredUsername, password: registeredPassword, email: '', full_name: '', phone_number: '' });
                  setIsLogin(true);

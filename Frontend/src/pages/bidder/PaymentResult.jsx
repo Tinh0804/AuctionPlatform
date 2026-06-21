@@ -1,7 +1,7 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock, CreditCard, RefreshCw, XCircle } from 'lucide-react';
-import { API_URL } from '../api/client';
+import { API_URL } from '@/services/apiClient';
 
 const resultConfig = {
     success: {

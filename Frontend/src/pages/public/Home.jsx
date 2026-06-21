@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import client from '../api/client';
-import AuctionCard from '../components/AuctionCard';
-import Skeleton from '../components/Skeleton';
-import EmptyState from '../components/EmptyState';
-import { useScrollAnimation } from '../hooks/useScrollAnimation';
-import { useRipple, useMagnetic } from '../hooks/useRipple';
+import apiClient from '@/services/apiClient';
+import AuctionCard from '@/components/Auction/AuctionCard';
+import Skeleton from '@/components/Elements/Skeleton';
+import EmptyState from '@/components/Elements/EmptyState';
+import { useScrollAnimation } from '@/hooks/useScrollAnimation';
+import { useRipple, useMagnetic } from '@/hooks/useRipple';
 import { Search, SlidersHorizontal, Gavel, ShieldCheck, Truck, ArrowRight, X, ChevronRight, Clock, Award, Lock } from 'lucide-react';
 
 const statusFilters = [
@@ -63,7 +63,7 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-        client.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -73,7 +73,7 @@ export default function Home() {
         if (currentCategory) params.append('category_id', currentCategory);
         
         const qs = params.toString();
-        client.get(`/auctions${qs ? '?' + qs : ''}`)
+        apiClient.get(`/auctions${qs ? '?' + qs : ''}`)
             .then(res => {
                 setAuctions(res.data);
                 setLoading(false);

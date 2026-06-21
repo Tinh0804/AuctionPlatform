@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, ArrowUpRight, ChevronRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X } from 'lucide-react';
-import client from '../api/client';
-import EmptyState from '../components/EmptyState';
+import apiClient from '@/services/apiClient';
+import EmptyState from '@/components/Elements/EmptyState';
 
 const statusOptions = [
     { value: '', label: 'Tat ca phien' },
@@ -38,7 +38,7 @@ function AuctionList() {
     const currentCategory = searchParams.get('category_id') || '';
 
     useEffect(() => {
-        client.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -47,7 +47,7 @@ function AuctionList() {
         if (currentCategory) params.append('category_id', currentCategory);
 
         const qs = params.toString();
-        client.get(`/auctions${qs ? '?' + qs : ''}`).then(res => setAuctions(res.data)).catch(console.error);
+        apiClient.get(`/auctions${qs ? '?' + qs : ''}`).then(res => setAuctions(res.data)).catch(console.error);
     }, [currentStatus, currentCategory]);
 
     const activeLots = useMemo(() => auctions.filter(auc => auc.status === 'ACTIVE'), [auctions]);

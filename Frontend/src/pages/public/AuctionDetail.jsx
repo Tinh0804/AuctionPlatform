@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, Clock3, Gavel, Info, Minus, Plus, Radio, TrendingUp } from 'lucide-react';
-import client, { WS_URL } from '../api/client';
-import Skeleton from '../components/Skeleton';
-import Confetti from '../components/Confetti';
-import { useToast } from '../components/Toast';
+import apiClient, { WS_URL } from '@/services/apiClient';
+import Skeleton from '@/components/Elements/Skeleton';
+import Confetti from '@/components/Elements/Confetti';
+import { useToast } from '@/components/Elements/Toast';
 
 const money = value => Number(value || 0).toLocaleString('vi-VN');
 const statusLabel = { ACTIVE: 'Đang diễn ra', PENDING: 'Sắp bắt đầu', CLOSED: 'Đã chốt phiên', ENDED: 'Đã kết thúc', FAILED: 'Thất bại', CANCELLED: 'Đã hủy' };
@@ -41,13 +41,13 @@ export default function AuctionDetail() {
     const currentUserId = useMemo(getCurrentUserId, []);
 
     const loadData = () => {
-        client.get(`/auctions/${id}`).then(res => {
+        apiClient.get(`/auctions/${id}`).then(res => {
             const cover = res.data.images.find(img => img.is_cover)?.url || res.data.images[0]?.url;
             setAuction(res.data);
             setActiveImage(cover);
             setBidAmount(res.data.current_price + res.data.step_price);
         }).catch(console.error);
-        client.get(`/auctions/${id}/bids`).then(res => setBids(res.data)).catch(console.error);
+        apiClient.get(`/auctions/${id}/bids`).then(res => setBids(res.data)).catch(console.error);
     };
 
     useEffect(() => {
@@ -111,7 +111,7 @@ export default function AuctionDetail() {
     const handlePlaceBid = async () => {
         setErrorMsg('');
         try {
-            await client.post(`/auctions/${id}/bid`, { bid_amount: bidAmount });
+            await apiClient.post(`/auctions/${id}/bid`, { bid_amount: bidAmount });
             latestOwnBid.current = Number(bidAmount);
             toast.success(`Đặt giá thành công: ${money(bidAmount)} đ. Bạn đang tạm dẫn đầu!`, 4500);
             setShowConfetti(true);

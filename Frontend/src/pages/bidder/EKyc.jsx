@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import client from '../api/client';
+import apiClient from '@/services/apiClient';
 import { ShieldCheck, Upload, AlertCircle, CheckCircle2, CreditCard, Lock, Eye, ArrowLeft, ImagePlus } from 'lucide-react';
 
 export default function EKyc() {
@@ -40,7 +40,7 @@ export default function EKyc() {
         formData.append('back_image', backImage);
 
         try {
-            await client.post('/ekyc/verify', formData, {
+            await apiClient.post('/ekyc/verify', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }

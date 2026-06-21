@@ -6,8 +6,8 @@ import {
     Timer, TrendingUp, Users, Star
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import client from '../api/client';
-import { useToast } from '../components/Toast';
+import apiClient from '@/services/apiClient';
+import { useToast } from '@/components/Elements/Toast';
 
 const STEPS = [
     { id: 1, label: 'Thông tin sản phẩm', icon: Package },
@@ -58,9 +58,9 @@ export default function CreateAuction() {
     const mainImageRef = useRef(null);
 
     useEffect(() => {
-        client.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
         if (relistId) {
-            client.get(`/auctions/${relistId}`).then(res => {
+            apiClient.get(`/auctions/${relistId}`).then(res => {
                 const auc = res.data;
                 setFormData(prev => ({
                     ...prev,
@@ -151,7 +151,7 @@ export default function CreateAuction() {
             if (mainImage) data.append('files', mainImage);
             additionalImages.forEach(img => data.append('files', img));
 
-            const res = await client.post('/auctions/create-auction', data, {
+            const res = await apiClient.post('/auctions/create-auction', data, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             toast.success('Đăng ký phiên đấu giá thành công! 🎉');
