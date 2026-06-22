@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
+import { getMyInfo } from '@/features/auth/api';
+import useAuthStore from '@/store/useAuthStore';
 import { LogOut, ShieldCheck, User as UserIcon, Award, Wallet as WalletIcon, Lock, Loader, Star, Package, Truck, CreditCard, Settings, CheckCircle, AlertCircle } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/services/firebase';
@@ -41,16 +43,17 @@ export default function Profile() {
     }, [location, navigate]);
 
     useEffect(() => {
-        apiClient.get('/auth/me')
-            .then(res => setProfile(res.data))
+        // Sử dụng /users/my-info thay cho /auth/me (deprecated)
+        getMyInfo()
+            .then(res => setProfile(res.result || res))
             .catch(() => { navigate('/login'); });
             
         apiClient.get('/orders/me/purchases')
-            .then(res => setPurchases(res.data))
+            .then(res => setPurchases(res.data || res))
             .catch(console.error);
 
         apiClient.get('/orders/me/sales')
-            .then(res => setSales(res.data))
+            .then(res => setSales(res.data || res))
             .catch(console.error);
     }, [navigate]);
 
@@ -92,7 +95,7 @@ export default function Profile() {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('token');
+        useAuthStore.getState().logout();
         navigate('/login');
     };
 
@@ -143,7 +146,8 @@ export default function Profile() {
     };
 
     const handleSendOTP = async () => {
-        const phoneToUse = profile?.phone_number;
+        // phone là tên trường trong UserResponse, phone_number là tên cũ
+        const phoneToUse = profile?.phone || profile?.phone_number;
         setPinMessage(null);
         if (!phoneToUse) {
             setPinMessage({ type: 'error', text: 'Tài khoản chưa có số điện thoại để nhận OTP.' });
@@ -299,7 +303,7 @@ export default function Profile() {
                             <div className="space-y-5">
                                 <div>
                                     <label className="text-sm font-semibold text-[#9A6A2F] mb-2 block">Số điện thoại xác thực</label>
-                                    <div className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-4 py-2.5 text-sm text-[#2F2418]/70">{profile?.phone_number}</div>
+                                    <div className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-4 py-2.5 text-sm text-[#2F2418]/70">{profile?.phone || profile?.phone_number}</div>
                                     <p className="text-xs text-[#2F2418]/45 mt-2">OTP sẽ gửi qua SMS đến số đăng ký.</p>
                                 </div>
                                 <div className="flex gap-3">
@@ -428,10 +432,10 @@ export default function Profile() {
                         <div className="w-20 h-20 border border-[#9A6A2F]/45 bg-[#F8F1E6] flex items-center justify-center mx-auto mb-4 text-[#9A6A2F]">
                             <UserIcon className="w-8 h-8" />
                         </div>
-                        <h2 className="font-serif text-xl text-[#2F2418]">{profile.full_name}</h2>
+                        <h2 className="font-serif text-xl text-[#2F2418]">{profile.name || profile.full_name}</h2>
                         <p className="text-sm text-[#2F2418]/55 mb-4">{profile.email}</p>
                         <div className="inline-flex items-center gap-1.5 bg-[#9A6A2F]/10 text-[#9A6A2F] border border-[#9A6A2F]/25 px-3 py-1.5 text-xs font-bold">
-                            <Award className="w-3.5 h-3.5" /> Uy tín: {profile.reputation_score}/100
+                            <Award className="w-3.5 h-3.5" /> Uy tín: {profile.reputationScore ?? profile.reputation_score ?? 100}/100
                         </div>
                     </div>
 
@@ -477,9 +481,9 @@ export default function Profile() {
                             <h3 className="font-serif text-xl text-[#2F2418] flex items-center gap-2">
                                 <ShieldCheck className="w-5 h-5 text-[#9A6A2F]" /> eKYC
                             </h3>
-                            <StatusBadge status={profile.verification_status === 'VERIFIED' ? 'COMPLETED' : 'PENDING'} />
+                            <StatusBadge status={(profile.verificationStatus || profile.verification_status) === 'VERIFIED' ? 'COMPLETED' : 'PENDING'} />
                         </div>
-                        {profile.verification_status !== 'VERIFIED' && (
+                        {(profile.verificationStatus || profile.verification_status) !== 'VERIFIED' && (
                             <button onClick={() => navigate('/ekyc')} className="w-full py-2.5 justify-center text-sm mt-2 inline-flex items-center bg-[#9A6A2F] text-[#F8F1E6] font-bold">
                                 Xác thực ngay
                             </button>
@@ -487,7 +491,7 @@ export default function Profile() {
                     </div>
 
                     {/* Admin Card */}
-                    {profile.is_admin && (
+                    {(profile.account?.role?.name === 'ADMIN' || profile.is_admin) && (
                         <div className="card-luxury p-6 bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0">
                             <h3 className="font-bold mb-2 flex items-center gap-2">
                                 <Settings className="w-5 h-5 text-primary" /> Quản trị viên

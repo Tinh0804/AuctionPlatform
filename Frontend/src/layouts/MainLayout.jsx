@@ -1,9 +1,8 @@
 // ============================================================
 // src/layouts/MainLayout.jsx
 // Layout chính: Header + Footer + <Outlet />
-// Moved from: src/components/Layout.jsx
 // ============================================================
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Search, User, Bell, Wallet, ChevronDown, LogOut, ShieldCheck,
@@ -11,34 +10,48 @@ import {
   ArrowRight, Instagram, Facebook, Twitter, Mail, LockKeyhole,
   Award, Gem, ChevronRight,
 } from 'lucide-react';
-import apiClient, { WS_URL } from '@/services/apiClient';
+import { WS_URL } from '@/services/apiClient';
 import { getMyInfo, getNotifications, markNotificationRead } from '@/features/auth/api';
+import useAuthStore from '@/store/useAuthStore';
 
 const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [profile, setProfile] = useState(null);
+
+  // Lấy user từ Zustand store (reactive)
+  const { token, user, setUser, logout: storeLogout } = useAuthStore();
+
+  // Dùng user từ store làm nguồn hiển thị, aliased thành "profile" để tương thích JSX cũ
+  const profile = user;
+
   const [notifications, setNotifications] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeNavItem, setActiveNavItem] = useState(null);
 
-  // Close mobile menu on route change
+  // Đóng mobile menu khi chuyển route
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Nếu có token nhưng chưa có user (ví dụ layout render trước App.jsx), tự fetch
   useEffect(() => {
-    if (localStorage.getItem('token')) {
+    if (token && !user) {
       getMyInfo()
-        .then(res => setProfile(res.result || res))
-        .catch(() => setProfile(null));
+        .then(res => setUser(res.result || res))
+        .catch(() => {});
+    }
+  }, [token, user, setUser]);
 
+  // Lấy thông báo khi đã có user
+  useEffect(() => {
+    if (token) {
       getNotifications()
-        .then(res => setNotifications(res.result || res))
+        .then(res => setNotifications(Array.isArray(res.result) ? res.result : (Array.isArray(res) ? res : [])))
         .catch(console.error);
     }
-  }, [navigate]);
+  }, [token]);
 
+  // WebSocket thông báo realtime
   useEffect(() => {
     if (!profile?.id) return;
 
@@ -79,7 +92,7 @@ const MainLayout = () => {
   }, [profile?.id]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    storeLogout();
     window.location.href = '/login';
   };
 
@@ -121,6 +134,12 @@ const MainLayout = () => {
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }, 120);
   };
+
+  // Tên hiển thị: UserResponse trả về field "name" (không phải full_name)
+  const displayName = profile?.name || profile?.full_name || '';
+  const displayEmail = profile?.email || '';
+  const walletBalance = profile?.wallet?.available_balance || 0;
+  const isAdmin = profile?.account?.role?.name === 'ADMIN';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F1E6] text-[#2F2418]">
@@ -199,7 +218,7 @@ const MainLayout = () => {
                 <div className="hidden lg:flex items-center gap-2 bg-[#9A6A2F]/10 px-4 py-2 border border-[#9A6A2F]/25">
                   <Wallet className="w-4 h-4 text-[#9A6A2F]" />
                   <span className="text-sm font-bold text-[#2F2418]">
-                    {profile.wallet?.available_balance ? profile.wallet.available_balance.toLocaleString('vi-VN') : 0}đ
+                    {walletBalance > 0 ? walletBalance.toLocaleString('vi-VN') : 0}đ
                   </span>
                 </div>
 
@@ -250,13 +269,13 @@ const MainLayout = () => {
                 {/* Avatar Dropdown */}
                 <div className="relative group hidden md:block">
                   <button className="flex items-center justify-center w-10 h-10 border border-[#9A6A2F]/40 bg-[#9A6A2F]/10 text-[#2F2418] font-bold text-sm hover:border-[#9A6A2F] transition-all cursor-pointer">
-                    {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+                    {displayName ? displayName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
                   </button>
                   <div className="absolute top-full right-0 pt-2 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-1 group-hover:translate-y-0">
                     <div className="bg-[#FFF8ED] shadow-[0_25px_80px_rgba(47,36,24,0.12)] border border-[#9A6A2F]/20 overflow-hidden">
                       <div className="p-4 border-b border-[#2F2418]/10 bg-[#9A6A2F]/10">
-                        <p className="font-bold text-[#2F2418]">{profile.full_name}</p>
-                        <p className="text-xs text-[#2F2418]/50 mt-0.5">{profile.email}</p>
+                        <p className="font-bold text-[#2F2418]">{displayName}</p>
+                        <p className="text-xs text-[#2F2418]/50 mt-0.5">{displayEmail}</p>
                       </div>
                       <div className="py-1">
                         <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
@@ -298,16 +317,16 @@ const MainLayout = () => {
               <div className="p-5 border-b border-[#2F2418]/10 bg-[#9A6A2F]/10">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] text-[#2F2418] font-bold flex items-center justify-center text-lg">
-                    {profile.full_name?.charAt(0).toUpperCase()}
+                    {displayName?.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="font-bold text-[#2F2418]">{profile.full_name}</p>
-                    <p className="text-xs text-[#2F2418]/50">{profile.email}</p>
+                    <p className="font-bold text-[#2F2418]">{displayName}</p>
+                    <p className="text-xs text-[#2F2418]/50">{displayEmail}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 bg-black/20 px-3 py-2 text-sm border border-[#9A6A2F]/20">
                   <Wallet className="w-4 h-4 text-[#9A6A2F]" />
-                  <span className="font-bold text-[#2F2418]">{(profile.wallet?.available_balance || 0).toLocaleString('vi-VN')} đ</span>
+                  <span className="font-bold text-[#2F2418]">{walletBalance.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
             )}
