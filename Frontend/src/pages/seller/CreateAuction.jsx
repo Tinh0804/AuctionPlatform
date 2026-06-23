@@ -58,10 +58,12 @@ export default function CreateAuction() {
     const mainImageRef = useRef(null);
 
     useEffect(() => {
-        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories')
+            .then(res => setCategories(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .catch(console.error);
         if (relistId) {
             apiClient.get(`/auctions/${relistId}`).then(res => {
-                const auc = res.data;
+                const auc = res.data?.result || res.data;
                 setFormData(prev => ({
                     ...prev,
                     name: auc.product_name || '',

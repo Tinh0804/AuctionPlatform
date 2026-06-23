@@ -49,11 +49,11 @@ export default function Profile() {
             .catch(() => { navigate('/login'); });
             
         apiClient.get('/orders/me/purchases')
-            .then(res => setPurchases(res.data || res))
+            .then(res => setPurchases(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
             .catch(console.error);
 
         apiClient.get('/orders/me/sales')
-            .then(res => setSales(res.data || res))
+            .then(res => setSales(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
             .catch(console.error);
     }, [navigate]);
 
@@ -66,7 +66,7 @@ export default function Profile() {
             await apiClient.post(`/orders/${showShippingModal}/shipping`, shippingInfo);
             alert("Cập nhật vận đơn thành công!");
             setShowShippingModal(null);
-            apiClient.get('/orders/me/sales').then(res => setSales(res.data));
+            apiClient.get('/orders/me/sales').then(res => setSales(res.data?.result || (Array.isArray(res.data) ? res.data : [])));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi cập nhật vận đơn");
         }
@@ -77,7 +77,7 @@ export default function Profile() {
         try {
             await apiClient.post(`/orders/${orderId}/confirm-receipt`);
             alert("Xác nhận đã nhận hàng!");
-            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data));
+            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data?.result || (Array.isArray(res.data) ? res.data : [])));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi xác nhận");
         }
@@ -88,7 +88,7 @@ export default function Profile() {
             await apiClient.post(`/orders/${showReviewModal}/complete`, reviewInfo);
             alert("Đã gửi đánh giá thành công!");
             setShowReviewModal(null);
-            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data));
+            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data?.result || (Array.isArray(res.data) ? res.data : [])));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi gửi đánh giá");
         }

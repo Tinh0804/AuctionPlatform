@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgresdb
+      - redis
+
+  postgresdb:
+    image: postgres:15-alpine
+    container_name: postgres_auction
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=@Tinh0804
+      - POSTGRES_DB=auctiondb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    container_name: redis_auction
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:

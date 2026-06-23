@@ -70,8 +70,7 @@ public class EKycService {
  
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(
-                    "https://api.fpt.ai/vision/idr/vpn", requestEntity, String.class);
- 
+                    "https://api.fpt.ai/vision/idr/vnm", requestEntity, String.class);
             JsonNode root = objectMapper.readTree(response.getBody());
             if (root.has("errorCode") && root.get("errorCode").asInt() == 0) {
                 JsonNode dataNode = root.get("data");

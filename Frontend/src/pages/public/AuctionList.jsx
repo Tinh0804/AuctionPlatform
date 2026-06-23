@@ -38,7 +38,9 @@ function AuctionList() {
     const currentCategory = searchParams.get('category_id') || '';
 
     useEffect(() => {
-        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories')
+            .then(res => setCategories(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -47,7 +49,9 @@ function AuctionList() {
         if (currentCategory) params.append('category_id', currentCategory);
 
         const qs = params.toString();
-        apiClient.get(`/auctions${qs ? '?' + qs : ''}`).then(res => setAuctions(res.data)).catch(console.error);
+        apiClient.get(`/auctions${qs ? '?' + qs : ''}`)
+            .then(res => setAuctions(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .catch(console.error);
     }, [currentStatus, currentCategory]);
 
     const activeLots = useMemo(() => auctions.filter(auc => auc.status === 'ACTIVE'), [auctions]);

@@ -1,0 +1,81 @@
+name: CI Pipeline
+run-name: ${{ github.actor }}
+
+on:
+  push:
+    branches: ['main','master']
+  pull_request:
+    branches: ['main','master']
+
+jobs:
+  build-backend:
+    name: Build & Test Backend (Spring Boot)
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    runs-on: ubuntu-latest 
+    defaults:
+      run: 
+        working-directory: ./Backend
+    
+    steps: 
+      - name: Checkout code # quan trọng phải có
+        uses: actions/checkout@v4 
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4 
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # - name: Run tests (Unit Test & Integration Test)
+      #   run: mvn test
+      
+      - name: Build with Maven
+        run: mvn package -DskipTests
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3 
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3 
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5 
+        with:
+          context: ./Backend 
+          file: ./Backend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/auction-backend:${{ github.sha }}
+
+  build-frontend:
+    name: Build & Test Frontend (Reactjs)
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    runs-on: ubuntu-latest 
+    defaults:
+      run:
+        working-directory: ./Frontend
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './Frontend/package-lock.json'
+      
+      - name: Install dependencies
+        run: npm ci 
+      
+      # - name: Run tests
+      #   run: npm test 
+      
+      - name: Build Frontend
+        run: npm run build

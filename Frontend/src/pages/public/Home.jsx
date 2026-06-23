@@ -63,7 +63,9 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
-        apiClient.get('/auctions/categories').then(res => setCategories(res.data)).catch(console.error);
+        apiClient.get('/auctions/categories')
+            .then(res => setCategories(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .catch(console.error);
     }, []);
 
     useEffect(() => {
@@ -75,7 +77,7 @@ export default function Home() {
         const qs = params.toString();
         apiClient.get(`/auctions${qs ? '?' + qs : ''}`)
             .then(res => {
-                setAuctions(res.data);
+                setAuctions(res.data?.result || (Array.isArray(res.data) ? res.data : []));
                 setLoading(false);
             })
             .catch(err => {

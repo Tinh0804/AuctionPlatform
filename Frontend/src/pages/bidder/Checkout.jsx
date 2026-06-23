@@ -31,10 +31,11 @@ export default function Checkout() {
         setLoading(true);
         apiClient.get(`/invoices/${invoice_id}`)
             .then(res => {
-                setInvoice(res.data);
-                setShippingName(res.data.buyer_name || '');
-                setShippingPhone(res.data.buyer_phone || '');
-                setShippingAddress(res.data.buyer_address || '');
+                const data = res.data?.result || res.data;
+                setInvoice(data);
+                setShippingName(data?.buyer_name || '');
+                setShippingPhone(data?.buyer_phone || '');
+                setShippingAddress(data?.buyer_address || '');
                 setLoading(false);
             })
             .catch(err => {

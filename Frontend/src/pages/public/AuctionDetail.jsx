@@ -42,12 +42,17 @@ export default function AuctionDetail() {
 
     const loadData = () => {
         apiClient.get(`/auctions/${id}`).then(res => {
-            const cover = res.data.images.find(img => img.is_cover)?.url || res.data.images[0]?.url;
-            setAuction(res.data);
-            setActiveImage(cover);
-            setBidAmount(res.data.current_price + res.data.step_price);
+            const data = res.data?.result || res.data;
+            if (data) {
+                const cover = data.images?.find(img => img.is_cover)?.url || data.images?.[0]?.url || '';
+                setAuction(data);
+                setActiveImage(cover);
+                setBidAmount((data.current_price || 0) + (data.step_price || 0));
+            }
         }).catch(console.error);
-        apiClient.get(`/auctions/${id}/bids`).then(res => setBids(res.data)).catch(console.error);
+        apiClient.get(`/auctions/${id}/bids`)
+            .then(res => setBids(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .catch(console.error);
     };
 
     useEffect(() => {
