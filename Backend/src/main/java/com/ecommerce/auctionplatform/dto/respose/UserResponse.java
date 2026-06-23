@@ -36,5 +36,5 @@ public class UserResponse {
     VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
     String identityFrontImage;
     String identityBackImage;
-
+    WalletResponse wallet;
 }

@@ -7,5 +7,6 @@ import org.springframework.web.bind.annotation.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
+    @org.mapstruct.Mapping(target = "wallet", ignore = true)
     UserResponse toUserResponse(User user);
 }

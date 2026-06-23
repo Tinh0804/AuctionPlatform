@@ -84,6 +84,8 @@ app:
     allowed-origins: ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:8080"]
   fptai:
     key: "3t0q7r77YrEL7nMj02JzQGJz87ejPKpP"
+  firebase:
+    config-path: "classpath:firebase-admin.json"
 
 cloudinary:
   cloud_name: dtjuem2ns
