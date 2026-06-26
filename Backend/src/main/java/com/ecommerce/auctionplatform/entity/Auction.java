@@ -65,6 +65,14 @@ public class Auction {
     String description;
 
     @Builder.Default
+    @Column(name = "auto_extend")
+    Boolean autoExtend = false;
+
+    @Builder.Default
+    @Column(name = "extend_minutes")
+    Integer extendMinutes = 0;
+
+    @Builder.Default
     @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
 

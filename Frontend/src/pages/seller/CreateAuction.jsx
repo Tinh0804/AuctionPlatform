@@ -145,11 +145,26 @@ export default function CreateAuction() {
         setIsSubmitting(true);
         try {
             const data = new FormData();
-            const submitFields = { ...formData };
-            if (!submitFields.reserve_price) delete submitFields.reserve_price;
-            if (!submitFields.buy_now_price) delete submitFields.buy_now_price;
+            const submitFields = {
+                name: formData.name,
+                description: formData.description,
+                origin: formData.origin,
+                categoryId: formData.category_id,
+                condition: formData.condition,
+                startPrice: formData.start_price,
+                stepPrice: formData.step_price,
+                depositAmount: formData.deposit_amount,
+                startTime: formData.start_time,
+                endTime: formData.end_time,
+                reservePrice: formData.reserve_price,
+                buyNowPrice: formData.buy_now_price,
+                autoExtend: formData.auto_extend,
+                extendMinutes: formData.extend_minutes,
+            };
+            if (!submitFields.reservePrice) delete submitFields.reservePrice;
+            if (!submitFields.buyNowPrice) delete submitFields.buyNowPrice;
             Object.keys(submitFields).forEach(key => data.append(key, submitFields[key]));
-            if (relistId) data.append('relist_id', relistId);
+            if (relistId) data.append('relistId', relistId);
             if (mainImage) data.append('files', mainImage);
             additionalImages.forEach(img => data.append('files', img));
 
@@ -157,7 +172,7 @@ export default function CreateAuction() {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             toast.success('Đăng ký phiên đấu giá thành công! 🎉');
-            setTimeout(() => navigate(`/auctions/${res.data.auction_id}`), 1200);
+            setTimeout(() => navigate(`/auctions/${res.data.result?.auctionId || res.data.auction_id}`), 1200);
         } catch (error) {
             const detail = error.response?.data?.detail;
             const fieldNames = {

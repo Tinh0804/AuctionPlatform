@@ -23,5 +23,7 @@ public class AuctionCreationRequest {
     LocalDateTime endTime;
     BigDecimal reservePrice;
     BigDecimal buyNowPrice;
+    Boolean autoExtend;
+    Integer extendMinutes;
     MultipartFile[] files;
 }

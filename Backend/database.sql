@@ -243,6 +243,8 @@ CREATE TABLE auctions (
     end_time         TIMESTAMP NOT NULL,
     status           auction_status DEFAULT 'PENDING',
     description      VARCHAR(2000),
+    auto_extend      BOOLEAN DEFAULT FALSE,
+    extend_minutes   INTEGER DEFAULT 0,
     created_at       TIMESTAMP DEFAULT NOW(),
     updated_at       TIMESTAMP
 );
