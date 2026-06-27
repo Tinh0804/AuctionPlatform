@@ -77,7 +77,14 @@ export default function Home() {
         const qs = params.toString();
         apiClient.get(`/auctions${qs ? '?' + qs : ''}`)
             .then(res => {
-                setAuctions(res.data?.result || (Array.isArray(res.data) ? res.data : []));
+                const data = res.data?.result;
+                let auctionsList = [];
+                if (Array.isArray(data)) {
+                    auctionsList = data;
+                } else if (data && Array.isArray(data.content)) {
+                    auctionsList = data.content; // Page response
+                }
+                setAuctions(auctionsList);
                 setLoading(false);
             })
             .catch(err => {

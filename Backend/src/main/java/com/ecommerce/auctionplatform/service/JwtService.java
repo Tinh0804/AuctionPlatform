@@ -83,13 +83,13 @@ public class JwtService {
             throw new AppException(ErrorCode.INVALID_TOKEN);
         }
 
-        java.util.Date accessExpiryTime = signedAccess.getJWTClaimsSet().getExpirationTime();
+        Date accessExpiryTime = signedAccess.getJWTClaimsSet().getExpirationTime();
         long remainingTime = accessExpiryTime.getTime() - System.currentTimeMillis();
         if (remainingTime > 0) {
             blackListService.addToBlackList(accessJti, remainingTime);
         }
 
-        java.util.Date refreshExpiryTime = signedRefresh.getJWTClaimsSet().getExpirationTime();
+        Date refreshExpiryTime = signedRefresh.getJWTClaimsSet().getExpirationTime();
         long refreshRemainingTime = refreshExpiryTime.getTime() - System.currentTimeMillis();
         if (refreshRemainingTime > 0) {
             blackListService.addToBlackList(refreshJti, refreshRemainingTime);

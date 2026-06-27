@@ -62,7 +62,9 @@ const AuctionCard = ({ auc, index = 0, variant = 'medium' }) => {
 
     useEffect(() => {
         const calculateTimeLeft = () => {
-            const targetDate = auc.status === 'PENDING' ? new Date(auc.start_time) : new Date(auc.end_time);
+            const startTime = auc.startTime || auc.start_time;
+            const endTime = auc.endTime || auc.end_time;
+            const targetDate = auc.status === 'PENDING' ? new Date(startTime) : new Date(endTime);
             const difference = targetDate - new Date();
 
             if (difference <= 0) return '00:00:00';
@@ -83,11 +85,11 @@ const AuctionCard = ({ auc, index = 0, variant = 'medium' }) => {
             const timer = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
             return () => clearInterval(timer);
         }
-    }, [auc.start_time, auc.end_time, auc.status]);
+    }, [auc.start_time, auc.startTime, auc.end_time, auc.endTime, auc.status]);
 
     const status = statusConfig[auc.status] || statusConfig.CLOSED;
     const isLive = auc.status === 'ACTIVE';
-    const bidCount = auc.bid_count || 0;
+    const bidCount = auc.bidCount || auc.bid_count || 0;
     const [imageSrc, setImageSrc] = useState(() => getAuctionImage(auc, index));
 
     useEffect(() => {
@@ -160,12 +162,12 @@ const AuctionCard = ({ auc, index = 0, variant = 'medium' }) => {
                 {/* Content */}
                 <div className="auction-gallery-content p-5 rounded-b-[24px] bg-gradient-to-b from-[#F7F1E5] to-[#E8DDCB]">
                     {/* Category tag if available */}
-                    {auc.category_name && (
-                        <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-2">{auc.category_name}</p>
+                    {(auc.categoryName || auc.category_name) && (
+                        <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-2">{auc.categoryName || auc.category_name}</p>
                     )}
 
                     <h3 className="font-semibold text-slate-900 leading-snug line-clamp-2 min-h-[2.75rem] group-hover:text-amber-700 transition-colors duration-300 text-[15px]">
-                        {auc.product_name}
+                        {auc.productName || auc.product_name}
                     </h3>
                     
                     {/* Price & Stats */}
@@ -177,7 +179,7 @@ const AuctionCard = ({ auc, index = 0, variant = 'medium' }) => {
                                     {auc.status === 'PENDING' ? 'Giá khởi điểm' : 'Giá hiện tại'}
                                 </p>
                                 <p className="text-xl font-bold text-slate-900 tracking-tight">
-                                    {auc.current_price.toLocaleString('vi-VN')}
+                                    {((auc.currentPrice != null ? auc.currentPrice : auc.current_price) || 0).toLocaleString('vi-VN')}
                                     <span className="text-sm font-medium text-slate-400 ml-0.5">đ</span>
                                 </p>
                             </div>

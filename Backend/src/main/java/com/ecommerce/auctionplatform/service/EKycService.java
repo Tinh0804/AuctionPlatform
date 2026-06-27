@@ -35,22 +35,20 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class EKycService {
  
-    final UserRepository userRepository;
-    final CloudinaryService cloudinaryService;
-    final ObjectMapper objectMapper;
+    UserRepository userRepository;
+    CloudinaryService cloudinaryService;
+    ObjectMapper objectMapper;
  
     @Value("${app.fptai.key}")
     String fptAiKey;
  
     public void verifyKyc(MultipartFile frontImage, MultipartFile backImage) {
-        // 1. Lấy thông tin user hiện tại từ Security Context
         UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(() ->
                 new AppException(ErrorCode.UNAUTHORIZED)));
  
         User user = userRepository.findById(userProfileId).orElseThrow(() ->
                 new AppException(ErrorCode.USER_NOT_FOUND));
  
-        // 2. Gọi FPT AI OCR phân tích ảnh mặt trước (lấy số CCCD, họ tên, giới tính)
         String idCard = "";
         String genderStr = "";
         try {
@@ -101,7 +99,7 @@ public class EKycService {
         String backUrl;
         try {
             Map<String, Object> extraOptions = new HashMap<>();
-            extraOptions.put("type", "authenticated");
+            extraOptions.put("type", "private");
  
             frontUrl = cloudinaryService.uploadFile(frontImage, "auction_project/kyc_documents", extraOptions);
             backUrl = cloudinaryService.uploadFile(backImage, "auction_project/kyc_documents", extraOptions);

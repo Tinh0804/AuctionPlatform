@@ -1,18 +1,24 @@
 package com.ecommerce.auctionplatform.controller;
 
+import com.ecommerce.auctionplatform.dto.request.AuctionCreationRequest;
+import com.ecommerce.auctionplatform.dto.request.BidRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuctionCreationResponse;
+import com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse;
+import com.ecommerce.auctionplatform.dto.respose.BidResponse;
 import com.ecommerce.auctionplatform.dto.respose.CategoryResponse;
 import com.ecommerce.auctionplatform.service.AuctionService;
 import com.ecommerce.auctionplatform.service.CategoryService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -24,6 +30,18 @@ public class AuctionController {
     private final AuctionService auctionService;
     private final CategoryService categoryService;
 
+    @GetMapping
+    public APIResponse<Page<AuctionDetailResponse>> getAllAuctions(
+            @RequestParam(required = false) String status,
+            @RequestParam(name = "category_id", required = false) String categoryId,
+            @PageableDefault(size = 12) Pageable pageable) {
+        return APIResponse.<Page<AuctionDetailResponse>>builder()
+                .status(HttpStatus.OK.value())
+                .message("Auctions fetched successfully")
+                .result(auctionService.getAllAuctions(status, categoryId, pageable))
+                .build();
+    }
+
     @GetMapping("/categories")
     public APIResponse<List<CategoryResponse>> getCategories() {
         return APIResponse.<List<CategoryResponse>>builder()
@@ -34,7 +52,7 @@ public class AuctionController {
     }
 
     @PostMapping("/create-auction")
-    public APIResponse<AuctionCreationResponse> createAuction(@ModelAttribute com.ecommerce.auctionplatform.dto.request.AuctionCreationRequest request) throws IOException {
+    public APIResponse<AuctionCreationResponse> createAuction(@ModelAttribute AuctionCreationRequest request) throws IOException {
 
         AuctionCreationResponse response = auctionService.createAuction(request);
 
@@ -45,8 +63,8 @@ public class AuctionController {
                 .build();
     }
     @GetMapping("/{id}")
-    public APIResponse<com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse> getAuctionDetail(@PathVariable UUID id) {
-        return APIResponse.<com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse>builder()
+    public APIResponse<AuctionDetailResponse> getAuctionDetail(@PathVariable UUID id) {
+        return APIResponse.<AuctionDetailResponse>builder()
                 .status(HttpStatus.OK.value())
                 .message("Auction detail fetched successfully")
                 .result(auctionService.getAuctionDetail(id))
@@ -54,8 +72,8 @@ public class AuctionController {
     }
 
     @GetMapping("/{id}/bids")
-    public APIResponse<List<com.ecommerce.auctionplatform.dto.respose.BidResponse>> getAuctionBids(@PathVariable UUID id) {
-        return APIResponse.<List<com.ecommerce.auctionplatform.dto.respose.BidResponse>>builder()
+    public APIResponse<List<BidResponse>> getAuctionBids(@PathVariable UUID id) {
+        return APIResponse.<List<BidResponse>>builder()
                 .status(HttpStatus.OK.value())
                 .message("Auction bids fetched successfully")
                 .result(auctionService.getAuctionBids(id))
@@ -63,10 +81,10 @@ public class AuctionController {
     }
 
     @PostMapping("/{id}/bid")
-    public APIResponse<com.ecommerce.auctionplatform.dto.respose.BidResponse> placeBid(
+    public APIResponse<BidResponse> placeBid(
             @PathVariable UUID id,
-            @RequestBody com.ecommerce.auctionplatform.dto.request.BidRequest request) {
-        return APIResponse.<com.ecommerce.auctionplatform.dto.respose.BidResponse>builder()
+            @RequestBody BidRequest request) {
+        return APIResponse.<BidResponse>builder()
                 .status(HttpStatus.OK.value())
                 .message("Bid placed successfully")
                 .result(auctionService.placeBid(id, request))

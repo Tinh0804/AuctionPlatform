@@ -51,6 +51,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-export const WS_URL = API_URL.replace(/^http/, 'ws');
+export const WS_URL = API_URL;
 
 export default apiClient;

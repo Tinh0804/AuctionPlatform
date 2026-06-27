@@ -1,55 +1,77 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.AuctionCreationRequest;
+import com.ecommerce.auctionplatform.dto.request.BidRequest;
 import com.ecommerce.auctionplatform.dto.respose.AuctionCreationResponse;
+import com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse;
+import com.ecommerce.auctionplatform.dto.respose.BidResponse;
+import com.ecommerce.auctionplatform.dto.respose.ImageResponse;
 import com.ecommerce.auctionplatform.entity.*;
-import com.ecommerce.auctionplatform.entity.enums.AuctionStatus;
-import com.ecommerce.auctionplatform.entity.enums.ProductCondition;
-import com.ecommerce.auctionplatform.entity.enums.ProductStatus;
+import com.ecommerce.auctionplatform.entity.enums.*;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.repository.*;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+
+import lombok.experimental.FieldDefaults;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import org.springframework.data.jpa.domain.Specification;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuctionService {
 
-    private final AuctionRepository auctionRepository;
-    private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
-    private final ImageRepository imageRepository;
-    private final UserRepository userRepository;
-    private final CloudinaryService cloudinaryService;
-    private final BidRepository bidRepository;
-    private final AuctionRegistrationRepository auctionRegistrationRepository;
-    private final WalletRepository walletRepository;
-    private final TransactionRepository transactionRepository;
-    private final org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    AuctionRepository auctionRepository;
+    ProductRepository productRepository;
+    CategoryRepository categoryRepository;
+    ImageRepository imageRepository;
+    UserRepository userRepository;
+    CloudinaryService cloudinaryService;
+    BidRepository bidRepository;
+    AuctionRegistrationRepository auctionRegistrationRepository;
+    WalletRepository walletRepository;
+    TransactionRepository transactionRepository;
+    SimpMessagingTemplate messagingTemplate;
 
     @Transactional
     public AuctionCreationResponse createAuction(AuctionCreationRequest request) throws IOException {
 
-        // Get Current User
         String profileId = SecurityUtils.getCurrentProfileId()
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_INVALID));
 
         User user = userRepository.findById(UUID.fromString(profileId))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+        if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            throw new AppException(ErrorCode.UNVERIFIED_USER);
+        }
+
+        if (user.getReputationScore() == null || user.getReputationScore() < 50) {
+            throw new AppException(ErrorCode.LOW_REPUTATION);
+        }
+
         Category category = categoryRepository.findById(UUID.fromString(request.getCategoryId()))
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
 
-        // Save Product
         Product product = Product.builder()
                 .user(user)
                 .category(category)
@@ -61,7 +83,7 @@ public class AuctionService {
                 .build();
         product = productRepository.save(product);
 
-        // Upload and Save Images
+
         if (request.getFiles() != null && request.getFiles().length > 0) {
             boolean isCover = true;
             for (MultipartFile file : request.getFiles()) {
@@ -76,7 +98,6 @@ public class AuctionService {
             }
         }
 
-        // Create Auction
         Auction auction = Auction.builder()
                 .user(user)
                 .product(product)
@@ -89,7 +110,7 @@ public class AuctionService {
                 .status(AuctionStatus.PENDING)
                 .autoExtend(request.getAutoExtend() != null ? request.getAutoExtend() : false)
                 .extendMinutes(request.getExtendMinutes() != null ? request.getExtendMinutes() : 0)
-                // Need fields for reservePrice and buyNowPrice if they exist in Entity, else omit
+                //  reservePrice and buyNowPrice if neeeded
                 .build();
         auction = auctionRepository.save(auction);
 
@@ -98,19 +119,80 @@ public class AuctionService {
                 .message("Auction created successfully")
                 .build();
     }
-    public com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse getAuctionDetail(UUID id) {
+    public Page<AuctionDetailResponse> getAllAuctions(String statusStr, String categoryIdStr, Pageable pageable) {
+        AuctionStatus status = null;
+        if (statusStr != null && !statusStr.isBlank()) {
+            try {
+                status = AuctionStatus.valueOf(statusStr);
+            } catch (IllegalArgumentException e) {
+                // ignore
+            }
+        }
+        UUID categoryId = null;
+        if (categoryIdStr != null && !categoryIdStr.isBlank()) {
+            try {
+                categoryId = UUID.fromString(categoryIdStr);
+            } catch (IllegalArgumentException e) {
+                // ignore
+            }
+        }
+
+        final AuctionStatus finalStatus = status;
+        final UUID finalCategoryId = categoryId;
+
+        Specification<Auction> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (finalStatus != null) {
+                predicates.add(cb.equal(root.get("status"), finalStatus));
+            }
+            if (finalCategoryId != null) {
+                predicates.add(cb.equal(root.get("product").get("category").get("id"), finalCategoryId));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Auction> auctions = auctionRepository.findAll(spec, pageable);
+        return auctions.map(auction -> {
+            List<Image> images = imageRepository.findByProductId(auction.getProduct().getId());
+            List<ImageResponse> imageResponses = images.stream()
+                    .map(img -> ImageResponse.builder()
+                            .url(img.getFileUrl())
+                            .isCover(img.getIsCover())
+                            .build())
+                    .toList();
+
+            return AuctionDetailResponse.builder()
+                    .id(auction.getId())
+                    .productName(auction.getProduct().getName())
+                    .description(auction.getDescription())
+                    .status(auction.getStatus().name())
+                    .startPrice(auction.getStartPrice())
+                    .currentPrice(auction.getCurrentPrice())
+                    .stepPrice(auction.getStepPrice())
+                    .depositAmount(auction.getDepositAmount())
+                    .startTime(auction.getStartTime())
+                    .endTime(auction.getEndTime())
+                    .autoExtend(auction.getAutoExtend())
+                    .extendMinutes(auction.getExtendMinutes())
+                    .sellerName(auction.getUser().getName())
+                    .images(imageResponses)
+                    .build();
+        });
+    }
+
+    public AuctionDetailResponse getAuctionDetail(UUID id) {
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND)); // Assuming ErrorCode.AUCTION_NOT_FOUND exists
 
-        java.util.List<Image> images = imageRepository.findByProductId(auction.getProduct().getId());
-        java.util.List<com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse.ImageResponse> imageResponses = images.stream()
-                .map(img -> com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse.ImageResponse.builder()
+        List<Image> images = imageRepository.findByProductId(auction.getProduct().getId());
+        List<ImageResponse> imageResponses = images.stream()
+                .map(img -> ImageResponse.builder()
                         .url(img.getFileUrl())
                         .isCover(img.getIsCover())
                         .build())
                 .toList();
 
-        return com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse.builder()
+        return AuctionDetailResponse.builder()
                 .id(auction.getId())
                 .productName(auction.getProduct().getName())
                 .description(auction.getDescription())
@@ -123,27 +205,27 @@ public class AuctionService {
                 .endTime(auction.getEndTime())
                 .autoExtend(auction.getAutoExtend())
                 .extendMinutes(auction.getExtendMinutes())
-                .sellerName(auction.getUser().getFullName())
+                .sellerName(auction.getUser().getName())
                 .images(imageResponses)
                 .build();
     }
 
-    public java.util.List<com.ecommerce.auctionplatform.dto.respose.BidResponse> getAuctionBids(UUID id) {
-        java.util.List<Bid> bids = bidRepository.findByAuctionIdOrderByBidTimeDesc(id);
+    public List<BidResponse> getAuctionBids(UUID id) {
+        List<Bid> bids = bidRepository.findByAuctionIdOrderByBidTimeDesc(id);
         return bids.stream()
-                .map(bid -> com.ecommerce.auctionplatform.dto.respose.BidResponse.builder()
+                .map(bid -> BidResponse.builder()
                         .id(bid.getId())
                         .bidAmount(bid.getBidAmount())
                         .bidTime(bid.getBidTime())
                         .isWinning(bid.getIsWinning())
                         .bidderId(bid.getUser().getId())
-                        .bidderName(bid.getUser().getFullName()) // Maybe mask this later
+                        .bidderName(bid.getUser().getName()) // Maybe mask this later
                         .build())
                 .toList();
     }
 
     @Transactional
-    public com.ecommerce.auctionplatform.dto.respose.BidResponse placeBid(UUID auctionId, com.ecommerce.auctionplatform.dto.request.BidRequest request) {
+    public BidResponse placeBid(UUID auctionId, BidRequest request) {
         String profileId = SecurityUtils.getCurrentProfileId()
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         User user = userRepository.findById(UUID.fromString(profileId))
@@ -175,9 +257,9 @@ public class AuctionService {
 
                 Transaction tx = Transaction.builder()
                         .wallet(wallet)
-                        .type(com.ecommerce.auctionplatform.entity.enums.TransactionType.AUCTION_DEPOSIT)
+                        .type(TransactionType.AUCTION_DEPOSIT)
                         .amount(auction.getDepositAmount())
-                        .status(com.ecommerce.auctionplatform.entity.enums.TransactionStatus.SUCCESS)
+                        .status(TransactionStatus.SUCCESS)
                         .referenceType("REGISTRATION")
                         .build();
                 transactionRepository.save(tx);
@@ -186,8 +268,8 @@ public class AuctionService {
                         .auction(auction)
                         .user(user)
                         .depositAmount(auction.getDepositAmount())
-                        .depositStatus(com.ecommerce.auctionplatform.entity.enums.DepositStatus.PAID)
-                        .registrationStatus(com.ecommerce.auctionplatform.entity.enums.RegistrationStatus.APPROVED)
+                        .depositStatus(DepositStatus.PAID)
+                        .registrationStatus(RegistrationStatus.APPROVED)
                         .build();
                 registration = auctionRegistrationRepository.save(registration);
                 
@@ -216,7 +298,7 @@ public class AuctionService {
 
         boolean extended = false;
         if (Boolean.TRUE.equals(auction.getAutoExtend()) && auction.getExtendMinutes() != null && auction.getExtendMinutes() > 0) {
-            if (java.time.temporal.ChronoUnit.SECONDS.between(LocalDateTime.now(), auction.getEndTime()) < 60) {
+            if (ChronoUnit.SECONDS.between(LocalDateTime.now(), auction.getEndTime()) < 60) {
                 auction.setEndTime(auction.getEndTime().plusMinutes(auction.getExtendMinutes()));
                 extended = true;
             }
@@ -224,16 +306,16 @@ public class AuctionService {
 
         auctionRepository.save(auction);
 
-        com.ecommerce.auctionplatform.dto.respose.BidResponse response = com.ecommerce.auctionplatform.dto.respose.BidResponse.builder()
+        BidResponse response = BidResponse.builder()
                 .id(bid.getId())
                 .bidAmount(bid.getBidAmount())
                 .bidTime(bid.getBidTime())
                 .isWinning(true)
                 .bidderId(user.getId())
-                .bidderName(user.getFullName())
+                .bidderName(user.getName())
                 .build();
 
-        java.util.Map<String, Object> message = new java.util.HashMap<>();
+        Map<String, Object> message = new HashMap<>();
         message.put("type", "new_bid");
         message.put("bid_amount", bid.getBidAmount());
         message.put("bidder_id", user.getId());
@@ -241,7 +323,7 @@ public class AuctionService {
             message.put("extended", true);
             message.put("end_time", auction.getEndTime().toString());
         }
-        messagingTemplate.convertAndSend("/topic/auction/" + auctionId, message);
+        messagingTemplate.convertAndSend("/topic/auction/" + auctionId, (Object) message);
 
         return response;
     }

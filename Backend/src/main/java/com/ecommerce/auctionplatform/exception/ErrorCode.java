@@ -14,6 +14,7 @@ public enum ErrorCode {
     BID_TOO_LOW(400,"Bid amount is too low", HttpStatus.BAD_REQUEST),
     AUCTION_ENDED(400,"Auction has already ended", HttpStatus.BAD_REQUEST),
     INVALID_TOKEN(401,"Invalid token", HttpStatus.UNAUTHORIZED),
+    UNVERIFIED_USER(403,"User is not verified", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(401,"Unauthorized", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(403,"Forbidden", HttpStatus.FORBIDDEN),
     BAD_REQUEST(400,"Bad request", HttpStatus.BAD_REQUEST),
@@ -30,6 +31,8 @@ public enum ErrorCode {
     USERNAME_EXISTED(400, "Username already exists", HttpStatus.BAD_REQUEST),
     EMAIL_EXISTED(400, "Email already exists", HttpStatus.BAD_REQUEST),
     PHONE_EXISTED(400, "Phone number already exists", HttpStatus.BAD_REQUEST),
+    LOW_REPUTATION(403, "User reputation is too low to perform this action", HttpStatus.FORBIDDEN),
+    ROLE_NOT_EXISTS(404,"Role not exists", HttpStatus.NOT_FOUND),
 
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);

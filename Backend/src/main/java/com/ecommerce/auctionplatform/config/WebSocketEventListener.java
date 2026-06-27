@@ -91,6 +91,6 @@ public class WebSocketEventListener {
         Map<String, Object> msg = new HashMap<>();
         msg.put("type", "viewer_count");
         msg.put("viewer_count", viewers != null ? viewers : 0);
-        messagingTemplate.convertAndSend("/topic/auction/" + auctionId + "/status", msg);
+        messagingTemplate.convertAndSend("/topic/auction/" + auctionId + "/status", (Object) msg);
     }
 }

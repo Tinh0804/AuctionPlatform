@@ -5,6 +5,7 @@ import apiClient, { WS_URL } from '@/services/apiClient';
 import Skeleton from '@/components/Elements/Skeleton';
 import Confetti from '@/components/Elements/Confetti';
 import { useToast } from '@/components/Elements/Toast';
+import { useStomp } from '@/hooks/useStomp';
 
 const money = value => Number(value || 0).toLocaleString('vi-VN');
 const statusLabel = { ACTIVE: 'Đang diễn ra', PENDING: 'Sắp bắt đầu', CLOSED: 'Đã chốt phiên', ENDED: 'Đã kết thúc', FAILED: 'Thất bại', CANCELLED: 'Đã hủy' };
@@ -59,64 +60,44 @@ export default function AuctionDetail() {
         closeSyncTriggered.current = false;
         setViewerCount(0);
         loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
-        import('@stomp/stompjs').then(({ Client }) => {
-            import('sockjs-client').then(({ default: SockJS }) => {
-                const stompClient = new Client({
-                    webSocketFactory: () => new SockJS(`${WS_URL}/ws`),
-                    debug: function (str) {
-                        console.log(str);
-                    },
-                    reconnectDelay: 5000,
-                    heartbeatIncoming: 4000,
-                    heartbeatOutgoing: 4000,
-                });
-
-                stompClient.onConnect = function (frame) {
-                    console.log('Connected: ' + frame);
-                    stompClient.subscribe(`/topic/auction/${id}`, function (messageOutput) {
-                        const data = JSON.parse(messageOutput.body);
-                        if (data.type === 'new_bid') {
-                            const bidValue = Number(data.bid_amount || 0);
-                            if (data.end_time) {
-                                setAuction(prev => prev ? { ...prev, end_time: data.end_time } : prev);
-                                closeSyncTriggered.current = false;
-                            }
-                            const isOwnBidEcho = data.bidder_id
-                                ? String(data.bidder_id) === String(currentUserId)
-                                : latestOwnBid.current === bidValue;
-                            if (isOwnBidEcho) {
-                                latestOwnBid.current = null;
-                            } else if (bidValue > 0) {
-                                toast.warning(`Bạn vừa bị vượt giá: ${money(bidValue)} đ. Hãy đặt giá mới nếu muốn tiếp tục dẫn đầu.`, 6500);
-                            }
-                            if (data.extended) {
-                                toast.info('Có lượt đặt giá trong 10 giây cuối, phiên đã được gia hạn thêm 1 phút.', 6500);
-                            }
-                            loadData();
-                        }
-                        if (data.type === 'auction_ended') loadData();
-                    });
-
-                    stompClient.subscribe(`/topic/auction/${id}/status`, function (messageOutput) {
-                        const data = JSON.parse(messageOutput.body);
-                        if (data.type === 'viewer_count') {
-                            setViewerCount(Number(data.viewer_count || 0));
-                        }
-                    });
-                };
-
-                stompClient.activate();
-                ws.current = stompClient;
+    useStomp({
+        deps: [id],
+        onConnect: (stompClient) => {
+            stompClient.subscribe(`/topic/auction/${id}`, function (messageOutput) {
+                const data = JSON.parse(messageOutput.body);
+                if (data.type === 'new_bid') {
+                    const bidValue = Number(data.bid_amount || 0);
+                    if (data.end_time) {
+                        setAuction(prev => prev ? { ...prev, end_time: data.end_time } : prev);
+                        closeSyncTriggered.current = false;
+                    }
+                    const isOwnBidEcho = data.bidder_id
+                        ? String(data.bidder_id) === String(currentUserId)
+                        : latestOwnBid.current === bidValue;
+                    if (isOwnBidEcho) {
+                        latestOwnBid.current = null;
+                    } else if (bidValue > 0) {
+                        toast.warning(`Bạn vừa bị vượt giá: ${money(bidValue)} đ. Hãy đặt giá mới nếu muốn tiếp tục dẫn đầu.`, 6500);
+                    }
+                    if (data.extended) {
+                        toast.info('Có lượt đặt giá trong 10 giây cuối, phiên đã được gia hạn thêm 1 phút.', 6500);
+                    }
+                    loadData();
+                }
+                if (data.type === 'auction_ended') loadData();
             });
-        });
 
-        return () => {
-            if (ws.current) {
-                ws.current.deactivate();
-            }
-        };
-    }, [currentUserId, id, toast]);
+            stompClient.subscribe(`/topic/auction/${id}/status`, function (messageOutput) {
+                const data = JSON.parse(messageOutput.body);
+                if (data.type === 'viewer_count') {
+                    setViewerCount(Number(data.viewer_count || 0));
+                }
+            });
+        }
+    });
 
     useEffect(() => {
         if (!auction || auction.status !== 'ACTIVE') {

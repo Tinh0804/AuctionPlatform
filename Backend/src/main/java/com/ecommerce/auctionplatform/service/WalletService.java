@@ -32,14 +32,12 @@ public class WalletService {
 
     @Transactional
     public void setupPin(PinSetupRequest request) {
-        // 1. Get current logged in user profile ID
         UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId()
                 .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED)));
 
         User user = userRepository.findById(userProfileId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // 2. Verify the Firebase ID Token
         String firebasePhone = verifyFirebaseTokenAndGetPhone(request.getFirebaseIdToken());
 
         if (firebasePhone == null || firebasePhone.trim().isEmpty()) {
@@ -47,14 +45,12 @@ public class WalletService {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
-        // 3. Verify phone number matches user's registered phone number
         String userPhone = user.getPhone();
         if (!normalizePhone(firebasePhone).equals(normalizePhone(userPhone))) {
             log.error("Phone number mismatch: Firebase phone = {}, Registered user phone = {}", firebasePhone, userPhone);
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
-        // 4. Find or auto-create wallet
         Wallet wallet = walletRepository.findByUser(user).orElseGet(() -> {
             Wallet newWallet = Wallet.builder()
                     .user(user)
@@ -65,7 +61,6 @@ public class WalletService {
             return walletRepository.save(newWallet);
         });
 
-        // 5. Encrypt and set new PIN
         wallet.setPinCode(passwordEncoder.encode(request.getNewPin()));
         wallet.setUpdatedAt(LocalDateTime.now());
         walletRepository.save(wallet);

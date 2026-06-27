@@ -56,6 +56,14 @@ public class UserService {
 
         return userResponse;
     }
+    public boolean isCreatedAuction(){
+
+        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
+                new AppException(ErrorCode.UNAUTHORIZED)));
+        User user = userRepository.findById(userProfileId).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND));
+        return user.getVerificationStatus()!= null && user.getVerificationStatus().name().equals("VERIFIED") && user.getReputationScore()>=50;
+    }
 
 
 
