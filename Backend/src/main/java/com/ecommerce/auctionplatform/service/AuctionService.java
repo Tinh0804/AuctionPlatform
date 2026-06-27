@@ -96,6 +96,23 @@ public class AuctionService {
                 imageRepository.save(image);
                 isCover = false; // Only first image is cover
             }
+        } else if (request.getRelistId() != null && !request.getRelistId().isEmpty()) {
+            Auction oldAuction = auctionRepository.findById(UUID.fromString(request.getRelistId()))
+                    .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+
+            if (!oldAuction.getUser().getId().equals(user.getId())) {
+                throw new AppException(ErrorCode.NOT_AUCTON_OWNER);
+            }
+
+            List<Image> oldImages = imageRepository.findByProductId(oldAuction.getProduct().getId());
+            for (Image oldImg : oldImages) {
+                Image newImg = Image.builder()
+                        .product(product)
+                        .fileUrl(oldImg.getFileUrl())
+                        .isCover(oldImg.getIsCover())
+                        .build();
+                imageRepository.save(newImg);
+            }
         }
 
         Auction auction = Auction.builder()
@@ -175,6 +192,7 @@ public class AuctionService {
                     .autoExtend(auction.getAutoExtend())
                     .extendMinutes(auction.getExtendMinutes())
                     .sellerName(auction.getUser().getName())
+                    .sellerId(auction.getUser().getId())
                     .images(imageResponses)
                     .build();
         });
@@ -206,6 +224,7 @@ public class AuctionService {
                 .autoExtend(auction.getAutoExtend())
                 .extendMinutes(auction.getExtendMinutes())
                 .sellerName(auction.getUser().getName())
+                .sellerId(auction.getUser().getId())
                 .images(imageResponses)
                 .build();
     }
@@ -236,6 +255,10 @@ public class AuctionService {
 
         if (auction.getStatus() != AuctionStatus.ACTIVE) {
             throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        if (auction.getUser().getId().equals(user.getId())) {
+            throw new AppException(ErrorCode.CANNOT_BID_OWN_AUCTION);
         }
 
         if (auction.getDepositAmount().compareTo(BigDecimal.ZERO) > 0) {

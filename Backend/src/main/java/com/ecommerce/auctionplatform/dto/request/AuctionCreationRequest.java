@@ -25,5 +25,6 @@ public class AuctionCreationRequest {
     BigDecimal buyNowPrice;
     Boolean autoExtend;
     Integer extendMinutes;
+    String relistId;
     MultipartFile[] files;
 }

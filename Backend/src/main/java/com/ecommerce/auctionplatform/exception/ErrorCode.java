@@ -13,6 +13,7 @@ public enum ErrorCode {
     AUCTION_NOT_FOUND(404,"Auction not found", HttpStatus.NOT_FOUND),
     BID_TOO_LOW(400,"Bid amount is too low", HttpStatus.BAD_REQUEST),
     AUCTION_ENDED(400,"Auction has already ended", HttpStatus.BAD_REQUEST),
+    CANNOT_BID_OWN_AUCTION(1014, "You cannot bid on your own auction", HttpStatus.BAD_REQUEST),
     INVALID_TOKEN(401,"Invalid token", HttpStatus.UNAUTHORIZED),
     UNVERIFIED_USER(403,"User is not verified", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(401,"Unauthorized", HttpStatus.UNAUTHORIZED),
@@ -33,6 +34,8 @@ public enum ErrorCode {
     PHONE_EXISTED(400, "Phone number already exists", HttpStatus.BAD_REQUEST),
     LOW_REPUTATION(403, "User reputation is too low to perform this action", HttpStatus.FORBIDDEN),
     ROLE_NOT_EXISTS(404,"Role not exists", HttpStatus.NOT_FOUND),
+
+    NOT_AUCTON_OWNER(403, "User is not the owner of the auction", HttpStatus.FORBIDDEN),
 
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);

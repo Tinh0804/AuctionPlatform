@@ -110,7 +110,7 @@ export default function CreateAuction() {
         if (!formData.name.trim()) e.name = 'Tên vật phẩm không được để trống';
         if (!formData.description.trim()) e.description = 'Mô tả không được để trống';
         if (!formData.category_id) e.category_id = 'Vui lòng chọn danh mục';
-        const hasMainImage = mainImage || oldImages.some(i => i.is_cover);
+        const hasMainImage = mainImage || oldImages.some(i => i.is_cover || i.isCover);
         if (!hasMainImage) e.mainImage = 'Vui lòng tải lên ảnh chính';
         setErrors(e);
         return Object.keys(e).length === 0;

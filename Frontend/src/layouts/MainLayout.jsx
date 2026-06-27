@@ -10,7 +10,7 @@ import {
   ArrowRight, Instagram, Facebook, Twitter, Mail, LockKeyhole,
   Award, Gem, ChevronRight,
 } from 'lucide-react';
-import { WS_URL } from '@/services/apiClient';
+import { useStomp } from '@/hooks/useStomp';
 import { getMyInfo, getNotifications, markNotificationRead } from '@/features/auth/api';
 import useAuthStore from '@/store/useAuthStore';
 
@@ -52,44 +52,34 @@ const MainLayout = () => {
   }, [token]);
 
   // WebSocket thông báo realtime
-  useEffect(() => {
-    if (!profile?.id) return;
+  useStomp({
+    deps: [profile?.id],
+    onConnect: (stompClient) => {
+      if (!profile?.id) return;
+      
+      stompClient.subscribe(`/topic/notification/${profile.id}`, (messageOutput) => {
+        try {
+          const incoming = JSON.parse(messageOutput.body);
+          if (!incoming?.title) return;
 
-    const ws = new WebSocket(`${WS_URL}/auctions/ws/${profile.id}`);
-
-    ws.onmessage = (event) => {
-      try {
-        const incoming = JSON.parse(event.data);
-        if (!incoming?.title) return;
-
-        setNotifications(prev => {
-          if (incoming.id && prev.some(n => n.id === incoming.id)) return prev;
-          return [{
-            id: incoming.id || `${incoming.type}-${incoming.reference_id}-${Date.now()}`,
-            title: incoming.title,
-            message: incoming.message,
-            type: incoming.type,
-            reference_id: incoming.reference_id,
-            is_read: incoming.is_read ?? false,
-            created_at: incoming.created_at || new Date().toISOString(),
-          }, ...prev].slice(0, 20);
-        });
-      } catch (error) {
-        console.error('Invalid notification socket payload', error);
-      }
-    };
-
-    ws.onerror = (error) => console.error('Notification socket error', error);
-
-    const heartbeat = window.setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) ws.send('ping');
-    }, 25000);
-
-    return () => {
-      window.clearInterval(heartbeat);
-      ws.close();
-    };
-  }, [profile?.id]);
+          setNotifications(prev => {
+            if (incoming.id && prev.some(n => n.id === incoming.id)) return prev;
+            return [{
+              id: incoming.id || `${incoming.type}-${incoming.reference_id}-${Date.now()}`,
+              title: incoming.title,
+              message: incoming.message,
+              type: incoming.type,
+              reference_id: incoming.reference_id,
+              is_read: incoming.is_read ?? false,
+              created_at: incoming.created_at || new Date().toISOString(),
+            }, ...prev].slice(0, 20);
+          });
+        } catch (error) {
+          console.error('Invalid notification socket payload', error);
+        }
+      });
+    }
+  });
 
   const handleLogout = () => {
     storeLogout();

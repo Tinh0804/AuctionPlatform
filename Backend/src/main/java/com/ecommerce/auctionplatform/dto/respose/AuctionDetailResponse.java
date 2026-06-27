@@ -31,6 +31,7 @@ public class AuctionDetailResponse {
     Boolean autoExtend;
     Integer extendMinutes;
     String sellerName;
+    UUID sellerId;
     List<ImageResponse> images;
 
 }

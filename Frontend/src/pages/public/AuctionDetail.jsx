@@ -45,10 +45,12 @@ export default function AuctionDetail() {
         apiClient.get(`/auctions/${id}`).then(res => {
             const data = res.data?.result || res.data;
             if (data) {
-                const cover = data.images?.find(img => img.is_cover)?.url || data.images?.[0]?.url || '';
+                const cover = data.images?.find(img => img.is_cover || img.isCover)?.url || data.images?.[0]?.url || '';
                 setAuction(data);
                 setActiveImage(cover);
-                setBidAmount((data.current_price || 0) + (data.step_price || 0));
+                const current = data.currentPrice != null ? data.currentPrice : (data.current_price || 0);
+                const step = data.stepPrice != null ? data.stepPrice : (data.step_price || 0);
+                setBidAmount(current + step);
             }
         }).catch(console.error);
         apiClient.get(`/auctions/${id}/bids`)
@@ -105,7 +107,7 @@ export default function AuctionDetail() {
             return undefined;
         }
         const tick = () => {
-            const distance = new Date(auction.end_time).getTime() - Date.now();
+            const distance = new Date(auction.endTime || auction.end_time).getTime() - Date.now();
             if (distance < 0) {
                 setTimeLeft('Đang chờ chốt phiên...');
                 if (!closeSyncTriggered.current) {
@@ -143,16 +145,21 @@ export default function AuctionDetail() {
     const stats = useMemo(() => {
         if (!auction) return null;
         const bidderCount = new Set(bids.map(bid => bid.bidder_name).filter(Boolean)).size;
-        const uplift = auction.start_price ? Math.max(0, Math.round(((auction.current_price - auction.start_price) / auction.start_price) * 100)) : 0;
+        const startPrice = auction.startPrice != null ? auction.startPrice : auction.start_price;
+        const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
+        const uplift = startPrice ? Math.max(0, Math.round(((currentPrice - startPrice) / startPrice) * 100)) : 0;
         return { bidders: bidderCount, bidCount: bids.length, uplift, viewers: viewerCount };
     }, [auction, bids, viewerCount]);
 
     if (!auction) return <Skeleton.Detail />;
 
     const isActive = auction.status === 'ACTIVE';
+    const isOwner = currentUserId && (auction.sellerId === currentUserId || auction.seller_id === currentUserId);
     const parts = getParts(timeLeft);
     const topBid = bids[0];
-    const minBid = auction.current_price + auction.step_price;
+    const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
+    const stepPrice = auction.stepPrice != null ? auction.stepPrice : auction.step_price;
+    const minBid = currentPrice + stepPrice;
 
     return (
         <div className="curator-detail-page">
@@ -168,7 +175,7 @@ export default function AuctionDetail() {
                         </div>
 
                         <p className="curator-kicker">Lô đấu giá</p>
-                        <h1 className="curator-title">{auction.product_name}</h1>
+                        <h1 className="curator-title">{auction.productName || auction.product_name}</h1>
                         <p className="curator-lead">Tất cả số liệu bên dưới lấy trực tiếp từ phiên đấu giá và lịch sử đặt giá hiện tại.</p>
 
                         <div className="curator-stats-row">
@@ -179,7 +186,7 @@ export default function AuctionDetail() {
 
                         <div className="curator-main-lot">
                             <ImageBox auction={auction} activeImage={activeImage} setActiveImage={setActiveImage} />
-                            <BidPanel auction={auction} parts={parts} timeLeft={timeLeft} topBid={topBid} bidAmount={bidAmount} setBidAmount={setBidAmount} minBid={minBid} errorMsg={errorMsg} isActive={isActive} handlePlaceBid={handlePlaceBid} />
+                            <BidPanel auction={auction} parts={parts} timeLeft={timeLeft} topBid={topBid} bidAmount={bidAmount} setBidAmount={setBidAmount} minBid={minBid} errorMsg={errorMsg} isActive={isActive} isOwner={isOwner} handlePlaceBid={handlePlaceBid} />
                         </div>
 
                         <section className="curator-description">
@@ -203,8 +210,8 @@ function ImageBox({ auction, activeImage, setActiveImage }) {
     return (
         <div className="curator-image-block">
             <div className="curator-image-main">
-                {activeImage && <img src={activeImage} alt={auction.product_name} />}
-                <div className="curator-image-caption"><span>Hình ảnh sản phẩm</span><strong>{auction.product_name}</strong></div>
+                {activeImage && <img src={activeImage} alt={auction.productName || auction.product_name} />}
+                <div className="curator-image-caption"><span>Hình ảnh sản phẩm</span><strong>{auction.productName || auction.product_name}</strong></div>
             </div>
             <div className="curator-thumbs">
                 {thumbs.slice(0, 3).map((img, idx) => <button key={idx} onClick={() => setActiveImage(img.url)} className={activeImage === img.url ? 'active' : ''}><img src={img.url} alt="" /></button>)}
@@ -214,16 +221,24 @@ function ImageBox({ auction, activeImage, setActiveImage }) {
     );
 }
 
-function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, minBid, errorMsg, isActive, handlePlaceBid }) {
+function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, minBid, errorMsg, isActive, isOwner, handlePlaceBid }) {
+    const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
+    const stepPrice = auction.stepPrice != null ? auction.stepPrice : auction.step_price;
     return (
         <div className="curator-bid-card">
-            <div className="curator-current-price"><span>Giá hiện tại</span><strong>{money(auction.current_price)} <em>đ</em></strong></div>
+            <div className="curator-current-price"><span>Giá hiện tại</span><strong>{money(currentPrice)} <em>đ</em></strong></div>
             <div className="curator-countdown">
                 <div className="curator-panel-title"><Clock3 className="h-4 w-4" /> <span>Thời gian còn lại</span> {isActive && <b>Đếm ngược trực tiếp</b>}</div>
                 {parts ? <div className="curator-time-grid">{['Ngày', 'Giờ', 'Phút', 'Giây'].map((label, i) => <div key={label}><strong>{parts[i]}</strong><span>{label}</span></div>)}</div> : <p className="curator-time-text">{timeLeft}</p>}
             </div>
             <div className="curator-mini-grid"><Mini label="Người dẫn đầu" value={topBid?.bidder_name || 'Chưa có'} /><Mini label="Tối thiểu" value={`${money(minBid)}đ`} /></div>
-            {isActive ? <div className="curator-bid-actions"><div className="curator-bid-input"><button onClick={() => setBidAmount(prev => Math.max(minBid, prev - auction.step_price))}><Minus className="h-4 w-4" /></button><input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} /><button onClick={() => setBidAmount(prev => prev + auction.step_price)}><Plus className="h-4 w-4" /></button></div>{errorMsg && <p className="curator-error"><Info className="h-3.5 w-3.5" /> {errorMsg}</p>}<button onClick={handlePlaceBid} className="curator-submit"><Gavel className="h-4 w-4" /> Đặt giá và vượt lên</button></div> : <div className="curator-disabled">Phiên đấu giá không khả dụng</div>}
+            {isOwner ? (
+                <div className="curator-disabled">Bạn không thể đặt giá trên phiên đấu giá do chính mình tạo ra</div>
+            ) : isActive ? (
+                <div className="curator-bid-actions"><div className="curator-bid-input"><button onClick={() => setBidAmount(prev => Math.max(minBid, prev - stepPrice))}><Minus className="h-4 w-4" /></button><input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} /><button onClick={() => setBidAmount(prev => prev + stepPrice)}><Plus className="h-4 w-4" /></button></div>{errorMsg && <p className="curator-error"><Info className="h-3.5 w-3.5" /> {errorMsg}</p>}<button onClick={handlePlaceBid} className="curator-submit"><Gavel className="h-4 w-4" /> Đặt giá và vượt lên</button></div>
+            ) : (
+                <div className="curator-disabled">Phiên đấu giá không khả dụng</div>
+            )}
         </div>
     );
 }
@@ -238,12 +253,16 @@ function ActivityFeed({ bids, auction }) {
 }
 
 function BidRow({ bid, idx, prev, auction }) {
-    const inc = prev ? bid.bid_amount - prev.bid_amount : bid.bid_amount - auction.start_price;
+    const startPrice = auction.startPrice != null ? auction.startPrice : auction.start_price;
+    const inc = prev ? bid.bid_amount - prev.bid_amount : bid.bid_amount - startPrice;
     return <div className={`curator-bid-row ${idx === 0 ? 'leader' : ''}`}><div className="curator-avatar">{bid.bidder_name?.charAt(0)?.toUpperCase() || '?'}</div><div className="curator-bidder"><p>{bid.bidder_name || 'Người tham gia'} {idx === 0 && <span>Dẫn đầu</span>} {inc > 0 && <em>+{money(inc)} đ</em>}</p><small>{new Date(bid.bid_time).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' })}</small></div><strong>{money(bid.bid_amount)}<small>đ</small></strong></div>;
 }
 
 function AuctionSpecs({ auction, stats }) {
-    return <div className="curator-specs"><p>Thông số đấu giá</p><div><Metric label="Giá mở" value={`${money(auction.start_price)} đ`} /><Metric label="Bước giá" value={`${money(auction.step_price)} đ`} gold /><Metric label="Tiền cọc" value={`${money(auction.deposit_amount)} đ`} /><Metric label="Đang xem phiên" value={`${stats.viewers} người`} /><Metric label="Người đã đặt giá" value={`${stats.bidders} người`} /></div></div>;
+    const startPrice = auction.startPrice != null ? auction.startPrice : auction.start_price;
+    const stepPrice = auction.stepPrice != null ? auction.stepPrice : auction.step_price;
+    const depositAmount = auction.depositAmount != null ? auction.depositAmount : auction.deposit_amount;
+    return <div className="curator-specs"><p>Thông số đấu giá</p><div><Metric label="Giá mở" value={`${money(startPrice)} đ`} /><Metric label="Bước giá" value={`${money(stepPrice)} đ`} gold /><Metric label="Tiền cọc" value={`${money(depositAmount)} đ`} /><Metric label="Đang xem phiên" value={`${stats.viewers} người`} /><Metric label="Người đã đặt giá" value={`${stats.bidders} người`} /></div></div>;
 }
 
 function Stat({ label, value, suffix, dark, icon }) { return <div className={`curator-stat ${dark ? 'dark' : ''}`}><span>{label}</span><strong>{value}<small>{suffix}</small>{icon}</strong></div>; }
