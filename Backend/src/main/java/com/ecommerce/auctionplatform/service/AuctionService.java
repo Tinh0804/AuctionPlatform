@@ -28,7 +28,9 @@ import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -55,13 +57,16 @@ public class AuctionService {
     @Transactional
     public AuctionCreationResponse createAuction(AuctionCreationRequest request) throws IOException {
 
-        String profileId = SecurityUtils.getCurrentProfileId()
-                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_INVALID));
+        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
+                new AppException(ErrorCode.UNAUTHORIZED)));
+        User user = userRepository.findById(userProfileId).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        User user = userRepository.findById(UUID.fromString(profileId))
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (user.getDob() == null || Period.between(user.getDob(), LocalDate.now()).getYears() < 18) {
+            throw new AppException(ErrorCode.USER_UNDERAGE);
+        }
 
-        if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
+        if(user.getVerificationStatus() == null || !user.getVerificationStatus().name().equals("VERIFIED")){
             throw new AppException(ErrorCode.UNVERIFIED_USER);
         }
 
@@ -249,6 +254,13 @@ public class AuctionService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         User user = userRepository.findById(UUID.fromString(profileId))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            throw new AppException(ErrorCode.UNVERIFIED_USER);
+        }
+
+        if (user.getDob() == null || java.time.Period.between(user.getDob(), java.time.LocalDate.now()).getYears() < 18) {
+            throw new AppException(ErrorCode.USER_UNDERAGE);
+        }
 
         Auction auction = auctionRepository.findById(auctionId)
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));

@@ -36,7 +36,7 @@ public enum ErrorCode {
     ROLE_NOT_EXISTS(404,"Role not exists", HttpStatus.NOT_FOUND),
 
     NOT_AUCTON_OWNER(403, "User is not the owner of the auction", HttpStatus.FORBIDDEN),
-
+    USER_UNDERAGE(403, "You must be at least 18 years old to perform this action", HttpStatus.FORBIDDEN),
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
 

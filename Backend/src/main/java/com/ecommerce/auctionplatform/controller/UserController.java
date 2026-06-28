@@ -10,7 +10,10 @@ import com.ecommerce.auctionplatform.service.UserService;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
+
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -35,6 +38,14 @@ public class UserController {
         return APIResponse.<UserResponse>builder()
                 .message("User information updated successfully")
                 .result(userService.updateUserInfo(request))
+                .build();
+    }
+
+    @PostMapping(value = "/my-info/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public APIResponse<UserResponse> updateAvatar(@RequestParam("file") MultipartFile file) {
+        return APIResponse.<UserResponse>builder()
+                .message("Avatar updated successfully")
+                .result(userService.updateAvatar(file))
                 .build();
     }
 

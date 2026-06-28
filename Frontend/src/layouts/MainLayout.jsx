@@ -429,7 +429,11 @@ const MainLayout = () => {
         </div>
         <div className="relative border-t-2 border-[#9A6A2F]/20 bg-[#E8D5B7]/50">
           <div className="max-w-7xl mx-auto px-6 md:px-12 py-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-            <span className="text-xs text-[#2F2418]/50 font-medium">© 2026 The Curator. Bảo lưu mọi quyền.</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-[#2F2418]/50 font-medium">© 2026 The Curator. Bảo lưu mọi quyền.</span>
+              <span className="px-2 py-0.5 border border-red-800/30 bg-red-900/5 text-[10px] font-bold text-red-800 rounded-sm">18+</span>
+              <span className="text-[10px] text-[#2F2418]/50 font-medium hidden md:inline">Nền tảng đấu giá dành cho người từ đủ 18 tuổi trở lên.</span>
+            </div>
             <div className="flex gap-6 text-xs">
               <Link to="/" className="text-[#2F2418]/50 hover:text-[#9A6A2F] transition-colors font-medium">Terms</Link>
               <Link to="/" className="text-[#2F2418]/50 hover:text-[#9A6A2F] transition-colors font-medium">Privacy</Link>

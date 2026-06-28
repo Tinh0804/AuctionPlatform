@@ -25,6 +25,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
  
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -76,6 +78,15 @@ public class EKycService {
                     JsonNode firstData = dataNode.get(0);
                     idCard = firstData.has("id") ? firstData.get("id").asText() : "";
                     genderStr = firstData.has("sex") ? firstData.get("sex").asText() : "";
+                    String dobStr = firstData.has("dob") ? firstData.get("dob").asText() : "";
+                    if (!dobStr.isEmpty()) {
+                        try {
+                            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                            user.setDob(LocalDate.parse(dobStr.replace("-", "/"), formatter));
+                        } catch (Exception ex) {
+                            log.warn("Failed to parse dob from eKYC: {}", dobStr);
+                        }
+                    }
                 }
             } else {
                 String errorMsg = root.has("errorMessage") ? root.get("errorMessage").asText() : "OCR failed";

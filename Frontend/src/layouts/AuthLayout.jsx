@@ -28,8 +28,12 @@ const AuthLayout = () => {
       </main>
 
       {/* Minimal Footer */}
-      <footer className="border-t border-[#9A6A2F]/15 py-4 text-center text-xs text-[#2F2418]/40">
-        © 2026 The Curator. Antique Auction House.
+      <footer className="border-t border-[#9A6A2F]/15 py-4 flex flex-col items-center justify-center gap-2">
+        <div className="text-xs text-[#2F2418]/40">© 2026 The Curator. Antique Auction House.</div>
+        <div className="flex items-center gap-2 text-[10px] text-[#2F2418]/40">
+          <span className="px-1.5 py-0.5 border border-red-800/20 bg-red-900/5 font-bold text-red-800 rounded-sm">18+</span>
+          <span>Nền tảng đấu giá dành cho người từ đủ 18 tuổi trở lên.</span>
+        </div>
       </footer>
     </div>
   );

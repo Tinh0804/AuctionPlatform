@@ -40,6 +40,7 @@ public class UserService {
     UserMapper userMapper;
     WalletRepository walletRepository;
     AddressRepository addressRepository;
+    CloudinaryService cloudinaryService;
 
     private User getCurrentUser() {
         UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
@@ -86,6 +87,19 @@ public class UserService {
         if (request.getEmail() != null) user.setEmail(request.getEmail());
         if (request.getAvatarImage() != null) user.setAvatarImage(request.getAvatarImage());
         userRepository.save(user);
+        return getUserInfo();
+    }
+
+    public UserResponse updateAvatar(org.springframework.web.multipart.MultipartFile file) {
+        User user = getCurrentUser();
+        try {
+            String avatarUrl = cloudinaryService.uploadFile(file, "auction_project/avatars", new java.util.HashMap<>());
+            user.setAvatarImage(avatarUrl);
+            userRepository.save(user);
+        } catch (java.io.IOException e) {
+            log.error("Failed to upload avatar", e);
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
         return getUserInfo();
     }
 
