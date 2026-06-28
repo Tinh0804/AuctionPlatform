@@ -135,6 +135,7 @@ CREATE TABLE users (
     email                VARCHAR(100) NOT NULL UNIQUE,
     identity_card        VARCHAR(20)  UNIQUE,
     gender               BOOLEAN,
+    dob                  DATE,
     reputation_score     INTEGER     DEFAULT 100,
     verification_status  verification_status DEFAULT 'UNVERIFIED',
     identity_front_image VARCHAR(500),

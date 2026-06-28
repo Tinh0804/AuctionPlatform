@@ -7,6 +7,7 @@ import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -39,6 +40,8 @@ public class User {
     String identityCard;
 
     Boolean gender;
+
+    LocalDate dob;
 
     @Builder.Default
     @Column(name = "reputation_score")

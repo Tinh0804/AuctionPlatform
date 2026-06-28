@@ -36,5 +36,8 @@ public class UserResponse {
     VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
     String identityFrontImage;
     String identityBackImage;
+    String avatarImage;
+    java.time.LocalDate dob;
+    java.util.List<AddressDto> addresses;
     WalletResponse wallet;
 }

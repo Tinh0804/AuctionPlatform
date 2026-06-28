@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 import { getMyInfo } from '@/features/auth/api';
 import useAuthStore from '@/store/useAuthStore';
-import { LogOut, ShieldCheck, User as UserIcon, Award, Wallet as WalletIcon, Lock, Loader, Star, Package, Truck, CreditCard, Settings, CheckCircle, AlertCircle } from 'lucide-react';
+import { LogOut, ShieldCheck, User as UserIcon, Award, Wallet as WalletIcon, Lock, Loader, Star, Package, Truck, CreditCard, Settings, CheckCircle, AlertCircle, Edit3 } from 'lucide-react';
+import EditProfileModal from './components/EditProfileModal';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/services/firebase';
 
@@ -42,11 +43,17 @@ export default function Profile() {
         }
     }, [location, navigate]);
 
-    useEffect(() => {
-        // Sử dụng /users/my-info thay cho /auth/me (deprecated)
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+
+    const fetchProfile = () => {
         getMyInfo()
             .then(res => setProfile(res.result || res))
             .catch(() => { navigate('/login'); });
+    };
+
+    useEffect(() => {
+        // Sử dụng /users/my-info thay cho /auth/me (deprecated)
+        fetchProfile();
             
         apiClient.get('/orders/me/purchases')
             .then(res => setPurchases(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
@@ -434,9 +441,12 @@ export default function Profile() {
                         </div>
                         <h2 className="font-serif text-xl text-[#2F2418]">{profile.name || profile.full_name}</h2>
                         <p className="text-sm text-[#2F2418]/55 mb-4">{profile.email}</p>
-                        <div className="inline-flex items-center gap-1.5 bg-[#9A6A2F]/10 text-[#9A6A2F] border border-[#9A6A2F]/25 px-3 py-1.5 text-xs font-bold">
+                        <div className="inline-flex items-center gap-1.5 bg-[#9A6A2F]/10 text-[#9A6A2F] border border-[#9A6A2F]/25 px-3 py-1.5 text-xs font-bold mb-3">
                             <Award className="w-3.5 h-3.5" /> Uy tín: {profile.reputationScore ?? profile.reputation_score ?? 100}/100
                         </div>
+                        <button onClick={() => setShowEditProfileModal(true)} className="w-full py-2.5 flex items-center justify-center gap-2 border border-[#9A6A2F]/25 text-sm font-semibold text-[#2F2418]/70 hover:bg-[#9A6A2F]/5 hover:text-[#2F2418]">
+                            <Edit3 className="w-4 h-4" /> Chỉnh sửa hồ sơ
+                        </button>
                     </div>
 
                     {/* Wallet Card */}
@@ -609,6 +619,14 @@ export default function Profile() {
                 </div>
             </div>
             </div>
+
+            {showEditProfileModal && (
+                <EditProfileModal 
+                    profile={profile} 
+                    onClose={() => setShowEditProfileModal(false)} 
+                    onSuccess={fetchProfile}
+                />
+            )}
         </div>
     );
 }

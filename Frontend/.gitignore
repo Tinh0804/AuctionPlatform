@@ -34,3 +34,4 @@ yarn-error.log*
 *.sw?
 
 *.vite/
+SKILL.md

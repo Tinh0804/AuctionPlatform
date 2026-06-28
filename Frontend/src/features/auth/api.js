@@ -45,3 +45,33 @@ export const getNotifications = () =>
  */
 export const markNotificationRead = (id) =>
   apiClient.post(`/auth/notifications/${id}/read`).then((r) => r.data);
+
+/**
+ * Cập nhật thông tin profile cơ bản (tên, ngày sinh, giới tính, email, avatar)
+ */
+export const updateMyInfo = (data) =>
+  apiClient.put('/users/my-info', data).then((r) => r.data);
+
+/**
+ * Cập nhật số điện thoại (sau khi xác thực OTP thành công lấy firebaseIdToken)
+ */
+export const updateMyPhone = (firebaseIdToken) =>
+  apiClient.post('/users/my-info/phone', { firebase_id_token: firebaseIdToken }).then((r) => r.data);
+
+/**
+ * Thêm địa chỉ mới
+ */
+export const addAddress = (data) =>
+  apiClient.post('/users/my-info/addresses', data).then((r) => r.data);
+
+/**
+ * Cập nhật địa chỉ
+ */
+export const updateAddress = (id, data) =>
+  apiClient.put(`/users/my-info/addresses/${id}`, data).then((r) => r.data);
+
+/**
+ * Xóa địa chỉ
+ */
+export const deleteAddress = (id) =>
+  apiClient.delete(`/users/my-info/addresses/${id}`).then((r) => r.data);
