@@ -16,8 +16,13 @@ import AuctionDetail from '@/pages/public/AuctionDetail';
 import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 
-// Bidder pages
-import Profile from '@/pages/bidder/Profile';
+import ProfileLayout from '@/pages/bidder/profile/ProfileLayout';
+import PersonalPage from '@/pages/bidder/profile/PersonalPage';
+import WalletPage from '@/pages/bidder/profile/WalletPage';
+import OrdersPage from '@/pages/bidder/profile/OrdersPage';
+import SupportPage from '@/pages/bidder/profile/SupportPage';
+import SettingsPage from '@/pages/bidder/profile/SettingsPage';
+
 import EKyc from '@/pages/bidder/EKyc';
 import Checkout from '@/pages/bidder/Checkout';
 import PaymentResult from '@/pages/bidder/PaymentResult';
@@ -45,7 +50,14 @@ const AppRoutes = () => {
         <Route path="auctions/:id" element={<AuctionDetail />} />
 
         {/* Protected: Bidder */}
-        <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="profile" element={<ProtectedRoute><ProfileLayout /></ProtectedRoute>}>
+          <Route index element={<PersonalPage />} />
+          <Route path="personal" element={<PersonalPage />} />
+          <Route path="wallet" element={<WalletPage />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="support" element={<SupportPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
         <Route path="ekyc" element={<ProtectedRoute><EKyc /></ProtectedRoute>} />
         <Route path="invoices/:invoice_id/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="wallets/deposit/momo-return" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />

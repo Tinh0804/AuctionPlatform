@@ -166,7 +166,7 @@ const MainLayout = () => {
                   <button type="button" onClick={handleGoActiveAuctions} className="block w-full text-left px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors cursor-pointer">
                     Sản phẩm đang đấu giá
                   </button>
-                  <Link to="/profile" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                  <Link to="/profile/orders?sub=purchases" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
                     Đơn hàng đã mua
                   </Link>
                 </div>
@@ -183,10 +183,10 @@ const MainLayout = () => {
                   <Link to="/auctions/create" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
                     Tạo phiên đấu giá mới
                   </Link>
-                  <Link to="/profile" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                  <Link to="/profile/orders?sub=sales" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
                     Quản lý phiên đấu giá
                   </Link>
-                  <Link to="/profile" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                  <Link to="/profile/orders?sub=sales" className="block px-4 py-3 text-sm text-[#2F2418]/75 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
                     Đơn hàng cần giao
                   </Link>
                 </div>

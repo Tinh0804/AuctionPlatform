@@ -11,9 +11,14 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({
         name: profile?.name || '',
         email: profile?.email || '',
-        dob: profile?.dob || '',
         gender: profile?.gender !== undefined ? profile.gender : true,
     });
+    
+    // Extract DOB
+    const initialDob = profile?.dob ? profile.dob.split('-') : [];
+    const [dobYear, setDobYear] = useState(initialDob[0] || '');
+    const [dobMonth, setDobMonth] = useState(initialDob[1] || '');
+    const [dobDay, setDobDay] = useState(initialDob[2] || '');
     const [avatarFile, setAvatarFile] = useState(null);
     const [avatarPreview, setAvatarPreview] = useState(profile?.avatarImage || '');
     
@@ -51,10 +56,15 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
             if (avatarFile) {
                 await uploadAvatar(avatarFile);
             }
+            
+            const formattedDob = (dobYear && dobMonth && dobDay) 
+                ? `${dobYear}-${dobMonth.padStart(2, '0')}-${dobDay.padStart(2, '0')}` 
+                : null;
+
             await updateMyInfo({
                 name: formData.name,
                 email: formData.email,
-                dob: formData.dob,
+                dob: formattedDob,
                 gender: formData.gender === 'true' || formData.gender === true
             });
             onSuccess();
@@ -222,10 +232,38 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
                         </div>
                         <div>
                             <label className="text-sm font-semibold text-[#9A6A2F] mb-1 block">Ngày sinh</label>
-                            <input 
-                                type="date" name="dob" value={formData.dob} onChange={handleInputChange} 
-                                className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-4 py-2.5 text-sm text-[#2F2418] focus:outline-none focus:border-[#9A6A2F]/60"
-                            />
+                            <div className="grid grid-cols-3 gap-2">
+                                <select 
+                                    value={dobDay} 
+                                    onChange={(e) => setDobDay(e.target.value)} 
+                                    className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-3 py-2.5 text-sm text-[#2F2418] focus:outline-none focus:border-[#9A6A2F]/60"
+                                >
+                                    <option value="">Ngày</option>
+                                    {Array.from({length: 31}, (_, i) => i + 1).map(d => (
+                                        <option key={d} value={d.toString()}>{d}</option>
+                                    ))}
+                                </select>
+                                <select 
+                                    value={dobMonth} 
+                                    onChange={(e) => setDobMonth(e.target.value)} 
+                                    className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-3 py-2.5 text-sm text-[#2F2418] focus:outline-none focus:border-[#9A6A2F]/60"
+                                >
+                                    <option value="">Tháng</option>
+                                    {Array.from({length: 12}, (_, i) => i + 1).map(m => (
+                                        <option key={m} value={m.toString()}>{m}</option>
+                                    ))}
+                                </select>
+                                <select 
+                                    value={dobYear} 
+                                    onChange={(e) => setDobYear(e.target.value)} 
+                                    className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-3 py-2.5 text-sm text-[#2F2418] focus:outline-none focus:border-[#9A6A2F]/60"
+                                >
+                                    <option value="">Năm</option>
+                                    {Array.from({length: 100}, (_, i) => new Date().getFullYear() - i).map(y => (
+                                        <option key={y} value={y.toString()}>{y}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                         <div>
                             <label className="text-sm font-semibold text-[#9A6A2F] mb-1 block">Giới tính</label>
