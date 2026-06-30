@@ -268,7 +268,7 @@ public class AuctionService {
             throw new AppException(ErrorCode.USER_UNDERAGE);
         }
 
-        Auction auction = auctionRepository.findById(auctionId)
+        Auction auction = auctionRepository.findByIdWithLock(auctionId)
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
 
         if (auction.getStatus() != AuctionStatus.ACTIVE) {
@@ -341,6 +341,7 @@ public class AuctionService {
         if (Boolean.TRUE.equals(auction.getAutoExtend()) && auction.getExtendMinutes() != null && auction.getExtendMinutes() > 0) {
             if (ChronoUnit.SECONDS.between(LocalDateTime.now(), auction.getEndTime()) < 60) {
                 auction.setEndTime(auction.getEndTime().plusMinutes(auction.getExtendMinutes()));
+                scheduleService.scheduleAuctionClosure(auctionId.toString(), auction.getEndTime());
                 extended = true;
             }
         }
