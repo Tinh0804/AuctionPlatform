@@ -53,21 +53,7 @@ export default function PersonalPage() {
                 </div>
             </div>
 
-            <div className="bg-[#FFF8ED] border border-[#9A6A2F]/20 p-8 shadow-[0_28px_90px_rgba(47,36,24,0.10)]">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-serif text-2xl text-[#2F2418] flex items-center gap-2">
-                        <ShieldCheck className="w-6 h-6 text-[#9A6A2F]" /> Xác thực danh tính (eKYC)
-                    </h3>
-                    <StatusBadge status={(profile.verificationStatus || profile.verification_status) === 'VERIFIED' ? 'COMPLETED' : 'PENDING'} />
-                </div>
-                <p className="text-sm text-[#2F2418]/60 mb-6">Xác thực danh tính bằng CCCD để có thể tạo phiên đấu giá và đặt giá.</p>
-                
-                {(profile.verificationStatus || profile.verification_status) !== 'VERIFIED' && (
-                    <button onClick={() => navigate('/ekyc')} className="w-full md:w-auto px-8 py-3 justify-center text-sm inline-flex items-center bg-[#9A6A2F] text-[#F8F1E6] font-bold hover:bg-[#2F2418] transition-colors">
-                        Tiến hành xác thực ngay
-                    </button>
-                )}
-            </div>
+
 
             <div className="bg-[#FFF8ED] border border-[#9A6A2F]/20 p-8 shadow-[0_28px_90px_rgba(47,36,24,0.10)]">
                 <div className="flex items-center justify-between mb-6 border-b border-[#9A6A2F]/15 pb-4">
@@ -102,6 +88,21 @@ export default function PersonalPage() {
                             Thêm địa chỉ ngay
                         </button>
                     </div>
+                )}
+            </div>
+            <div className="bg-[#FFF8ED] border border-[#9A6A2F]/20 p-8 shadow-[0_28px_90px_rgba(47,36,24,0.10)]">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-serif text-2xl text-[#2F2418] flex items-center gap-2">
+                        <ShieldCheck className="w-6 h-6 text-[#9A6A2F]" /> Xác thực danh tính (eKYC)
+                    </h3>
+                    <StatusBadge status={(profile.verificationStatus || profile.verification_status) === 'VERIFIED' ? 'COMPLETED' : 'PENDING'} />
+                </div>
+                <p className="text-sm text-[#2F2418]/60 mb-6">Xác thực danh tính bằng CCCD để có thể tạo phiên đấu giá và đặt giá.</p>
+                
+                {(profile.verificationStatus || profile.verification_status) !== 'VERIFIED' && (
+                    <button onClick={() => navigate('/ekyc')} className="w-full md:w-auto px-8 py-3 justify-center text-sm inline-flex items-center bg-[#9A6A2F] text-[#F8F1E6] font-bold hover:bg-[#2F2418] transition-colors">
+                        Tiến hành xác thực ngay
+                    </button>
                 )}
             </div>
 

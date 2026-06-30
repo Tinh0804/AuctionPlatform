@@ -68,6 +68,13 @@ public class WalletService {
         log.info("Wallet PIN successfully configured for user {}", userProfileId);
     }
 
+    private User getCurrentUser() {
+        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
+                new AppException(ErrorCode.UNAUTHORIZED)));
+        return userRepository.findById(userProfileId).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
     private String verifyFirebaseTokenAndGetPhone(String idToken) {
         try {
             FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);

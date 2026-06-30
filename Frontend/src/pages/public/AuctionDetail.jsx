@@ -102,17 +102,21 @@ export default function AuctionDetail() {
     });
 
     useEffect(() => {
-        if (!auction || auction.status !== 'ACTIVE') {
-            setTimeLeft(auction?.status === 'PENDING' ? 'Chưa bắt đầu' : 'Đã kết thúc');
+        if (!auction || !['ACTIVE', 'PENDING', 'APPROVED'].includes(auction.status)) {
+            setTimeLeft('Đã kết thúc');
             return undefined;
         }
         const tick = () => {
-            const distance = new Date(auction.endTime || auction.end_time).getTime() - Date.now();
+            const isWaiting = auction.status === 'PENDING' || auction.status === 'APPROVED';
+            const targetTimeStr = isWaiting ? (auction.startTime || auction.start_time) : (auction.endTime || auction.end_time);
+            const targetTime = new Date(targetTimeStr).getTime();
+            const distance = targetTime - Date.now();
+            
             if (distance < 0) {
-                setTimeLeft('Đang chờ chốt phiên...');
+                setTimeLeft(isWaiting ? 'Đang mở phiên...' : 'Đang chờ chốt phiên...');
                 if (!closeSyncTriggered.current) {
                     closeSyncTriggered.current = true;
-                    loadData();
+                    setTimeout(loadData, 1000); // Wait 1s for backend to process state change
                 }
                 return;
             }
@@ -228,7 +232,7 @@ function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, m
         <div className="curator-bid-card">
             <div className="curator-current-price"><span>Giá hiện tại</span><strong>{money(currentPrice)} <em>đ</em></strong></div>
             <div className="curator-countdown">
-                <div className="curator-panel-title"><Clock3 className="h-4 w-4" /> <span>Thời gian còn lại</span> {isActive && <b>Đếm ngược trực tiếp</b>}</div>
+                <div className="curator-panel-title"><Clock3 className="h-4 w-4" /> <span>{['PENDING', 'APPROVED'].includes(auction.status) ? 'Thời gian đến khi bắt đầu' : 'Thời gian còn lại'}</span> {isActive && <b>Đếm ngược trực tiếp</b>}</div>
                 {parts ? <div className="curator-time-grid">{['Ngày', 'Giờ', 'Phút', 'Giây'].map((label, i) => <div key={label}><strong>{parts[i]}</strong><span>{label}</span></div>)}</div> : <p className="curator-time-text">{timeLeft}</p>}
             </div>
             <div className="curator-mini-grid"><Mini label="Người dẫn đầu" value={topBid?.bidder_name || 'Chưa có'} /><Mini label="Tối thiểu" value={`${money(minBid)}đ`} /></div>
@@ -237,7 +241,9 @@ function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, m
             ) : isActive ? (
                 <div className="curator-bid-actions"><div className="curator-bid-input"><button onClick={() => setBidAmount(prev => Math.max(minBid, prev - stepPrice))}><Minus className="h-4 w-4" /></button><input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} /><button onClick={() => setBidAmount(prev => prev + stepPrice)}><Plus className="h-4 w-4" /></button></div>{errorMsg && <p className="curator-error"><Info className="h-3.5 w-3.5" /> {errorMsg}</p>}<button onClick={handlePlaceBid} className="curator-submit"><Gavel className="h-4 w-4" /> Đặt giá và vượt lên</button></div>
             ) : (
-                <div className="curator-disabled">Phiên đấu giá không khả dụng</div>
+                <div className="curator-disabled">
+                    {['PENDING', 'APPROVED'].includes(auction.status) ? 'Phiên đấu giá chưa bắt đầu' : 'Phiên đấu giá đã kết thúc'}
+                </div>
             )}
         </div>
     );

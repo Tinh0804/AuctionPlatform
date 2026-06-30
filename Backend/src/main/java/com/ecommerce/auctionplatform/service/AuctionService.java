@@ -53,14 +53,12 @@ public class AuctionService {
     WalletRepository walletRepository;
     TransactionRepository transactionRepository;
     SimpMessagingTemplate messagingTemplate;
+    ScheduleService scheduleService;
+
 
     @Transactional
     public AuctionCreationResponse createAuction(AuctionCreationRequest request) throws IOException {
-
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
-                new AppException(ErrorCode.UNAUTHORIZED)));
-        User user = userRepository.findById(userProfileId).orElseThrow(
-                () -> new AppException(ErrorCode.USER_NOT_FOUND));
+        User user = getCurrentUser();
 
         if (user.getDob() == null || Period.between(user.getDob(), LocalDate.now()).getYears() < 18) {
             throw new AppException(ErrorCode.USER_UNDERAGE);
@@ -120,6 +118,11 @@ public class AuctionService {
             }
         }
 
+        AuctionStatus initialStatus = AuctionStatus.APPROVED;
+        if (request.getStartPrice().compareTo(new BigDecimal("50000000")) >= 0) {
+            initialStatus = AuctionStatus.PENDING;
+        }
+
         Auction auction = Auction.builder()
                 .user(user)
                 .product(product)
@@ -129,12 +132,17 @@ public class AuctionService {
                 .depositAmount(request.getDepositAmount())
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
-                .status(AuctionStatus.PENDING)
+                .status(initialStatus)
                 .autoExtend(request.getAutoExtend() != null ? request.getAutoExtend() : false)
                 .extendMinutes(request.getExtendMinutes() != null ? request.getExtendMinutes() : 0)
                 //  reservePrice and buyNowPrice if neeeded
                 .build();
         auction = auctionRepository.save(auction);
+
+        if (initialStatus == AuctionStatus.APPROVED) {
+            scheduleService.scheduleAuctionActivation(auction.getId().toString(), auction.getStartTime());
+            scheduleService.scheduleAuctionClosure(auction.getId().toString(), auction.getEndTime());
+        }
 
         return AuctionCreationResponse.builder()
                 .auctionId(auction.getId())
@@ -250,10 +258,8 @@ public class AuctionService {
 
     @Transactional
     public BidResponse placeBid(UUID auctionId, BidRequest request) {
-        String profileId = SecurityUtils.getCurrentProfileId()
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        User user = userRepository.findById(UUID.fromString(profileId))
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        User user = getCurrentUser();
         if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
             throw new AppException(ErrorCode.UNVERIFIED_USER);
         }
@@ -362,4 +368,61 @@ public class AuctionService {
 
         return response;
     }
+
+    @Transactional
+    public void activateAuction(String auctionId) {
+        Auction auction = getAuction(auctionId);
+
+        if (auction.getStatus() == AuctionStatus.APPROVED || auction.getStatus() == AuctionStatus.PENDING) {
+            auction.setStatus(AuctionStatus.ACTIVE);
+            auctionRepository.save(auction);
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", "auction_activated");
+            message.put("auction_id", auctionId);
+            message.put("status", "ACTIVE");
+            messagingTemplate.convertAndSend("/topic/auction/" + auctionId, (Object) message);
+
+        }
+    }
+
+    @Transactional
+    public void closeAuction(String auctionId) {
+        Auction auction = getAuction(auctionId);
+
+        if (auction.getStatus() == AuctionStatus.ACTIVE || auction.getStatus() == AuctionStatus.EXTENDED) {
+            // Check if there are any bids
+            List<Bid> bids = bidRepository.findByAuctionIdOrderByBidAmountDesc(auction.getId());
+            if (bids.isEmpty()) {
+                auction.setStatus(AuctionStatus.FAILED);
+            } else {
+                auction.setStatus(AuctionStatus.CLOSED);
+                // Here we would also handle finding the winner, refunding losers, creating order, etc.
+                // For now, just set status to CLOSED.
+            }
+            auctionRepository.save(auction);
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", "auction_activated");
+            message.put("auction_id", auctionId);
+            message.put("status", "ACTIVE");
+            // Notify clients
+            messagingTemplate.convertAndSend("/topic/auctions",
+                    (Object) message);
+        }
+    }
+
+    private User getCurrentUser(){
+        UUID profileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(
+                ()-> new AppException(ErrorCode.UNAUTHORIZED)));
+        return userRepository.findById(profileId).orElseThrow(
+                ()->new AppException(ErrorCode.USER_NOT_FOUND)
+        );
+
+    }
+    private Auction getAuction(String auctionId){
+        return auctionRepository.findById(UUID.fromString(auctionId))
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+    }
+
 }

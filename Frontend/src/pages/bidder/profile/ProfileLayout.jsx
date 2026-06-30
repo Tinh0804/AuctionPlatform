@@ -34,7 +34,7 @@ export default function ProfileLayout() {
     );
 
     return (
-        <div className="min-h-screen bg-[#F8F1E6] -mx-4 md:-mx-6 px-4 md:px-6 py-10 animate-fade-in relative">
+        <div className="min-h-screen bg-[#F8F1E6] -mx-4 md:-mx-6 px-4 md:px-6 py-10 relative">
             <div className="max-w-7xl mx-auto">
                 {/* Page Header */}
                 <div className="mb-10 border-l border-[#9A6A2F]/40 pl-5">

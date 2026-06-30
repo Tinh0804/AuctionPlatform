@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 public class BlackListService {
     RedisTemplate<String, Object> redisTemplate;
 
-    String BLACKLIST_PREFIX = "BLACKLIST";
+    String BLACKLIST_PREFIX = "auction:BLACKLIST";
 
     public void addToBlackList(String token, long remainingTime) {
         String key = BLACKLIST_PREFIX + ":" + token;

@@ -19,8 +19,8 @@ spring:
     type: redis
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/auctiondb}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:@Tinh0804}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

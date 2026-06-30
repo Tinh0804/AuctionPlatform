@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { updateMyInfo, updateMyPhone, uploadAvatar, addAddress, deleteAddress } from '@/features/auth/api';
 import { X, CheckCircle, AlertCircle, Upload, Trash2, Plus, MapPin } from 'lucide-react';
 import { auth } from '@/services/firebase';
@@ -160,7 +161,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
         }
     };
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-[#FFF8ED] max-w-md w-full p-8 border border-[#9A6A2F]/25 shadow-[0_40px_120px_rgba(47,36,24,0.18)] animate-fade-in relative max-h-[90vh] overflow-y-auto overflow-x-hidden">
                 <button onClick={onClose} className="absolute top-4 right-4 text-[#2F2418]/50 hover:text-[#2F2418]">
@@ -377,7 +378,8 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

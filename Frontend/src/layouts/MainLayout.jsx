@@ -8,7 +8,7 @@ import {
   Search, User, Bell, Wallet, ChevronDown, LogOut, ShieldCheck,
   ClipboardList, Menu, X, Gavel, PlusCircle, Home, Package,
   ArrowRight, Instagram, Facebook, Twitter, Mail, LockKeyhole,
-  Award, Gem, ChevronRight,
+  Award, Gem, ChevronRight, Headphones, Settings,
 } from 'lucide-react';
 import { useStomp } from '@/hooks/useStomp';
 import { getMyInfo, getNotifications, markNotificationRead } from '@/features/auth/api';
@@ -38,7 +38,7 @@ const MainLayout = () => {
     if (token && !user) {
       getMyInfo()
         .then(res => setUser(res.result || res))
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [token, user, setUser]);
 
@@ -56,7 +56,7 @@ const MainLayout = () => {
     deps: [profile?.id],
     onConnect: (stompClient) => {
       if (!profile?.id) return;
-      
+
       stompClient.subscribe(`/topic/notification/${profile.id}`, (messageOutput) => {
         try {
           const incoming = JSON.parse(messageOutput.body);
@@ -257,9 +257,15 @@ const MainLayout = () => {
                 </div>
 
                 {/* Avatar Dropdown */}
-                <div className="relative group hidden md:block">
-                  <button className="flex items-center justify-center w-10 h-10 border border-[#9A6A2F]/40 bg-[#9A6A2F]/10 text-[#2F2418] font-bold text-sm hover:border-[#9A6A2F] transition-all cursor-pointer">
-                    {displayName ? displayName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+                <div className="relative group hidden md:block z-[60]">
+                  <button className="flex items-center justify-center w-10 h-10 border border-[#9A6A2F]/40 bg-[#9A6A2F]/10 text-[#2F2418] font-bold text-sm hover:border-[#9A6A2F] transition-all cursor-pointer overflow-hidden rounded-full">
+                    {profile?.avatarImage ? (
+                        <img src={profile.avatarImage} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : displayName ? (
+                        displayName.charAt(0).toUpperCase()
+                    ) : (
+                        <User className="w-4 h-4" />
+                    )}
                   </button>
                   <div className="absolute top-full right-0 pt-2 w-64 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform -translate-y-1 group-hover:translate-y-0">
                     <div className="bg-[#FFF8ED] shadow-[0_25px_80px_rgba(47,36,24,0.12)] border border-[#9A6A2F]/20 overflow-hidden">
@@ -268,11 +274,20 @@ const MainLayout = () => {
                         <p className="text-xs text-[#2F2418]/50 mt-0.5">{displayEmail}</p>
                       </div>
                       <div className="py-1">
-                        <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
-                          <ShieldCheck className="w-4 h-4" /> Hồ sơ & eKYC
+                        <Link to="/profile/personal" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                          <User className="w-4 h-4" /> Hồ sơ cá nhân
                         </Link>
-                        <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
-                          <ClipboardList className="w-4 h-4" /> Lịch sử Ví
+                        <Link to="/profile/wallet" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                          <Wallet className="w-4 h-4" /> Ví của tôi
+                        </Link>
+                        <Link to="/profile/orders" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                          <Package className="w-4 h-4" /> Quản lý Đơn hàng
+                        </Link>
+                        <Link to="/profile/support" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                          <Headphones className="w-4 h-4" /> Trung tâm hỗ trợ
+                        </Link>
+                        <Link to="/profile/settings" className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                          <Settings className="w-4 h-4" /> Cài đặt hệ thống
                         </Link>
                       </div>
                       <div className="border-t border-[#2F2418]/10 p-1">
@@ -306,8 +321,14 @@ const MainLayout = () => {
             {profile && (
               <div className="p-5 border-b border-[#2F2418]/10 bg-[#9A6A2F]/10">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] text-[#2F2418] font-bold flex items-center justify-center text-lg">
-                    {displayName?.charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] text-[#2F2418] font-bold flex items-center justify-center text-lg overflow-hidden rounded-full">
+                    {profile?.avatarImage ? (
+                        <img src={profile.avatarImage} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : displayName ? (
+                        displayName.charAt(0).toUpperCase()
+                    ) : (
+                        <User className="w-5 h-5" />
+                    )}
                   </div>
                   <div>
                     <p className="font-bold text-[#2F2418]">{displayName}</p>
@@ -333,11 +354,20 @@ const MainLayout = () => {
               {profile && (
                 <>
                   <div className="border-t border-[#2F2418]/10 my-2" />
-                  <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
-                    <ShieldCheck className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Hồ Sơ & eKYC
+                  <Link to="/profile/personal" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                    <User className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Hồ sơ cá nhân
                   </Link>
-                  <Link to="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
-                    <Package className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Đơn Hàng
+                  <Link to="/profile/wallet" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                    <Wallet className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Ví của tôi
+                  </Link>
+                  <Link to="/profile/orders" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                    <Package className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Quản lý Đơn hàng
+                  </Link>
+                  <Link to="/profile/support" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                    <Headphones className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Trung tâm hỗ trợ
+                  </Link>
+                  <Link to="/profile/settings" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#2F2418]/72 hover:bg-[#9A6A2F]/10 hover:text-[#9A6A2F] transition-colors">
+                    <Settings className="w-4.5 h-4.5 text-[#9A6A2F]/60" /> Cài đặt hệ thống
                   </Link>
                   <div className="border-t border-[#2F2418]/10 my-2" />
                   <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-danger hover:bg-red-50 rounded-xl transition-colors w-full text-left">
