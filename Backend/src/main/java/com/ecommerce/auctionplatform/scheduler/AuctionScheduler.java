@@ -11,6 +11,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 
@@ -28,6 +29,8 @@ public class AuctionScheduler {
 
     @Scheduled(fixedRate = 2000) 
     public void processActivations() {
+        if (!acquireLock("lock:process_activations", Duration.ofSeconds(1))) return;
+
         long currentScore = Instant.now().toEpochMilli();
         Set<ZSetOperations.TypedTuple<Object>> pending = redisTemplate.opsForZSet().rangeByScoreWithScores(PENDING_ACTIVATIONS_KEY, 0, currentScore);
 
@@ -47,6 +50,8 @@ public class AuctionScheduler {
 
     @Scheduled(fixedRate = 2000) 
     public void processClosures() {
+        if (!acquireLock("lock:process_closures", Duration.ofSeconds(1))) return;
+
         long currentScore = Instant.now().toEpochMilli();
         Set<ZSetOperations.TypedTuple<Object>> pending = redisTemplate.opsForZSet().rangeByScoreWithScores(PENDING_CLOSURES_KEY, 0, currentScore);
 
@@ -63,4 +68,23 @@ public class AuctionScheduler {
             }
         }
     }
+
+
+    @Scheduled(fixedRate = 60_000)
+    public void processAbandonedOrders() {
+        if (!acquireLock("lock:process_abandoned_orders", Duration.ofSeconds(55))) return;
+
+        try {
+            auctionService.processAbandonedOrders();
+        } catch (Exception e) {
+            log.error("Error while processing abandoned orders", e);
+        }
+    }
+
+    // true if lock was acquired, false if another instance already holds it
+    private boolean acquireLock(String lockKey, Duration duration) {
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent("auction:" + lockKey, "LOCKED", duration);
+        return Boolean.TRUE.equals(acquired);
+    }
 }
+

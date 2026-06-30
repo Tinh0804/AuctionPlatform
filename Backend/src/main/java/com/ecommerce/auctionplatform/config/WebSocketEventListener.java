@@ -1,6 +1,8 @@
 package com.ecommerce.auctionplatform.config;
 
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,15 +21,16 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@FieldDefaults(level = AccessLevel.PRIVATE,makeFinal = true)
 public class WebSocketEventListener {
 
-    private final SimpMessagingTemplate messagingTemplate;
-    private final StringRedisTemplate redisTemplate;
+    SimpMessagingTemplate messagingTemplate;
+    StringRedisTemplate redisTemplate;
 
     // Track session id -> destination map to handle disconnects properly since SessionDisconnectEvent might not have the destination
-    private final Map<String, String> sessionDestinations = new ConcurrentHashMap<>();
+    Map<String, String> sessionDestinations = new ConcurrentHashMap<>();
 
-    private static final String VIEWER_COUNT_KEY_PREFIX = "auction:viewers:";
+    static final String VIEWER_COUNT_KEY_PREFIX = "auction:viewers:";
 
     @EventListener
     public void handleWebSocketSubscribeListener(SessionSubscribeEvent event) {

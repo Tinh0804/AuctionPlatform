@@ -14,8 +14,11 @@ import com.ecommerce.auctionplatform.repository.*;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -33,12 +36,16 @@ import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AuctionService {
 
@@ -54,6 +61,12 @@ public class AuctionService {
     TransactionRepository transactionRepository;
     SimpMessagingTemplate messagingTemplate;
     ScheduleService scheduleService;
+    AuctionRecordRepository auctionRecordRepository;
+    OrderRepository orderRepository;
+
+    @NonFinal
+    protected int DEDUCT_REPUTATION_SCORE = 20;
+
 
 
     @Transactional
@@ -100,8 +113,7 @@ public class AuctionService {
                 isCover = false; // Only first image is cover
             }
         } else if (request.getRelistId() != null && !request.getRelistId().isEmpty()) {
-            Auction oldAuction = auctionRepository.findById(UUID.fromString(request.getRelistId()))
-                    .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+            Auction oldAuction = getAuction(request.getRelistId());
 
             if (!oldAuction.getUser().getId().equals(user.getId())) {
                 throw new AppException(ErrorCode.NOT_AUCTON_OWNER);
@@ -212,8 +224,7 @@ public class AuctionService {
     }
 
     public AuctionDetailResponse getAuctionDetail(UUID id) {
-        Auction auction = auctionRepository.findById(id)
-                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND)); // Assuming ErrorCode.AUCTION_NOT_FOUND exists
+        Auction auction = getAuction(id.toString()); 
 
         List<Image> images = imageRepository.findByProductId(auction.getProduct().getId());
         List<ImageResponse> imageResponses = images.stream()
@@ -251,7 +262,7 @@ public class AuctionService {
                         .bidTime(bid.getBidTime())
                         .isWinning(bid.getIsWinning())
                         .bidderId(bid.getUser().getId())
-                        .bidderName(bid.getUser().getName()) // Maybe mask this later
+                        .bidderName(bid.getUser().getName()) 
                         .build())
                 .toList();
     }
@@ -391,26 +402,107 @@ public class AuctionService {
     public void closeAuction(String auctionId) {
         Auction auction = getAuction(auctionId);
 
-        if (auction.getStatus() == AuctionStatus.ACTIVE || auction.getStatus() == AuctionStatus.EXTENDED) {
-            // Check if there are any bids
-            List<Bid> bids = bidRepository.findByAuctionIdOrderByBidAmountDesc(auction.getId());
-            if (bids.isEmpty()) {
-                auction.setStatus(AuctionStatus.FAILED);
-            } else {
-                auction.setStatus(AuctionStatus.CLOSED);
-                // Here we would also handle finding the winner, refunding losers, creating order, etc.
-                // For now, just set status to CLOSED.
-            }
+        if (auction.getStatus() != AuctionStatus.ACTIVE && auction.getStatus() != AuctionStatus.EXTENDED) {
+            return;
+        }
+
+        List<Bid> bids = bidRepository.findByAuctionIdOrderByBidAmountDesc(auction.getId());
+
+        if (bids.isEmpty()) {
+            // No bids: auction failed
+            auction.setStatus(AuctionStatus.FAILED);
+            auctionRepository.save(auction);
+        } else {
+            auction.setStatus(AuctionStatus.CLOSED);
             auctionRepository.save(auction);
 
-            Map<String, Object> message = new HashMap<>();
-            message.put("type", "auction_activated");
-            message.put("auction_id", auctionId);
-            message.put("status", "ACTIVE");
-            // Notify clients
-            messagingTemplate.convertAndSend("/topic/auctions",
-                    (Object) message);
+            int maxRanks = Math.min(3, bids.size());
+            LocalDateTime paymentDeadline = LocalDateTime.now().plusHours(48);
+
+            // Deduplicate: keep only top bid per user
+            List<Bid> uniqueTopBids = new ArrayList<>();
+            Set<UUID> seenUsers = new LinkedHashSet<>();
+            for (Bid b : bids) {
+                if (seenUsers.add(b.getUser().getId())) {
+                    uniqueTopBids.add(b);
+                    if (uniqueTopBids.size() >= maxRanks) break;
+                }
+            }
+
+            for (int i = 0; i < uniqueTopBids.size(); i++) {
+                Bid topBid = uniqueTopBids.get(i);
+                int rank = i + 1;
+                AuctionRecordStatus recordStatus = (rank == 1)
+                        ? AuctionRecordStatus.PENDING_PAYMENT
+                        : AuctionRecordStatus.LOSE; // rank 2,3 are standby, treated as LOSE until rank 1 bungs
+
+                AuctionRecord record = AuctionRecord.builder()
+                        .auction(auction)
+                        .user(topBid.getUser())
+                        .bid(topBid)
+                        .winningRank(rank)
+                        .finalPrice(topBid.getBidAmount())
+                        .status(recordStatus)
+                        .expiryTime(paymentDeadline)
+                        .build();
+                auctionRecordRepository.save(record);
+
+                if (rank == 1) {
+                    Order order = Order.builder()
+                            .auctionRecord(record)
+                            .buyer(topBid.getUser())
+                            .seller(auction.getUser())
+                            .totalAmount(topBid.getBidAmount())
+                            .status(OrderStatus.PENDING_PAYMENT)
+                            .build();
+                    orderRepository.save(order);
+                }
+            }
+
+            // --- Refund deposits for all losers (those NOT in top ranks) ---
+            List<AuctionRegistration> registrations = auctionRegistrationRepository
+                    .findByAuctionId(auction.getId());
+
+            // Collect winner user IDs (top ranks – still hold deposit until payment)
+            Set<UUID> topRankUserIds = uniqueTopBids.stream()
+                    .map(b -> b.getUser().getId())
+                    .collect(Collectors.toSet());
+
+            for (AuctionRegistration reg : registrations) {
+                // Skip top rank holders – their deposit stays frozen until they pay or bung
+                if (topRankUserIds.contains(reg.getUser().getId())) continue;
+                if (reg.getDepositStatus() != DepositStatus.PAID) continue;
+
+                // Refund deposit
+                Wallet wallet = walletRepository.findByUser(reg.getUser()).orElse(null);
+                if (wallet == null) continue;
+
+                wallet.setFrozenBalance(wallet.getFrozenBalance().subtract(reg.getDepositAmount()));
+                wallet.setAvailableBalance(wallet.getAvailableBalance().add(reg.getDepositAmount()));
+                walletRepository.save(wallet);
+
+                reg.setDepositStatus(DepositStatus.REFUNDED);
+                auctionRegistrationRepository.save(reg);
+
+                Transaction refundTx = Transaction.builder()
+                        .wallet(wallet)
+                        .type(TransactionType.AUCTION_DEPOSIT_REFUND)
+                        .amount(reg.getDepositAmount())
+                        .status(TransactionStatus.SUCCESS)
+                        .referenceType("REGISTRATION")
+                        .referenceId(reg.getId())
+                        .note("Hoàn cọc sau khi kết thúc phiên đấu giá")
+                        .build();
+                transactionRepository.save(refundTx);
+            }
         }
+
+        // Broadcast to all viewers
+        Map<String, Object> message = new HashMap<>();
+        message.put("type", "auction_closed");
+        message.put("auction_id", auctionId);
+        message.put("status", auction.getStatus().name());
+        messagingTemplate.convertAndSend("/topic/auction/" + auctionId, (Object) message);
     }
 
     private User getCurrentUser(){
@@ -426,4 +518,108 @@ public class AuctionService {
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
     }
 
+    @Transactional
+    public void processAbandonedOrders() {
+        List<AuctionRecord> expired = auctionRecordRepository
+                .findByStatusAndExpiryTimeBefore(AuctionRecordStatus.PENDING_PAYMENT, LocalDateTime.now());
+
+        for (AuctionRecord record : expired) {
+            try {
+                handleOneAbandonedRecord(record);
+            } catch (Exception e) {
+                log.error("Failed to process abandoned record {}: {}", record.getId(), e.getMessage());
+            }
+        }
+    }
+
+    private void handleOneAbandonedRecord(AuctionRecord record) {
+        Auction auction = record.getAuction();
+        User abandoner = record.getUser();
+
+        // Mark record as CANCELLED
+        record.setStatus(AuctionRecordStatus.CANCELLED);
+        auctionRecordRepository.save(record);
+
+        // Forfeit the abandoner's deposit
+        AuctionRegistration reg = auctionRegistrationRepository
+                .findByAuctionIdAndUserId(auction.getId(), abandoner.getId())
+                .orElse(null);
+
+        if (reg != null && reg.getDepositStatus() == DepositStatus.PAID) {
+            Wallet wallet = walletRepository.findByUser(abandoner).orElse(null);
+            if (wallet != null) {
+                // Remove from frozen balance (deposit is forfeited, not returned)
+                wallet.setFrozenBalance(wallet.getFrozenBalance().subtract(reg.getDepositAmount()));
+                walletRepository.save(wallet);
+
+                reg.setDepositStatus(DepositStatus.FORFEITED);
+                auctionRegistrationRepository.save(reg);
+
+                Transaction forfeitTx = Transaction.builder()
+                        .wallet(wallet)
+                        .type(TransactionType.AUCTION_DEPOSIT_FORFEIT)
+                        .amount(reg.getDepositAmount())
+                        .status(TransactionStatus.SUCCESS)
+                        .referenceType("AUCTION_RECORD")
+                        .referenceId(record.getId())
+                        .note("Tịch thu cọc do bùng hàng phiên đấu giá " + auction.getId())
+                        .build();
+                transactionRepository.save(forfeitTx);
+            }
+        }
+
+        // Deduct reputation score 
+        int newScore = Math.max(0, (abandoner.getReputationScore() != null ? abandoner.getReputationScore() : 100) - DEDUCT_REPUTATION_SCORE);
+        abandoner.setReputationScore(newScore);
+        userRepository.save(abandoner);
+
+        // Find next standby bidder (rank 2, then 3, etc.)
+        List<AuctionRecord> standbyRecords = auctionRecordRepository
+                .findByAuctionIdAndStatusOrderByWinningRankAsc(auction.getId(), AuctionRecordStatus.LOSE);
+
+        if (!standbyRecords.isEmpty()) {
+            // Promote next rank
+            AuctionRecord nextRecord = standbyRecords.get(0);
+            LocalDateTime newDeadline = LocalDateTime.now().plusHours(48);
+            nextRecord.setStatus(AuctionRecordStatus.PENDING_PAYMENT);
+            nextRecord.setExpiryTime(newDeadline);
+            auctionRecordRepository.save(nextRecord);
+
+            // Create new Order for the promoted winner
+            Order order = Order.builder()
+                    .auctionRecord(nextRecord)
+                    .buyer(nextRecord.getUser())
+                    .seller(auction.getUser())
+                    .totalAmount(nextRecord.getFinalPrice())
+                    .status(OrderStatus.PENDING_PAYMENT)
+                    .build();
+            orderRepository.save(order);
+
+            log.info("Auction {}: rank {} promoted to winner after bung hang. New deadline: {}",
+                    auction.getId(), nextRecord.getWinningRank(), newDeadline);
+
+            // Notify winner via WebSocket
+            Map<String, Object> msg = new HashMap<>();
+            msg.put("type", "winner_promoted");
+            msg.put("auction_id", auction.getId().toString());
+            msg.put("new_winner_id", nextRecord.getUser().getId().toString());
+            msg.put("payment_deadline", newDeadline.toString());
+            messagingTemplate.convertAndSend("/topic/auction/" + auction.getId(), (Object) msg);
+
+        } else {
+            // No more standby bidders → auction ultimately failed
+            auction.setStatus(AuctionStatus.FAILED);
+            auctionRepository.save(auction);
+
+            log.info("Auction {} set to FAILED — no more standby bidders after bung hang.", auction.getId());
+
+            Map<String, Object> msg = new HashMap<>();
+            msg.put("type", "auction_failed");
+            msg.put("auction_id", auction.getId().toString());
+            msg.put("reason", "no_more_bidders");
+            messagingTemplate.convertAndSend("/topic/auction/" + auction.getId(), (Object) msg);
+        }
+    }
+
 }
+

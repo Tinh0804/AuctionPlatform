@@ -85,6 +85,7 @@ app:
     key: ${FPTAI_KEY:}
   firebase:
     config-path: "classpath:firebase-admin.json"
+  deduct-score: 20
 
 cloudinary:
   cloud_name: ${CLOUDINARY_CLOUD_NAME:}
