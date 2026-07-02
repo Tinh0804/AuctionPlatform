@@ -6,6 +6,11 @@ import com.ecommerce.auctionplatform.service.WalletService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import com.ecommerce.auctionplatform.dto.request.PaymentRequest;
+import com.ecommerce.auctionplatform.dto.respose.PaymentResponse;
+import com.ecommerce.auctionplatform.entity.enums.PaymentMethod;
+import com.ecommerce.auctionplatform.service.MoMoService;
+import com.ecommerce.auctionplatform.service.VNPayService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ecommerce.auctionplatform.dto.request.WithdrawRequest;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.HashMap;
 
 @RestController
@@ -22,6 +28,8 @@ import java.util.HashMap;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class WalletController {
     WalletService walletService;
+    MoMoService moMoService;
+    VNPayService vnPayService;
 
     @PostMapping("/pin/setup")
     public APIResponse<Void> setupPin(@RequestBody PinSetupRequest request) {
@@ -32,10 +40,33 @@ public class WalletController {
                 .build();
     }
 
+
     @PostMapping("/deposit/request")
     public APIResponse<Map<String, String>> requestDeposit(@RequestParam Long amount, @RequestParam String provider) {
         Map<String, String> response = new HashMap<>();
-        response.put("payment_url", "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html");
+        if (PaymentMethod.MOMO.name().equalsIgnoreCase(provider)) {
+            PaymentRequest req = PaymentRequest.builder()
+                    .amount(amount.doubleValue())
+                    .orderInfo("Nạp tiền vào ví")
+                    .method(PaymentMethod.MOMO)
+                    .referenceId(UUID.randomUUID().toString())
+                    .build();
+            PaymentResponse payRes = moMoService.createPayment(req);
+            response.put("payment_url", payRes.getPaymentUrl());
+        } else if (PaymentMethod.VNPAY.name().equalsIgnoreCase(provider)) {
+            PaymentRequest req = PaymentRequest.builder()
+                    .amount(amount.doubleValue())
+                    .orderInfo("Nạp tiền vào ví")
+                    .method(PaymentMethod.VNPAY)
+                    .referenceId(UUID.randomUUID().toString())
+                    .build();
+            PaymentResponse payRes = vnPayService.createPayment(req);
+            response.put("payment_url", payRes.getPaymentUrl());
+        } else {
+            response.put("payment_url", null);
+            response.put("message","Payment method not avalible");
+        }
+        
         return APIResponse.<Map<String, String>>builder()
                 .status(200)
                 .message("Deposit request created successfully")

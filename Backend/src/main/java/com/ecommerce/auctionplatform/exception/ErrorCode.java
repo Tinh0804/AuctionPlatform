@@ -37,6 +37,12 @@ public enum ErrorCode {
 
     NOT_AUCTON_OWNER(403, "User is not the owner of the auction", HttpStatus.FORBIDDEN),
     USER_UNDERAGE(403, "You must be at least 18 years old to perform this action", HttpStatus.FORBIDDEN),
+    WALLET_NOT_FOUND(404, "Wallet not found", HttpStatus.NOT_FOUND),
+    INVALID_PIN(400, "Invalid PIN", HttpStatus.BAD_REQUEST),
+    WALLET_FROZEN(403, "Wallet is frozen", HttpStatus.FORBIDDEN),
+    INSUFFICIENT_BALANCE(400, "Insufficient balance", HttpStatus.BAD_REQUEST),
+    TRANSACTION_NOT_FOUND(404, "Transaction not found", HttpStatus.NOT_FOUND),
+    
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
 

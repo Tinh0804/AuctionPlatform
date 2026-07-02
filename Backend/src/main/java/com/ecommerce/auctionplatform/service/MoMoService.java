@@ -1,10 +1,12 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.PaymentRequest;
+import com.ecommerce.auctionplatform.dto.respose.PaymentCallbackResponse;
 import com.ecommerce.auctionplatform.dto.respose.PaymentResponse;
 import com.ecommerce.auctionplatform.entity.Transaction;
 import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.entity.Wallet;
+import com.ecommerce.auctionplatform.entity.enums.PaymentMethod;
 import com.ecommerce.auctionplatform.entity.enums.TransactionStatus;
 import com.ecommerce.auctionplatform.entity.enums.TransactionType;
 import com.ecommerce.auctionplatform.exception.AppException;
@@ -12,7 +14,7 @@ import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.repository.TransactionRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.repository.WalletRepository;
-import com.ecommerce.auctionplatform.utils.HmacUtil;
+import com.ecommerce.auctionplatform.utils.PaymentUtils;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -73,7 +75,7 @@ public class MoMoService {
                 .type(TransactionType.DEPOSIT)
                 .amount(BigDecimal.valueOf(request.getAmount()))
                 .status(TransactionStatus.PENDING)
-                .gatewayProvider("MOMO")
+                .gatewayProvider(PaymentMethod.MOMO.name())
                 .referenceId(UUID.randomUUID())
                 .note(request.getOrderInfo())
                 .build();
@@ -97,7 +99,7 @@ public class MoMoService {
                 "&requestId=" + requestId +
                 "&requestType=" + requestType;
 
-        String signature = HmacUtil.calculateHmacSHA256(rawHash, secretKey);
+        String signature = PaymentUtils.calculateHmacSHA256(rawHash, secretKey);
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("partnerCode", partnerCode);
@@ -108,9 +110,9 @@ public class MoMoService {
         requestBody.put("redirectUrl", returnUrl);
         requestBody.put("ipnUrl", notifyUrl);
         requestBody.put("lang", "vi");
+        requestBody.put("extraData", extraData);
         requestBody.put("requestType", requestType);
         requestBody.put("autoCapture", true);
-        requestBody.put("extraData", extraData);
         requestBody.put("signature", signature);
 
         RestTemplate restTemplate = new RestTemplate();
@@ -122,24 +124,25 @@ public class MoMoService {
             ResponseEntity<Map> response = restTemplate.postForEntity(apiUrl, entity, Map.class);
             Map<String, Object> responseBody = response.getBody();
 
-            if (responseBody != null && responseBody.containsKey("payUrl")) {
+            if (responseBody != null &&
+                    "0".equals(String.valueOf(responseBody.get("resultCode")))) {
+
                 String payUrl = (String) responseBody.get("payUrl");
-                
-                transaction.setGatewayTxId(requestId);
-                transactionRepository.save(transaction);
 
                 return PaymentResponse.builder()
                         .status("SUCCESS")
-                        .message("Created payment URL successfully")
+                        .message("Tạo link thanh toán MoMo thành công")
                         .paymentUrl(payUrl)
                         .orderId(orderId)
-                        .transactionId(transaction.getId().toString())
                         .amount(request.getAmount())
                         .paymentMethod("MOMO")
                         .build();
             } else {
-                log.error("MoMo API Error: {}", responseBody);
-                throw new RuntimeException("Failed to create MoMo payment URL: " + responseBody.get("message"));
+                String errorMessage = responseBody != null
+                        ? String.valueOf(responseBody.get("message"))
+                        : "Unknown error";
+
+                throw new IllegalStateException("Tạo thanh toán MoMo thất bại: " + errorMessage);
             }
         } catch (Exception e) {
             log.error("Error calling MoMo API", e);
@@ -148,7 +151,7 @@ public class MoMoService {
     }
 
     @Transactional
-    public void processCallback(Map<String, Object> callbackData) {
+    public PaymentCallbackResponse processCallback(Map<String, Object> callbackData) {
         log.info("Received MoMo IPN Callback: {}", callbackData);
         
         String orderId = (String) callbackData.get("orderId");
@@ -165,6 +168,10 @@ public class MoMoService {
         String resultCode = String.valueOf(callbackData.get("resultCode"));
         String transId = String.valueOf(callbackData.get("transId"));
         String signature = (String) callbackData.get("signature");
+        String errorCode = (String) callbackData.get("resultCode");
+        if (errorCode == null) {
+            errorCode = (String) callbackData.get("errorCode");
+        }
 
        
         String rawHash = "accessKey=" + accessKey +
@@ -181,11 +188,15 @@ public class MoMoService {
                 "&resultCode=" + resultCode +
                 "&transId=" + transId;
 
-        String expectedSignature = HmacUtil.calculateHmacSHA256(rawHash, secretKey);
+        String expectedSignature = PaymentUtils.calculateHmacSHA256(rawHash, secretKey);
 
         if (!expectedSignature.equals(signature)) {
             log.error("MoMo Callback Signature Validation Failed! Expected: {}, Actual: {}", expectedSignature, signature);
-            throw new RuntimeException("Invalid MoMo Signature");
+            return PaymentCallbackResponse.builder()
+                    .paymentStatus("FAILED")
+                    .message("Chữ ký không hợp lệ")
+                    .paymentMethod("MOMO")
+                    .build();
         }
 
         Transaction transaction = transactionRepository.findById(UUID.fromString(orderId))
@@ -193,7 +204,15 @@ public class MoMoService {
 
         if (transaction.getStatus() != TransactionStatus.PENDING) {
             log.warn("Transaction {} is already processed (Status: {})", orderId, transaction.getStatus());
-            return;
+            return PaymentCallbackResponse.builder()
+                    .orderId(orderId)
+                    .transactionId(transId)
+                    .amount(Long.parseLong(amount))
+                    .paymentStatus(transaction.getStatus().name())
+                    .paymentMethod("MOMO")
+                    .message("Transaction already processed")
+                    .paymentTime(responseTime)
+                    .build();
         }
 
         transaction.setGatewayResponse(callbackData.toString());
@@ -212,6 +231,16 @@ public class MoMoService {
         }
 
         transactionRepository.save(transaction);
+
+        return PaymentCallbackResponse.builder()
+                .orderId(orderId)
+                .transactionId(transId)
+                .amount(Long.parseLong(amount))
+                .paymentStatus("0".equals(resultCode) ? "SUCCESS" : "FAILED")
+                .paymentMethod("MOMO")
+                .message(message)
+                .paymentTime(responseTime)
+                .build();
     }
 
     private User getCurrentUser() {

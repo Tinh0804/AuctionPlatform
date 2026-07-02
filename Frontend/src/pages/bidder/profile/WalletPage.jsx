@@ -3,7 +3,8 @@ import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Wallet as WalletIcon, ArrowDownLeft, ArrowUpRight, Lock, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/services/firebase';
-import apiClient from '@/services/apiClient';
+import { verifyVnpayReturn } from '@/features/payment/api';
+import { requestDeposit, requestWithdraw, setupPin as setupPinApi } from '@/features/wallet/api';
 
 export default function WalletPage() {
     const { profile, fetchProfile } = useOutletContext();
@@ -28,13 +29,39 @@ export default function WalletPage() {
     const [pinMessage, setPinMessage] = useState(null);
 
     useEffect(() => {
-        const queryParams = new URLSearchParams(location.search);
-        if (queryParams.get('payment_success') === 'true') {
-            setSuccessPopup({ title: 'Nạp tiền thành công!', message: 'Số dư ví đã được cập nhật.' });
-            setShowSuccessPopup(true);
-            navigate('/profile/wallet', { replace: true });
+        const handlePaymentCallback = async () => {
+            const queryParams = new URLSearchParams(location.search);
+            
+            if (queryParams.has('vnp_SecureHash')) {
+                try {
+                    const res = await verifyVnpayReturn(location.search);
+                    if (res.paymentStatus === 'SUCCESS') {
+                        setSuccessPopup({ title: 'Nạp tiền thành công!', message: 'Số dư ví đã được cập nhật qua VNPay.' });
+                        setShowSuccessPopup(true);
+                        fetchProfile();
+                    } else {
+                        alert(res.message || 'Thanh toán VNPay thất bại');
+                    }
+                } catch (error) {
+                    alert('Lỗi xác thực thanh toán VNPay');
+                }
+                navigate('/profile/wallet', { replace: true });
+            } else if (queryParams.has('resultCode') && queryParams.has('partnerCode')) {
+                if (queryParams.get('resultCode') === '0') {
+                     setSuccessPopup({ title: 'Nạp tiền thành công!', message: 'Số dư ví đã được cập nhật qua MoMo.' });
+                     setShowSuccessPopup(true);
+                     fetchProfile();
+                } else {
+                     alert(queryParams.get('message') || 'Thanh toán MoMo thất bại');
+                }
+                navigate('/profile/wallet', { replace: true });
+            }
+        };
+
+        if (location.search) {
+            handlePaymentCallback();
         }
-    }, [location, navigate]);
+    }, [location, navigate, fetchProfile]);
 
     useEffect(() => {
         let timer;
@@ -50,9 +77,11 @@ export default function WalletPage() {
             return;
         }
         try {
-            const res = await apiClient.post(`/wallets/deposit/request?amount=${depositAmount}&provider=${provider}`);
-            if (res.data.payment_url) {
-                window.location.href = res.data.payment_url;
+            const res = await requestDeposit(depositAmount, provider);
+            if (res.result?.payment_url) {
+                window.location.href = res.result.payment_url;
+            } else if (res.result?.message) {
+                alert(res.result.message);
             }
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi tạo yêu cầu nạp tiền");
@@ -65,7 +94,7 @@ export default function WalletPage() {
             return;
         }
         try {
-            await apiClient.post(`/wallets/withdraw`, withdrawInfo);
+            await requestWithdraw(withdrawInfo);
             setSuccessPopup({ title: 'Yêu cầu rút tiền thành công!', message: 'Hệ thống đang xử lý giao dịch của bạn.' });
             setShowSuccessPopup(true);
             setShowWithdrawModal(false);
@@ -145,7 +174,7 @@ export default function WalletPage() {
         setPinLoading(true);
         try {
             const idToken = await auth.currentUser.getIdToken();
-            await apiClient.post('/wallets/pin/setup', { firebase_id_token: idToken, new_pin: newPin });
+            await setupPinApi({ firebase_id_token: idToken, new_pin: newPin });
             fetchProfile(); // refresh to update has_pin
             setSuccessPopup({ title: 'Thiết lập PIN thành công!', message: 'Ví của bạn đã được bảo vệ bằng mã PIN mới.' });
             setShowSuccessPopup(true);

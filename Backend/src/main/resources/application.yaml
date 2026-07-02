@@ -100,7 +100,7 @@ vnpay:
   version: "2.1.0"
   command: "pay"
   order-type: "other"
-  time-zone-id": "SE Asia Standard Time"
+  time-zone-id: "SE Asia Standard Time"
 
 momo:
   partner-code: ${MOMO_PARTNER_CODE}
