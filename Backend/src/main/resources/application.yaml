@@ -80,7 +80,7 @@ springdoc:
 
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5174}
   fptai:
     key: ${FPTAI_KEY:}
   firebase:
@@ -91,4 +91,23 @@ cloudinary:
   cloud_name: ${CLOUDINARY_CLOUD_NAME:}
   api_key: ${CLOUDINARY_API_KEY:}
   api_secret: ${CLOUDINARY_API_SECRET:}
+
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE}
+  hash-secret: ${VNPAY_HASH_SECRET}
+  api-url: ${VNPAY_API_URL}
+  return-url: ${VNPAY_RETURN_URL}
+  version: "2.1.0"
+  command: "pay"
+  order-type: "other"
+  time-zone-id": "SE Asia Standard Time"
+
+momo:
+  partner-code: ${MOMO_PARTNER_CODE}
+  access-key: ${MOMO_ACCESS_KEY}
+  secret-key: ${MOMO_SECRET_KEY}
+  api-url: ${MOMO_API_URL}
+  return-url: ${MOMO_RETURN_URL}
+  notify-url: ${MOMO_NOTIFY_URL}
+  request-type: "captureWallet"
 
