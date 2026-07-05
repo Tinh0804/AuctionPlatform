@@ -19,6 +19,8 @@ public enum ErrorCode {
     UNAUTHORIZED(401,"Unauthorized", HttpStatus.UNAUTHORIZED),
     FORBIDDEN(403,"Forbidden", HttpStatus.FORBIDDEN),
     BAD_REQUEST(400,"Bad request", HttpStatus.BAD_REQUEST),
+    INVALID_EKYC_IMAGE(400, "Ảnh không hợp lệ hoặc bị mờ, vui lòng chụp lại CCCD rõ nét", HttpStatus.BAD_REQUEST),
+    EKYC_ID_NOT_FOUND(400, "Không tìm thấy số CCCD trong ảnh", HttpStatus.BAD_REQUEST),
     UNCATEGORIZED_EXCEPTION(1000,"Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
 
     TOKEN_BLACKLISTED(401,"Token is blacklisted", HttpStatus.UNAUTHORIZED),

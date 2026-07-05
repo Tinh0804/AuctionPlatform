@@ -48,7 +48,7 @@ export default function EKyc() {
             setSuccess(true);
             setTimeout(() => navigate('/profile'), 3000);
         } catch (err) {
-            setError(err.response?.data?.detail || "Có lỗi xảy ra trong quá trình xác thực");
+            setError(err.response?.data?.message || err.response?.data?.detail || "Có lỗi xảy ra trong quá trình xác thực");
         } finally {
             setLoading(false);
         }

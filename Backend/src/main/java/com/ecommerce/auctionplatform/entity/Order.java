@@ -65,6 +65,12 @@ public class Order {
     @Column(name = "review_date")
     LocalDateTime reviewDate;
 
+    @Column(name = "tracking_code", length = 100)
+    String trackingCode;
+
+    @Column(name = "shipping_provider", length = 100)
+    String shippingProvider;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();

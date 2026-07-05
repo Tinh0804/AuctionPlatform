@@ -37,9 +37,9 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class EKycService {
  
-    UserRepository userRepository;
-    CloudinaryService cloudinaryService;
-    ObjectMapper objectMapper;
+    final UserRepository userRepository;
+    final CloudinaryService cloudinaryService;
+    final ObjectMapper objectMapper;
  
     @Value("${app.fptai.key}")
     String fptAiKey;
@@ -91,18 +91,20 @@ public class EKycService {
             } else {
                 String errorMsg = root.has("errorMessage") ? root.get("errorMessage").asText() : "OCR failed";
                 log.error("FPT AI OCR returned error: {}", errorMsg);
-                throw new AppException(ErrorCode.BAD_REQUEST);
+                throw new AppException(ErrorCode.INVALID_EKYC_IMAGE);
             }
         } catch (IOException e) {
             log.error("Error reading front image bytes", e);
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.INVALID_EKYC_IMAGE);
+        } catch (AppException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Error calling FPT AI OCR API", e);
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.INVALID_EKYC_IMAGE);
         }
  
         if (idCard == null || idCard.trim().isEmpty()) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.EKYC_ID_NOT_FOUND);
         }
  
         // 3. Upload 2 file lên Cloudinary dạng bảo mật (type = authenticated)

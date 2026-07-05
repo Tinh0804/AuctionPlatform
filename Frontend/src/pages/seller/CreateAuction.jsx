@@ -358,7 +358,7 @@ export default function CreateAuction() {
                                     <div>
                                         <label className={labelClass}>Tình trạng vật phẩm</label>
                                         <div className="grid grid-cols-2 gap-3">
-                                            {[{ v: 'NEW', label: 'Mới / Hoàn hảo', icon: Star }, { v: 'USED', label: 'Đã qua sử dụng', icon: Package }].map(opt => (
+                                            {[{ v: 'NEW', label: 'Mới / Hoàn hảo', icon: Star }, { v: 'LIKE_NEW', label: 'Đã qua sử dụng', icon: Package }].map(opt => (
                                                 <button key={opt.v} type="button"
                                                     onClick={() => setFormData(p => ({ ...p, condition: opt.v }))}
                                                     className={`flex items-center gap-2 p-3 rounded border-2 text-sm font-semibold transition-all ${formData.condition === opt.v ? 'border-[#9A6A2F] bg-[#9A6A2F]/10 text-[#9A6A2F]' : 'border-[#2F2418]/12 text-[#2F2418]/60 hover:border-[#9A6A2F]/40'}`}>

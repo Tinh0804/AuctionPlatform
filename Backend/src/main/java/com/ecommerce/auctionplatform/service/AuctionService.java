@@ -92,7 +92,7 @@ public class AuctionService {
                 .user(user)
                 .category(category)
                 .name(request.getName())
-                .condition(ProductCondition.valueOf(request.getCondition()))
+                .condition(ProductCondition.valueOf("USED".equalsIgnoreCase(request.getCondition()) ? "LIKE_NEW" : request.getCondition()))
                 .description(request.getDescription())
                 .origin(request.getOrigin())
                 .status(ProductStatus.PENDING)

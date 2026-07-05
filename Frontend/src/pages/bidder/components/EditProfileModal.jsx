@@ -12,7 +12,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
     const [formData, setFormData] = useState({
         name: profile?.name || '',
         email: profile?.email || '',
-        gender: profile?.gender !== undefined ? profile.gender : true,
+        gender: profile?.gender ?? true,
     });
     
     // Extract DOB
@@ -269,7 +269,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
                         <div>
                             <label className="text-sm font-semibold text-[#9A6A2F] mb-1 block">Giới tính</label>
                             <select 
-                                name="gender" value={formData.gender} onChange={handleInputChange} 
+                                name="gender" value={formData.gender ?? true} onChange={handleInputChange} 
                                 className="w-full bg-[#F8F1E6] border border-[#9A6A2F]/25 px-4 py-2.5 text-sm text-[#2F2418] focus:outline-none focus:border-[#9A6A2F]/60"
                             >
                                 <option value={true}>Nam</option>

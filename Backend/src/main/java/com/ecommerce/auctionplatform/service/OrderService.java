@@ -1,6 +1,9 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.EscrowPaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.ShippingUpdateRequest;
+import com.ecommerce.auctionplatform.dto.respose.OrderResponse;
+import com.ecommerce.auctionplatform.mapper.OrderMapper;
 import com.ecommerce.auctionplatform.entity.*;
 import com.ecommerce.auctionplatform.entity.enums.*;
 import com.ecommerce.auctionplatform.exception.AppException;
@@ -30,6 +33,7 @@ public class OrderService {
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
     AuctionRecordRepository auctionRecordRepository;
+    OrderMapper orderMapper;
 
     private User getCurrentUser() {
         UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
@@ -39,7 +43,7 @@ public class OrderService {
     }
 
     @Transactional
-    public void payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
+    public OrderResponse payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
@@ -119,10 +123,12 @@ public class OrderService {
         auctionRecordRepository.save(record);
 
         log.info("Order {} paid using escrow. Buyer deducted: {}, Seller frozen: {}", orderId, totalAmount, totalAmount);
+        
+        return orderMapper.toOrderResponse(order);
     }
 
     @Transactional
-    public void confirmDeliveryAndReleaseEscrow(UUID orderId) {
+    public OrderResponse confirmDeliveryAndReleaseEscrow(UUID orderId) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
@@ -131,7 +137,7 @@ public class OrderService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        if (order.getStatus() != OrderStatus.PAID) {
+        if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
             throw new AppException(ErrorCode.BAD_REQUEST); 
         }
 
@@ -163,5 +169,31 @@ public class OrderService {
         orderRepository.save(order);
 
         log.info("Order {} completed. Escrow released to seller.", orderId);
+        
+        return orderMapper.toOrderResponse(order);
+    }
+
+    @Transactional
+    public OrderResponse updateShippingInfo(UUID orderId, ShippingUpdateRequest request) {
+        User seller = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        if (!order.getSeller().getId().equals(seller.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        order.setTrackingCode(request.getTrackingCode());
+        order.setShippingProvider(request.getShippingProvider());
+        order.setStatus(OrderStatus.SHIPPING);
+        
+        orderRepository.save(order);
+        log.info("Order {} shipping info updated by seller.", orderId);
+        
+        return orderMapper.toOrderResponse(order);
     }
 }
