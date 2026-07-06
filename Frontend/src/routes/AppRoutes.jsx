@@ -26,6 +26,7 @@ import SettingsPage from '@/pages/bidder/profile/SettingsPage';
 import EKyc from '@/pages/bidder/EKyc';
 import Checkout from '@/pages/bidder/Checkout';
 import PaymentResult from '@/pages/bidder/PaymentResult';
+import OrderPayPage from '@/pages/bidder/OrderPayPage';
 
 // Seller pages
 import CreateAuction from '@/pages/seller/CreateAuction';
@@ -60,6 +61,8 @@ const AppRoutes = () => {
         </Route>
         <Route path="ekyc" element={<ProtectedRoute><EKyc /></ProtectedRoute>} />
         <Route path="invoices/:invoice_id/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+        <Route path="orders/:orderId/pay" element={<ProtectedRoute><OrderPayPage /></ProtectedRoute>} />
+        
         <Route path="wallets/deposit/momo-return" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />
         <Route path="payment/:status" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />
 

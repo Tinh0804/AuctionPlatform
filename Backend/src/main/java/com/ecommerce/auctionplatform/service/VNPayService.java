@@ -40,6 +40,10 @@ public class VNPayService {
     final UserRepository userRepository;
     final TransactionRepository transactionRepository;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    @org.springframework.context.annotation.Lazy
+    OrderService orderService;
+
     @Value("${vnpay.tmn-code:}")
     String tmnCode;
 
@@ -219,17 +223,22 @@ public class VNPayService {
 
         if ("SUCCESS".equals(paymentStatus)) {
             transaction.setStatus(TransactionStatus.SUCCESS);
-            
-            Wallet wallet = transaction.getWallet();
-            wallet.setAvailableBalance(wallet.getAvailableBalance().add(transaction.getAmount()));
-            walletRepository.save(wallet);
-            log.info("Successfully added {} to wallet {}", transaction.getAmount(), wallet.getId());
+
+            if ("ORDER".equals(transaction.getReferenceType()) && transaction.getReferenceId() != null) {
+                transactionRepository.save(transaction);
+                orderService.handleGatewayPaymentSuccess(transaction.getReferenceId(), transaction.getAmount());
+            } else {
+                Wallet wallet = transaction.getWallet();
+                wallet.setAvailableBalance(wallet.getAvailableBalance().add(transaction.getAmount()));
+                walletRepository.save(wallet);
+                transactionRepository.save(transaction);
+                log.info("Successfully added {} to wallet {}", transaction.getAmount(), wallet.getId());
+            }
         } else {
             transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
             log.info("VNPay payment failed for transaction {}. Response code: {}", orderId, responseCode);
         }
-
-        transactionRepository.save(transaction);
 
         return PaymentCallbackResponse.builder()
                 .orderId(orderId)

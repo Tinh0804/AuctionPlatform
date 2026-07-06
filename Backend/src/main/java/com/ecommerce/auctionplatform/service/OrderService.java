@@ -1,8 +1,13 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.EscrowPaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.OrderPaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.PaymentRequest;
 import com.ecommerce.auctionplatform.dto.request.ShippingUpdateRequest;
+import com.ecommerce.auctionplatform.dto.respose.OrderPaymentResponse;
 import com.ecommerce.auctionplatform.dto.respose.OrderResponse;
+import com.ecommerce.auctionplatform.dto.respose.PaymentResponse;
+import com.ecommerce.auctionplatform.entity.enums.PaymentMethod;
 import com.ecommerce.auctionplatform.mapper.OrderMapper;
 import com.ecommerce.auctionplatform.entity.*;
 import com.ecommerce.auctionplatform.entity.enums.*;
@@ -35,10 +40,12 @@ public class OrderService {
     PasswordEncoder passwordEncoder;
     AuctionRecordRepository auctionRecordRepository;
     OrderMapper orderMapper;
+    MoMoService moMoService;
+    VNPayService vnPayService;
 
     private User getCurrentUser() {
-        UUID userProfileId = UUID.fromString(
-                SecurityUtils.getCurrentProfileId().orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED)));
+        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
+                new AppException(ErrorCode.UNAUTHORIZED)));
         return userRepository.findById(userProfileId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
@@ -59,8 +66,18 @@ public class OrderService {
                 .toList();
     }
 
+    public OrderResponse getOrderDetail(UUID orderId) {
+        User user = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+        if (!order.getBuyer().getId().equals(user.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        return orderMapper.toOrderResponse(order);
+    }
+
     @Transactional
-    public OrderResponse payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
+    public OrderPaymentResponse initiateOrderPayment(UUID orderId, OrderPaymentRequest request) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
@@ -68,20 +85,185 @@ public class OrderService {
         if (!order.getBuyer().getId().equals(buyer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
-
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
             throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        AuctionRecord record = order.getAuctionRecord();
+        Auction auction = record.getAuction();
+        AuctionRegistration registration = auctionRegistrationRepository
+                .findByAuctionIdAndUserId(auction.getId(), buyer.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        BigDecimal depositAmount = registration.getDepositAmount();
+        BigDecimal totalAmount = order.getTotalAmount();
+        BigDecimal amountToPay = totalAmount.subtract(depositAmount);
+        if (amountToPay.compareTo(BigDecimal.ZERO) < 0) amountToPay = BigDecimal.ZERO;
+
+        String method = request.getPaymentMethod().toUpperCase();
+
+        if ("WALLET".equals(method)) {
+            // --- Wallet PIN flow ---
+            Wallet buyerWallet = walletRepository.findByUser(buyer)
+                    .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+            if (buyerWallet.getPinCode() == null) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+            if (!passwordEncoder.matches(request.getPinCode(), buyerWallet.getPinCode())) {
+                throw new AppException(ErrorCode.INVALID_PIN);
+            }
+            if (amountToPay.compareTo(BigDecimal.ZERO) > 0) {
+                if (buyerWallet.getAvailableBalance().compareTo(amountToPay) < 0) {
+                    throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+                }
+                buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().subtract(amountToPay));
+            }
+            buyerWallet.setFrozenBalance(buyerWallet.getFrozenBalance().subtract(depositAmount));
+            walletRepository.save(buyerWallet);
+
+            User seller = order.getSeller();
+            Wallet sellerWallet = walletRepository.findByUser(seller)
+                    .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().add(totalAmount));
+            walletRepository.save(sellerWallet);
+
+            transactionRepository.save(Transaction.builder()
+                    .wallet(buyerWallet).type(TransactionType.AUCTION_PAYMENT)
+                    .amount(totalAmount).status(TransactionStatus.SUCCESS)
+                    .referenceType("ORDER").referenceId(order.getId())
+                    .note("Paid for Order: " + orderId + " via Wallet").build());
+            transactionRepository.save(Transaction.builder()
+                    .wallet(sellerWallet).type(TransactionType.ESCROW_HOLD)
+                    .amount(totalAmount).status(TransactionStatus.SUCCESS)
+                    .referenceType("ORDER").referenceId(order.getId())
+                    .note("Escrow hold for Order: " + orderId).build());
+
+            order.setStatus(OrderStatus.PAID);
+            orderRepository.save(order);
+            record.setStatus(AuctionRecordStatus.WIN);
+            auctionRecordRepository.save(record);
+
+            return OrderPaymentResponse.builder()
+                    .status("PAID")
+                    .order(orderMapper.toOrderResponse(order))
+                    .build();
+
+        } else if ("MOMO".equals(method) || "VNPAY".equals(method)) {
+            // --- Gateway flow: pre-create Transaction, return payment URL ---
+            Wallet buyerWallet = walletRepository.findByUser(buyer)
+                    .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+            // Pre-save a PENDING transaction so callback can find it
+            Transaction pendingTx = Transaction.builder()
+                    .wallet(buyerWallet)
+                    .type(TransactionType.ORDER_PAYMENT)
+                    .amount(amountToPay)
+                    .status(TransactionStatus.PENDING)
+                    .referenceType("ORDER")
+                    .referenceId(order.getId())
+                    .note("Gateway payment for Order: " + orderId)
+                    .build();
+            pendingTx = transactionRepository.save(pendingTx);
+
+            String returnUrl = request.getReturnUrl() != null ? request.getReturnUrl() : "";
+            PaymentRequest payReq = PaymentRequest.builder()
+                    .referenceId(pendingTx.getId().toString())
+                    .amount(amountToPay.doubleValue())
+                    .orderInfo("Thanh toan don hang " + orderId)
+                    .method(PaymentMethod.valueOf(method))
+                    .returnUrl(returnUrl)
+                    .build();
+
+            PaymentResponse payResponse;
+            if ("MOMO".equals(method)) {
+                payResponse = moMoService.createPayment(payReq);
+            } else {
+                payResponse = vnPayService.createPayment(payReq);
+            }
+
+            return OrderPaymentResponse.builder()
+                    .status("PENDING_GATEWAY")
+                    .paymentUrl(payResponse.getPaymentUrl())
+                    .build();
+        } else {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * Called by MoMo/VNPay callback after successful gateway payment for an Order.
+     */
+    @Transactional
+    public void handleGatewayPaymentSuccess(UUID orderId, BigDecimal paidAmount) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            log.warn("Order {} already PAID, skipping duplicate gateway callback", orderId);
+            return;
+        }
+
+        AuctionRecord record = order.getAuctionRecord();
+        Auction auction = record.getAuction();
+        User buyer = order.getBuyer();
+
+        AuctionRegistration registration = auctionRegistrationRepository
+                .findByAuctionIdAndUserId(auction.getId(), buyer.getId())
+                .orElse(null);
+
+        BigDecimal depositAmount = registration != null ? registration.getDepositAmount() : BigDecimal.ZERO;
+        BigDecimal totalAmount = order.getTotalAmount();
+
+        // Release deposit from buyer frozen balance
+        Wallet buyerWallet = walletRepository.findByUser(buyer).orElse(null);
+        if (buyerWallet != null && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
+            buyerWallet.setFrozenBalance(buyerWallet.getFrozenBalance().subtract(depositAmount));
+            walletRepository.save(buyerWallet);
+        }
+
+        // Hold total in seller's escrow (frozen)
+        User seller = order.getSeller();
+        Wallet sellerWallet = walletRepository.findByUser(seller).orElse(null);
+        if (sellerWallet != null) {
+            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().add(totalAmount));
+            walletRepository.save(sellerWallet);
+            transactionRepository.save(Transaction.builder()
+                    .wallet(sellerWallet).type(TransactionType.ESCROW_HOLD)
+                    .amount(totalAmount).status(TransactionStatus.SUCCESS)
+                    .referenceType("ORDER").referenceId(orderId)
+                    .note("Escrow hold (gateway) for Order: " + orderId).build());
+        }
+
+        order.setStatus(OrderStatus.PAID);
+        orderRepository.save(order);
+        record.setStatus(AuctionRecordStatus.WIN);
+        auctionRecordRepository.save(record);
+        log.info("Order {} marked as PAID via gateway payment", orderId);
+    }
+
+    @Transactional
+    public OrderResponse payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
+        User buyer = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
+
+        if (!order.getBuyer().getId().equals(buyer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.BAD_REQUEST); 
         }
 
         Wallet buyerWallet = walletRepository.findByUser(buyer)
                 .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         if (buyerWallet.getPinCode() == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.BAD_REQUEST); 
         }
 
         if (!passwordEncoder.matches(request.getPinCode(), buyerWallet.getPinCode())) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.BAD_REQUEST); 
         }
 
         AuctionRecord record = order.getAuctionRecord();
@@ -97,7 +279,7 @@ public class OrderService {
 
         if (amountToPay.compareTo(BigDecimal.ZERO) > 0) {
             if (buyerWallet.getAvailableBalance().compareTo(amountToPay) < 0) {
-                throw new AppException(ErrorCode.BAD_REQUEST);
+                throw new AppException(ErrorCode.BAD_REQUEST); 
             }
             buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().subtract(amountToPay));
         }
@@ -139,9 +321,8 @@ public class OrderService {
         record.setStatus(AuctionRecordStatus.WIN);
         auctionRecordRepository.save(record);
 
-        log.info("Order {} paid using escrow. Buyer deducted: {}, Seller frozen: {}", orderId, totalAmount,
-                totalAmount);
-
+        log.info("Order {} paid using escrow. Buyer deducted: {}, Seller frozen: {}", orderId, totalAmount, totalAmount);
+        
         return orderMapper.toOrderResponse(order);
     }
 
@@ -149,14 +330,14 @@ public class OrderService {
     public OrderResponse confirmDeliveryAndReleaseEscrow(UUID orderId) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
 
         if (!order.getBuyer().getId().equals(buyer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
+            throw new AppException(ErrorCode.BAD_REQUEST); 
         }
 
         BigDecimal totalAmount = order.getTotalAmount();
@@ -187,7 +368,7 @@ public class OrderService {
         orderRepository.save(order);
 
         log.info("Order {} completed. Escrow released to seller.", orderId);
-
+        
         return orderMapper.toOrderResponse(order);
     }
 
@@ -208,10 +389,10 @@ public class OrderService {
         order.setTrackingCode(request.getTrackingCode());
         order.setShippingProvider(request.getShippingProvider());
         order.setStatus(OrderStatus.SHIPPING);
-
+        
         orderRepository.save(order);
         log.info("Order {} shipping info updated by seller.", orderId);
-
+        
         return orderMapper.toOrderResponse(order);
     }
 }

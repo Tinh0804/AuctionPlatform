@@ -43,11 +43,17 @@ export default function PaymentResult() {
     const location = useLocation();
     const [backendSyncStatus, setBackendSyncStatus] = useState('idle');
     const params = new URLSearchParams(location.search);
-    const ref = params.get('ref') || params.get('orderId') || params.get('requestId');
+    const ref = params.get('ref') || params.get('orderId') || params.get('requestId') || params.get('vnp_TxnRef');
     const momoResultCode = params.get('resultCode');
-    const resolvedStatus = momoResultCode !== null
-        ? (momoResultCode === '0' ? 'success' : 'failed')
-        : status;
+    const vnpResponseCode = params.get('vnp_ResponseCode');
+    
+    let resolvedStatus = status;
+    if (momoResultCode !== null) {
+        resolvedStatus = momoResultCode === '0' ? 'success' : 'failed';
+    } else if (vnpResponseCode !== null) {
+        resolvedStatus = vnpResponseCode === '00' ? 'success' : 'failed';
+    }
+
     const config = resultConfig[resolvedStatus] || resultConfig.failed;
     const Icon = config.icon;
 
@@ -106,19 +112,19 @@ export default function PaymentResult() {
 
                             {location.pathname.includes('/wallets/deposit/momo-return') && (
                                 <p className="mt-4 text-sm font-semibold text-[#2F2418]/60">
-                                    {backendSyncStatus === 'syncing' && 'Đang đồng bộ kết quả MoMo về ví...'}
-                                    {backendSyncStatus === 'synced' && 'Đã gửi kết quả MoMo về backend để cập nhật ví.'}
-                                    {backendSyncStatus === 'failed' && 'Chưa gửi được kết quả về backend. Vui lòng mở lại hồ sơ hoặc thử callback IPN.'}
+                                    {backendSyncStatus === 'syncing' && 'Đang đồng bộ kết quả thanh toán về hệ thống...'}
+                                    {backendSyncStatus === 'synced' && 'Đã đồng bộ kết quả thanh toán thành công.'}
+                                    {backendSyncStatus === 'failed' && 'Chưa gửi được kết quả về backend. Vui lòng thử lại sau.'}
                                 </p>
                             )}
 
                             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                                 <Link
-                                    to="/profile"
+                                    to={params.get('type') === 'order' ? '/profile/orders?sub=purchases' : '/profile'}
                                     className="inline-flex items-center justify-center gap-2 bg-[#9A6A2F] px-5 py-3 text-sm font-bold text-[#FFF8ED] transition-colors hover:bg-[#2F2418]"
                                 >
                                     <ArrowLeft className="h-4 w-4" />
-                                    Về hồ sơ
+                                    {params.get('type') === 'order' ? 'Về Đơn mua' : 'Về hồ sơ'}
                                 </Link>
                                 <Link
                                     to="/"

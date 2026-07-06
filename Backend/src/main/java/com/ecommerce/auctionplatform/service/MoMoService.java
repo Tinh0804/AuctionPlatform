@@ -20,7 +20,9 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,7 +30,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,10 +40,12 @@ import java.util.UUID;
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class MoMoService {
-
     final WalletRepository walletRepository;
     final UserRepository userRepository;
     final TransactionRepository transactionRepository;
+
+    @Autowired @Lazy
+    OrderService orderService;
 
     @Value("${momo.partner-code:}")
     String partnerCode;
@@ -220,17 +223,24 @@ public class MoMoService {
         //  Process Result
         if ("0".equals(resultCode)) {
             transaction.setStatus(TransactionStatus.SUCCESS);
-            
-            Wallet wallet = transaction.getWallet();
-            wallet.setAvailableBalance(wallet.getAvailableBalance().add(transaction.getAmount()));
-            walletRepository.save(wallet);
-            log.info("Successfully added {} to wallet {}", transaction.getAmount(), wallet.getId());
+
+            if ("ORDER".equals(transaction.getReferenceType()) && transaction.getReferenceId() != null) {
+                // Order payment via gateway
+                transactionRepository.save(transaction);
+                orderService.handleGatewayPaymentSuccess(transaction.getReferenceId(), transaction.getAmount());
+            } else {
+                // Default: wallet top-up
+                Wallet wallet = transaction.getWallet();
+                wallet.setAvailableBalance(wallet.getAvailableBalance().add(transaction.getAmount()));
+                walletRepository.save(wallet);
+                transactionRepository.save(transaction);
+                log.info("Successfully added {} to wallet {}", transaction.getAmount(), wallet.getId());
+            }
         } else {
             transaction.setStatus(TransactionStatus.FAILED);
+            transactionRepository.save(transaction);
             log.info("MoMo payment failed for transaction {}. Result code: {}", orderId, resultCode);
         }
-
-        transactionRepository.save(transaction);
 
         return PaymentCallbackResponse.builder()
                 .orderId(orderId)
