@@ -1,16 +1,61 @@
 package com.ecommerce.auctionplatform.mapper;
 
 import com.ecommerce.auctionplatform.dto.respose.OrderResponse;
+import com.ecommerce.auctionplatform.entity.Image;
 import com.ecommerce.auctionplatform.entity.Order;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
+import com.ecommerce.auctionplatform.entity.Product;
+import com.ecommerce.auctionplatform.repository.ImageRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
-@Mapper(componentModel = "spring", uses = {UserMapper.class})
-public interface OrderMapper {
-    OrderMapper INSTANCE = Mappers.getMapper(OrderMapper.class);
+import java.util.List;
 
-    @Mapping(source = "buyer", target = "buyer")
-    @Mapping(source = "seller", target = "seller")
-    OrderResponse toOrderResponse(Order order);
+@Component
+@RequiredArgsConstructor
+public class OrderMapper {
+
+    private final ImageRepository imageRepository;
+
+    public OrderResponse toOrderResponse(Order order) {
+        String productName = null;
+        String productImageUrl = null;
+        java.util.UUID auctionId = null;
+        java.math.BigDecimal depositAmount = null;
+        java.time.LocalDateTime paymentDeadline = null;
+
+        if (order.getAuctionRecord() != null && order.getAuctionRecord().getAuction() != null) {
+            var auction = order.getAuctionRecord().getAuction();
+            auctionId = auction.getId();
+            depositAmount = auction.getDepositAmount();
+            if (auction.getProduct() != null) {
+                Product product = auction.getProduct();
+                productName = product.getName();
+                // Fetch cover image
+                List<Image> images = imageRepository.findByProductIdOrderByIsCoverDesc(product.getId());
+                if (!images.isEmpty()) {
+                    productImageUrl = images.get(0).getFileUrl();
+                }
+            }
+            if (order.getAuctionRecord().getExpiryTime() != null) {
+                paymentDeadline = order.getAuctionRecord().getExpiryTime();
+            }
+        }
+
+        return OrderResponse.builder()
+                .id(order.getId())
+                .auctionId(auctionId)
+                .productName(productName)
+                .productImageUrl(productImageUrl)
+                .sellerName(order.getSeller() != null ? order.getSeller().getName() : null)
+                .buyerName(order.getBuyer() != null ? order.getBuyer().getName() : null)
+                .totalAmount(order.getTotalAmount())
+                .depositAmount(depositAmount)
+                .status(order.getStatus())
+                .trackingCode(order.getTrackingCode())
+                .shippingProvider(order.getShippingProvider())
+                .paymentDeadline(paymentDeadline)
+                .createdAt(order.getCreatedAt())
+                .updatedAt(order.getUpdatedAt())
+                .build();
+    }
 }

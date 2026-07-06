@@ -54,9 +54,9 @@ export default function OrdersPage() {
     const handleConfirmReceipt = async (orderId) => {
         if(!window.confirm("Bạn xác nhận đã nhận được hàng và hài lòng với sản phẩm?")) return;
         try {
-            await apiClient.post(`/orders/${orderId}/confirm-receipt`);
-            alert("Xác nhận đã nhận hàng!");
-            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data?.result || (Array.isArray(res.data) ? res.data : [])));
+            await apiClient.post(`/orders/${orderId}/confirm-delivery`);
+            alert("Xác nhận đã nhận hàng thành công!");
+            apiClient.get('/orders/me/purchases').then(res => setPurchases(res.data?.result || []));
         } catch (error) {
             alert(error.response?.data?.detail || "Lỗi xác nhận");
         }
@@ -73,21 +73,17 @@ export default function OrdersPage() {
         }
     };
 
-    const StatusBadge = ({ status, isInvoice }) => {
-        const colors = {
-            'PENDING': isInvoice ? 'bg-red-500/10 text-red-300 border-red-400/20' : 'bg-[#9A6A2F]/10 text-[#9A6A2F] border-[#9A6A2F]/25',
-            'SUCCESS': 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20',
-            'SHIPPING': 'bg-sky-500/10 text-sky-300 border-sky-400/20',
-            'RECEIVED': 'bg-[#2F2418]/10 text-[#2F2418] border-[#2F2418]/20',
-            'COMPLETED': 'bg-emerald-500/10 text-emerald-300 border-emerald-400/20',
-            'PENDING_SHIP': 'bg-[#9A6A2F]/10 text-[#9A6A2F] border-[#9A6A2F]/25',
+    const StatusBadge = ({ status }) => {
+        const map = {
+            'PENDING_PAYMENT': { label: 'Chờ thanh toán', cls: 'bg-amber-500/10 text-amber-600 border-amber-400/30' },
+            'PAID':            { label: 'Đã thanh toán',  cls: 'bg-blue-500/10 text-blue-500 border-blue-400/20' },
+            'SHIPPING':        { label: 'Đang giao hàng', cls: 'bg-sky-500/10 text-sky-400 border-sky-400/20' },
+            'COMPLETED':       { label: 'Hoàn thành',    cls: 'bg-emerald-500/10 text-emerald-500 border-emerald-400/20' },
+            'CANCELLED':       { label: 'Đã hủy',        cls: 'bg-red-500/10 text-red-400 border-red-400/20' },
+            'DISPUTED':        { label: 'Tranh chấp',    cls: 'bg-orange-500/10 text-orange-400 border-orange-400/20' },
         };
-        const label = isInvoice && status === 'PENDING' ? 'Chờ thanh toán' : status;
-        return (
-            <span className={`text-xs font-bold px-2.5 py-1 border ${colors[status] || 'bg-white/5 text-[#2F2418]/60 border-white/10'}`}>
-                {label}
-            </span>
-        );
+        const { label, cls } = map[status] || { label: status, cls: 'bg-white/5 text-[#2F2418]/60 border-white/10' };
+        return <span className={`text-xs font-bold px-2.5 py-1 border ${cls}`}>{label}</span>;
     };
 
     return (
@@ -184,23 +180,27 @@ export default function OrdersPage() {
                                 </thead>
                                 <tbody>
                                     {purchases.map(p => (
-                                        <tr key={p.order_id || p.invoice_id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                                            <td className="px-5 py-5 text-sm font-semibold text-[#2F2418]">{p.auction_name}</td>
-                                            <td className="px-5 py-5 text-xs text-[#2F2418]/50">{p.created_at}</td>
-                                            <td className="px-5 py-5 text-sm text-right font-bold text-[#9A6A2F]">{(p.total_amount || p.amount || 0).toLocaleString('vi-VN')} đ</td>
-                                            <td className="px-5 py-4 text-center">
-                                                <StatusBadge status={p.status} isInvoice={p.is_invoice} />
+                                        <tr key={p.id} className="border-b border-[#9A6A2F]/8 hover:bg-[#9A6A2F]/5 transition-colors">
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    {p.productImageUrl && <img src={p.productImageUrl} alt={p.productName} className="w-10 h-10 object-cover rounded border border-[#9A6A2F]/15" />}
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-[#2F2418]">{p.productName || 'N/A'}</p>
+                                                        {p.sellerName && <p className="text-xs text-[#2F2418]/45">Bán bởi: {p.sellerName}</p>}
+                                                    </div>
+                                                </div>
                                             </td>
+                                            <td className="px-5 py-4 text-xs text-[#2F2418]/50">{p.createdAt ? new Date(p.createdAt).toLocaleDateString('vi-VN') : '-'}</td>
+                                            <td className="px-5 py-4 text-sm text-right font-bold text-[#9A6A2F]">{(p.totalAmount || 0).toLocaleString('vi-VN')} đ</td>
+                                            <td className="px-5 py-4 text-center"><StatusBadge status={p.status} /></td>
                                             <td className="px-5 py-4 text-center">
-                                                {p.is_invoice && p.status === 'PENDING' && (
-                                                    <button onClick={() => navigate(`/invoices/${p.invoice_id}/checkout`)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs">Thanh toán</button>
+                                                {p.status === 'PENDING_PAYMENT' && (
+                                                    <button onClick={() => navigate(`/orders/${p.id}/pay`)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs">Thanh toán</button>
                                                 )}
-                                                {!p.is_invoice && p.status === 'SHIPPING' && (
-                                                    <button onClick={() => handleConfirmReceipt(p.order_id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đã nhận hàng</button>
+                                                {p.status === 'SHIPPING' && (
+                                                    <button onClick={() => handleConfirmReceipt(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đã nhận hàng</button>
                                                 )}
-                                                {!p.is_invoice && p.status === 'RECEIVED' && (
-                                                    <button onClick={() => setShowReviewModal(p.order_id)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs">Đánh giá</button>
-                                                )}
+                                                {p.auctionId && <button onClick={() => navigate(`/auctions/${p.auctionId}`)} className="ml-1 py-1.5 px-3 text-xs text-[#2F2418]/50 border border-[#9A6A2F]/15 hover:text-[#9A6A2F]">Xem phiên</button>}
                                             </td>
                                         </tr>
                                     ))}
@@ -228,17 +228,26 @@ export default function OrdersPage() {
                                 </thead>
                                 <tbody>
                                     {sales.map(s => (
-                                        <tr key={s.order_id} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
-                                            <td className="px-5 py-5 text-sm font-semibold text-[#2F2418]">{s.auction_name}</td>
-                                            <td className="px-5 py-5 text-xs text-[#2F2418]/50">{s.created_at}</td>
-                                            <td className="px-5 py-5 text-sm text-right font-bold text-[#9A6A2F]">{s.total_amount.toLocaleString('vi-VN')} đ</td>
+                                        <tr key={s.id} className="border-b border-[#9A6A2F]/8 hover:bg-[#9A6A2F]/5 transition-colors">
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    {s.productImageUrl && <img src={s.productImageUrl} alt={s.productName} className="w-10 h-10 object-cover rounded border border-[#9A6A2F]/15" />}
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-[#2F2418]">{s.productName || 'N/A'}</p>
+                                                        {s.buyerName && <p className="text-xs text-[#2F2418]/45">Mua bởi: {s.buyerName}</p>}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 text-xs text-[#2F2418]/50">{s.createdAt ? new Date(s.createdAt).toLocaleDateString('vi-VN') : '-'}</td>
+                                            <td className="px-5 py-4 text-sm text-right font-bold text-[#9A6A2F]">{(s.totalAmount || 0).toLocaleString('vi-VN')} đ</td>
                                             <td className="px-5 py-4 text-center"><StatusBadge status={s.status} /></td>
                                             <td className="px-5 py-4 text-center">
-                                                {s.status === 'PENDING_SHIP' && (
-                                                    <button onClick={() => setShowShippingModal(s.order_id)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs inline-flex items-center gap-1">
+                                                {s.status === 'PAID' && (
+                                                    <button onClick={() => setShowShippingModal(s.id)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs inline-flex items-center gap-1">
                                                         <Truck className="w-3.5 h-3.5" /> Gửi hàng
                                                     </button>
                                                 )}
+                                                {s.auctionId && <button onClick={() => navigate(`/auctions/${s.auctionId}`)} className="ml-1 py-1.5 px-3 text-xs text-[#2F2418]/50 border border-[#9A6A2F]/15 hover:text-[#9A6A2F]">Xem phiên</button>}
                                             </td>
                                         </tr>
                                     ))}

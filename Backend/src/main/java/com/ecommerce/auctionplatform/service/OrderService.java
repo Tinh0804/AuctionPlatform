@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -36,35 +37,51 @@ public class OrderService {
     OrderMapper orderMapper;
 
     private User getCurrentUser() {
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
-                new AppException(ErrorCode.UNAUTHORIZED)));
+        UUID userProfileId = UUID.fromString(
+                SecurityUtils.getCurrentProfileId().orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED)));
         return userRepository.findById(userProfileId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    public List<OrderResponse> getMyPurchases() {
+        User buyer = getCurrentUser();
+        return orderRepository.findByBuyerIdOrderByCreatedAtDesc(buyer.getId())
+                .stream()
+                .map(orderMapper::toOrderResponse)
+                .toList();
+    }
+
+    public List<OrderResponse> getMySales() {
+        User seller = getCurrentUser();
+        return orderRepository.findBySellerIdOrderByCreatedAtDesc(seller.getId())
+                .stream()
+                .map(orderMapper::toOrderResponse)
+                .toList();
     }
 
     @Transactional
     public OrderResponse payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         if (!order.getBuyer().getId().equals(buyer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
         Wallet buyerWallet = walletRepository.findByUser(buyer)
                 .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         if (buyerWallet.getPinCode() == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
         if (!passwordEncoder.matches(request.getPinCode(), buyerWallet.getPinCode())) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
         AuctionRecord record = order.getAuctionRecord();
@@ -80,7 +97,7 @@ public class OrderService {
 
         if (amountToPay.compareTo(BigDecimal.ZERO) > 0) {
             if (buyerWallet.getAvailableBalance().compareTo(amountToPay) < 0) {
-                throw new AppException(ErrorCode.BAD_REQUEST); 
+                throw new AppException(ErrorCode.BAD_REQUEST);
             }
             buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().subtract(amountToPay));
         }
@@ -122,8 +139,9 @@ public class OrderService {
         record.setStatus(AuctionRecordStatus.WIN);
         auctionRecordRepository.save(record);
 
-        log.info("Order {} paid using escrow. Buyer deducted: {}, Seller frozen: {}", orderId, totalAmount, totalAmount);
-        
+        log.info("Order {} paid using escrow. Buyer deducted: {}, Seller frozen: {}", orderId, totalAmount,
+                totalAmount);
+
         return orderMapper.toOrderResponse(order);
     }
 
@@ -131,14 +149,14 @@ public class OrderService {
     public OrderResponse confirmDeliveryAndReleaseEscrow(UUID orderId) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         if (!order.getBuyer().getId().equals(buyer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
         BigDecimal totalAmount = order.getTotalAmount();
@@ -169,7 +187,7 @@ public class OrderService {
         orderRepository.save(order);
 
         log.info("Order {} completed. Escrow released to seller.", orderId);
-        
+
         return orderMapper.toOrderResponse(order);
     }
 
@@ -190,10 +208,10 @@ public class OrderService {
         order.setTrackingCode(request.getTrackingCode());
         order.setShippingProvider(request.getShippingProvider());
         order.setStatus(OrderStatus.SHIPPING);
-        
+
         orderRepository.save(order);
         log.info("Order {} shipping info updated by seller.", orderId);
-        
+
         return orderMapper.toOrderResponse(order);
     }
 }

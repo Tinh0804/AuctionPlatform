@@ -9,6 +9,7 @@ import com.ecommerce.auctionplatform.dto.respose.BidResponse;
 import com.ecommerce.auctionplatform.dto.respose.CategoryResponse;
 import com.ecommerce.auctionplatform.service.AuctionService;
 import com.ecommerce.auctionplatform.service.CategoryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Page;
@@ -83,7 +84,7 @@ public class AuctionController {
     @PostMapping("/{id}/bid")
     public APIResponse<BidResponse> placeBid(
             @PathVariable UUID id,
-            @RequestBody BidRequest request) {
+            @RequestBody @Valid BidRequest request) {
         return APIResponse.<BidResponse>builder()
                 .status(HttpStatus.OK.value())
                 .message("Bid placed successfully")

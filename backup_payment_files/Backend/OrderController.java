@@ -1,10 +1,13 @@
 package com.ecommerce.auctionplatform.controller;
 
 import com.ecommerce.auctionplatform.dto.request.EscrowPaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.OrderPaymentRequest;
 import com.ecommerce.auctionplatform.dto.request.ShippingUpdateRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
+import com.ecommerce.auctionplatform.dto.respose.OrderPaymentResponse;
 import com.ecommerce.auctionplatform.dto.respose.OrderResponse;
 import com.ecommerce.auctionplatform.service.OrderService;
+import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -40,9 +43,28 @@ public class OrderController {
                 .build();
     }
 
+    @GetMapping("/{orderId}")
+    public APIResponse<OrderResponse> getOrderDetail(@PathVariable UUID orderId) {
+        return APIResponse.<OrderResponse>builder()
+                .status(HttpStatus.OK.value())
+                .message("Order detail fetched")
+                .result(orderService.getOrderDetail(orderId))
+                .build();
+    }
+
+    @PostMapping("/{orderId}/initiate-payment")
+    public APIResponse<OrderPaymentResponse> initiatePayment(
+            @PathVariable UUID orderId,
+            @RequestBody @Valid OrderPaymentRequest request) {
+        return APIResponse.<OrderPaymentResponse>builder()
+                .status(HttpStatus.OK.value())
+                .message("Payment initiated")
+                .result(orderService.initiateOrderPayment(orderId, request))
+                .build();
+    }
+
     @PostMapping("/{orderId}/pay")
-    public APIResponse<OrderResponse> payOrderWithEscrow(@PathVariable UUID orderId,
-            @RequestBody EscrowPaymentRequest request) {
+    public APIResponse<OrderResponse> payOrderWithEscrow(@PathVariable UUID orderId, @RequestBody EscrowPaymentRequest request) {
         OrderResponse response = orderService.payOrderWithEscrow(orderId, request);
         return APIResponse.<OrderResponse>builder()
                 .status(200)
@@ -62,8 +84,7 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/shipping")
-    public APIResponse<OrderResponse> updateShippingInfo(@PathVariable UUID orderId,
-            @RequestBody ShippingUpdateRequest request) {
+    public APIResponse<OrderResponse> updateShippingInfo(@PathVariable UUID orderId, @RequestBody ShippingUpdateRequest request) {
         OrderResponse response = orderService.updateShippingInfo(orderId, request);
         return APIResponse.<OrderResponse>builder()
                 .status(200)

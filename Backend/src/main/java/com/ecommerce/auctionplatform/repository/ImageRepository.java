@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface ImageRepository extends JpaRepository<Image, UUID> {
     List<Image> findByProductId(UUID productId);
+    List<Image> findByProductIdOrderByIsCoverDesc(UUID productId);
 }

@@ -19,12 +19,17 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class OrderResponse {
     UUID id;
-    UserResponse buyer;
-    UserResponse seller;
+    UUID auctionId;
+    String productName;
+    String productImageUrl;
+    String sellerName;
+    String buyerName;
     BigDecimal totalAmount;
+    BigDecimal depositAmount;
     OrderStatus status;
     String trackingCode;
     String shippingProvider;
+    LocalDateTime paymentDeadline;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

@@ -1,0 +1,22 @@
+package com.ecommerce.auctionplatform.dto.request;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class OrderPaymentRequest {
+
+    @NotNull(message = "Payment method is required")
+    String paymentMethod; // WALLET, MOMO, VNPAY
+
+    // Required for WALLET
+    String pinCode;
+
+    // Required for MOMO / VNPAY  
+    String returnUrl;
+}

@@ -134,7 +134,7 @@ export default function AuctionDetail() {
     const handlePlaceBid = async () => {
         setErrorMsg('');
         try {
-            await apiClient.post(`/auctions/${id}/bid`, { bid_amount: bidAmount });
+            await apiClient.post(`/auctions/${id}/bid`, { bidAmount: bidAmount });
             latestOwnBid.current = Number(bidAmount);
             toast.success(`Đặt giá thành công: ${money(bidAmount)} đ. Bạn đang tạm dẫn đầu!`, 4500);
             setShowConfetti(true);
@@ -237,7 +237,12 @@ function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, m
             </div>
             <div className="curator-mini-grid"><Mini label="Người dẫn đầu" value={topBid?.bidder_name || 'Chưa có'} /><Mini label="Tối thiểu" value={`${money(minBid)}đ`} /></div>
             {isOwner ? (
-                <div className="curator-disabled">Bạn không thể đặt giá trên phiên đấu giá do chính mình tạo ra</div>
+                <div className="curator-disabled">
+                    <div className="flex items-center gap-2 justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <span>Bạn không thể đặt giá cho phiên đấu giá của chính mình</span>
+                    </div>
+                </div>
             ) : isActive ? (
                 <div className="curator-bid-actions"><div className="curator-bid-input"><button onClick={() => setBidAmount(prev => Math.max(minBid, prev - stepPrice))}><Minus className="h-4 w-4" /></button><input type="number" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} /><button onClick={() => setBidAmount(prev => prev + stepPrice)}><Plus className="h-4 w-4" /></button></div>{errorMsg && <p className="curator-error"><Info className="h-3.5 w-3.5" /> {errorMsg}</p>}<button onClick={handlePlaceBid} className="curator-submit"><Gavel className="h-4 w-4" /> Đặt giá và vượt lên</button></div>
             ) : (
