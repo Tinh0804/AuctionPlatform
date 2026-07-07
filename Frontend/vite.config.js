@@ -9,18 +9,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  define: {
-    global: 'window',
-  },
+  // Removed global define to prevent variable shadowing bugs in production build
   server: {
-    host: 'localhost',
+    host: true, // Lắng nghe trên mọi IP local (tiện cho việc test trên điện thoại)
     port: 5174,
-    strictPort: true,
-    allowedHosts: [
-      'localhost',
-      '127.0.0.1',
-      '.ngrok-free.dev',
-      'alone-spinner-estimator.ngrok-free.dev'
-    ]
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_BASE_URL || 'http://localhost:8081',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api/, ''),
+      },
+    },
   }
 })

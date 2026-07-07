@@ -20,7 +20,7 @@ export function useStomp({ onConnect, deps = [] }) {
             if (!isActive) return;
 
             const stompClient = new Client({
-                webSocketFactory: () => new SockJS(`${WS_URL}/ws`),
+                webSocketFactory: () => new SockJS(`${WS_URL}`),
                 debug: function (str) {
                     // console.log(str); 
                 },

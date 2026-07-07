@@ -36,4 +36,4 @@ export const ROUTES = {
 };
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || 'https://alone-spinner-estimator.ngrok-free.dev';
+  import.meta.env.VITE_API_URL;

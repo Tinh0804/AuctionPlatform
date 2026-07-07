@@ -5,7 +5,7 @@
 import axios from 'axios';
 
 export const API_URL =
-  import.meta.env.VITE_API_URL || 'https://alone-spinner-estimator.ngrok-free.dev';
+  import.meta.env.VITE_API_URL;
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -51,6 +51,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-export const WS_URL = API_URL;
+export const WS_URL = import.meta.env.VITE_WS_URL;
 
 export default apiClient;
