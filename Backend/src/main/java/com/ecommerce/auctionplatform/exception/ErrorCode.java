@@ -44,7 +44,11 @@ public enum ErrorCode {
     WALLET_FROZEN(403, "Wallet is frozen", HttpStatus.FORBIDDEN),
     INSUFFICIENT_BALANCE(400, "Insufficient balance", HttpStatus.BAD_REQUEST),
     TRANSACTION_NOT_FOUND(404, "Transaction not found", HttpStatus.NOT_FOUND),
-    
+    ORDER_ALREADY_REVIEWED(400, "Order has already been reviewed", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_ELIGIBLE_FOR_REVIEW(400, "Order is not eligible for review", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_FOUND(404, "Order not found", HttpStatus.NOT_FOUND),
+    WALLET_PIN_NOT_SET(400, "Wallet PIN is not set", HttpStatus.BAD_REQUEST),
+    WALLET_PIN_WRONG(400, "Wallet PIN is incorrect", HttpStatus.BAD_REQUEST),
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
 

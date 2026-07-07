@@ -3,6 +3,7 @@ package com.ecommerce.auctionplatform.service;
 import com.ecommerce.auctionplatform.dto.request.EscrowPaymentRequest;
 import com.ecommerce.auctionplatform.dto.request.OrderPaymentRequest;
 import com.ecommerce.auctionplatform.dto.request.PaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.ReviewRequest;
 import com.ecommerce.auctionplatform.dto.request.ShippingUpdateRequest;
 import com.ecommerce.auctionplatform.dto.respose.OrderPaymentResponse;
 import com.ecommerce.auctionplatform.dto.respose.OrderResponse;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +44,9 @@ public class OrderService {
     OrderMapper orderMapper;
     MoMoService moMoService;
     VNPayService vnPayService;
+    ReputationHistoryRepository reputationHistoryRepository;
+    NotificationRepository notificationRepository;
+    RoleRepository roleRepository;
 
     private User getCurrentUser() {
         UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
@@ -245,7 +250,7 @@ public class OrderService {
     public OrderResponse payOrderWithEscrow(UUID orderId, EscrowPaymentRequest request) {
         User buyer = getCurrentUser();
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST)); 
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
         if (!order.getBuyer().getId().equals(buyer.getId())) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -259,11 +264,11 @@ public class OrderService {
                 .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         if (buyerWallet.getPinCode() == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.WALLET_PIN_NOT_SET);
         }
 
         if (!passwordEncoder.matches(request.getPinCode(), buyerWallet.getPinCode())) {
-            throw new AppException(ErrorCode.BAD_REQUEST); 
+            throw new AppException(ErrorCode.WALLET_PIN_WRONG);
         }
 
         AuctionRecord record = order.getAuctionRecord();
@@ -394,5 +399,157 @@ public class OrderService {
         log.info("Order {} shipping info updated by seller.", orderId);
         
         return orderMapper.toOrderResponse(order);
+    }
+
+    /**
+     * Buyer đánh giá + xác nhận hoàn thành đơn hàng.
+     * Flow: Lưu rating → Tính uy tín seller → Giải ngân Escrow (trừ phí nền tảng vào ví Admin) → Gửi thông báo.
+     */
+    @Transactional
+    public OrderResponse completeOrderWithReview(UUID orderId, ReviewRequest request) {
+        User buyer = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        // 1. Validate
+        if (!order.getBuyer().getId().equals(buyer.getId())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+        if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
+            throw new AppException(ErrorCode.ORDER_NOT_ELIGIBLE_FOR_REVIEW);
+        }
+        if (order.getRatingScore() != null) {
+            throw new AppException(ErrorCode.ORDER_ALREADY_REVIEWED);
+        }
+
+        // 2. Lưu đánh giá vào Order
+        order.setRatingScore(request.getRating());
+        order.setReviewContent(request.getComment());
+        order.setReviewDate(LocalDateTime.now());
+
+        // 3. Tính uy tín cho seller
+        User seller = order.getSeller();
+        int scoreChange = calculateReputationChange(request.getRating());
+        int newScore = (seller.getReputationScore() != null ? seller.getReputationScore() : 100) + scoreChange;
+        if (newScore < 0) newScore = 0;
+        seller.setReputationScore(newScore);
+        userRepository.save(seller);
+
+        // Ghi log uy tín
+        reputationHistoryRepository.save(ReputationHistory.builder()
+                .user(seller)
+                .scoreChange(scoreChange)
+                .reason("Đánh giá " + request.getRating() + " sao từ đơn hàng #" + orderId.toString().substring(0, 8))
+                .order(order)
+                .build());
+
+        // 4. Giải ngân Escrow – trừ phí nền tảng
+        BigDecimal totalAmount = order.getTotalAmount();
+        BigDecimal platformFee = BigDecimal.ZERO;
+
+        // Lấy phí nền tảng từ phiên đấu giá (nếu có)
+        if (order.getAuctionRecord() != null && order.getAuctionRecord().getAuction() != null) {
+            Auction auction = order.getAuctionRecord().getAuction();
+            if (auction.getPlatformFee() != null && auction.getPlatformFee().compareTo(BigDecimal.ZERO) > 0) {
+                platformFee = auction.getPlatformFee();
+            }
+        }
+
+        BigDecimal netAmount = totalAmount.subtract(platformFee);
+        if (netAmount.compareTo(BigDecimal.ZERO) < 0) netAmount = BigDecimal.ZERO;
+
+        Wallet sellerWallet = walletRepository.findByUser(seller)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        if (sellerWallet.getFrozenBalance().compareTo(totalAmount) < 0) {
+            log.error("Seller frozen balance ({}) is less than order amount ({}) for Order ID: {}",
+                    sellerWallet.getFrozenBalance(), totalAmount, orderId);
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        // Giải ngân: frozen → available (trừ phí)
+        sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(totalAmount));
+        sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(netAmount));
+        walletRepository.save(sellerWallet);
+
+        // Transaction: ESCROW_RELEASE cho seller
+        transactionRepository.save(Transaction.builder()
+                .wallet(sellerWallet)
+                .type(TransactionType.ESCROW_RELEASE)
+                .amount(netAmount)
+                .status(TransactionStatus.SUCCESS)
+                .referenceType("ORDER").referenceId(orderId)
+                .note("Escrow released for Order: " + orderId + " (after platform fee)")
+                .build());
+
+        // Phí nền tảng → ví Admin
+        if (platformFee.compareTo(BigDecimal.ZERO) > 0) {
+            // Tìm ví admin: tìm user có role ADMIN đầu tiên
+            Role adminRole = roleRepository.findByName("ADMIN").orElse(null);
+            if (adminRole != null) {
+                User adminUser = userRepository.findFirstByAccountRoleId(adminRole.getId()).orElse(null);
+                if (adminUser != null) {
+                    Wallet adminWallet = walletRepository.findByUser(adminUser).orElse(null);
+                    if (adminWallet != null) {
+                        adminWallet.setAvailableBalance(adminWallet.getAvailableBalance().add(platformFee));
+                        walletRepository.save(adminWallet);
+
+                        transactionRepository.save(Transaction.builder()
+                                .wallet(adminWallet)
+                                .type(TransactionType.PLATFORM_FEE)
+                                .amount(platformFee)
+                                .status(TransactionStatus.SUCCESS)
+                                .referenceType("ORDER").referenceId(orderId)
+                                .note("Platform fee from Order: " + orderId)
+                                .build());
+                        log.info("Platform fee {} transferred to admin wallet for Order {}", platformFee, orderId);
+                    }
+                }
+            }
+
+            // Ghi transaction PLATFORM_FEE trên ví seller (ghi nhận bị trừ)
+            transactionRepository.save(Transaction.builder()
+                    .wallet(sellerWallet)
+                    .type(TransactionType.PLATFORM_FEE)
+                    .amount(platformFee)
+                    .status(TransactionStatus.SUCCESS)
+                    .referenceType("ORDER").referenceId(orderId)
+                    .note("Platform fee deducted for Order: " + orderId)
+                    .build());
+        }
+
+        // 5. Cập nhật trạng thái
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setUpdatedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        // 6. Gửi thông báo cho seller
+        String ratingStars = "⭐".repeat(request.getRating());
+        notificationRepository.save(Notification.builder()
+                .user(seller)
+                .type("ORDER_COMPLETED")
+                .title("Đơn hàng hoàn thành " + ratingStars)
+                .content("Đơn hàng #" + orderId.toString().substring(0, 8) + " đã hoàn thành. "
+                        + "Bạn nhận được đánh giá " + request.getRating() + " sao. "
+                        + "Số tiền " + String.format("%,.0f", netAmount) + "đ đã được giải ngân vào ví.")
+                .referenceType("ORDER")
+                .referenceId(orderId)
+                .build());
+
+        log.info("Order {} completed with review. Rating: {}, Reputation change: {}, Net amount: {}, Platform fee: {}",
+                orderId, request.getRating(), scoreChange, netAmount, platformFee);
+
+        return orderMapper.toOrderResponse(order);
+    }
+
+    private int calculateReputationChange(int rating) {
+        return switch (rating) {
+            case 5 -> 5;
+            case 4 -> 3;
+            case 3 -> 0;
+            case 2 -> -5;
+            case 1 -> -10;
+            default -> 0;
+        };
     }
 }

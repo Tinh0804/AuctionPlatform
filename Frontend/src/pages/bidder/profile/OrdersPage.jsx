@@ -198,7 +198,13 @@ export default function OrdersPage() {
                                                     <button onClick={() => navigate(`/orders/${p.id}/pay`)} className="bg-[#9A6A2F] text-[#F8F1E6] font-bold py-1.5 px-3 text-xs">Thanh toán</button>
                                                 )}
                                                 {p.status === 'SHIPPING' && (
-                                                    <button onClick={() => handleConfirmReceipt(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đã nhận hàng</button>
+                                                    <button onClick={() => setShowReviewModal(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đã nhận hàng</button>
+                                                )}
+                                                {p.status === 'COMPLETED' && !p.ratingScore && (
+                                                    <button onClick={() => setShowReviewModal(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đánh giá</button>
+                                                )}
+                                                {p.ratingScore && (
+                                                    <span className="py-1.5 px-3 text-xs font-bold text-amber-500">Đã đánh giá ⭐{p.ratingScore}</span>
                                                 )}
                                                 {p.auctionId && <button onClick={() => navigate(`/auctions/${p.auctionId}`)} className="ml-1 py-1.5 px-3 text-xs text-[#2F2418]/50 border border-[#9A6A2F]/15 hover:text-[#9A6A2F]">Xem phiên</button>}
                                             </td>

@@ -2,6 +2,7 @@ package com.ecommerce.auctionplatform.controller;
 
 import com.ecommerce.auctionplatform.dto.request.EscrowPaymentRequest;
 import com.ecommerce.auctionplatform.dto.request.OrderPaymentRequest;
+import com.ecommerce.auctionplatform.dto.request.ReviewRequest;
 import com.ecommerce.auctionplatform.dto.request.ShippingUpdateRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.OrderPaymentResponse;
@@ -89,6 +90,18 @@ public class OrderController {
         return APIResponse.<OrderResponse>builder()
                 .status(200)
                 .message("Shipping info updated successfully.")
+                .result(response)
+                .build();
+    }
+
+    @PostMapping("/{orderId}/complete")
+    public APIResponse<OrderResponse> completeOrderWithReview(
+            @PathVariable UUID orderId,
+            @RequestBody @Valid ReviewRequest request) {
+        OrderResponse response = orderService.completeOrderWithReview(orderId, request);
+        return APIResponse.<OrderResponse>builder()
+                .status(200)
+                .message("Order completed and review submitted successfully.")
                 .result(response)
                 .build();
     }

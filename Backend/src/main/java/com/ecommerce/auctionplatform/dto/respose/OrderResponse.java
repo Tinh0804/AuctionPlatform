@@ -29,6 +29,9 @@ public class OrderResponse {
     OrderStatus status;
     String trackingCode;
     String shippingProvider;
+    Integer ratingScore;
+    String reviewContent;
+    LocalDateTime reviewDate;
     LocalDateTime paymentDeadline;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;

@@ -69,6 +69,24 @@ jobs:
           target: "/home/ubuntu/auctionplatform"          
           strip_components: 1
 
+      - name: Cleanup old Auction images
+        uses: appleboy/ssh-action@v1.0.3
+        with: 
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_VM_USER }} 
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }} 
+          port: 22
+          script: |
+            echo "🧹 Cleaning up old Auction images..."
+            
+            # Xóa các image auction cũ (giữ lại 2 image gần nhất)
+            sudo docker images | grep "tinh08042005/auction-backend" | grep -v "latest" | tail -n +3 | awk '{print $3}' | xargs -r sudo docker rmi -f 2>/dev/null || true
+            
+            # Xóa dangling images
+            sudo docker image prune -f
+            
+            echo "✅ Cleanup completed"
+
       # 2. SSH vào GCP VM và khởi chạy Docker Compose
       - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1.0.3

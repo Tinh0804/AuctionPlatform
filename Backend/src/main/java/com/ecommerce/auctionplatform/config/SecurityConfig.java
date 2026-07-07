@@ -33,6 +33,9 @@ public class SecurityConfig {
         @Autowired
         private JwtDecoder jwtDecoder;
 
+        @Autowired
+        private JWTAuthentication jwtAuthentication;
+
         private final String[] AUTH_ENDPOINTS = {
                         "/auth/login",
                         "/auth/register",
@@ -74,13 +77,13 @@ public class SecurityConfig {
                                                 .anyRequest().authenticated())
                                 .csrf(AbstractHttpConfigurer::disable);
                 http
+                                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthentication))
                                 .oauth2ResourceServer(oauth2 -> oauth2
                                                 .jwt(
                                                                 jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
                                                                                 .jwtAuthenticationConverter(this
                                                                                                 .jwtAuthenticationConverter()))
-                                                .authenticationEntryPoint(new JWTAuthentication()))
-                                .oauth2Login(Customizer.withDefaults());
+                                                .authenticationEntryPoint(jwtAuthentication));
                 return http.build();
         }
 
