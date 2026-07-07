@@ -58,7 +58,6 @@ public class SecurityConfig {
                         "/payments/vnpay/callback",
         };
 
-
         @Bean
         public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
                 http
@@ -79,8 +78,7 @@ public class SecurityConfig {
                                                 .jwt(
                                                                 jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
                                                                                 .jwtAuthenticationConverter(this
-                                                                                                .jwtAuthenticationConverter())
-                                                )
+                                                                                                .jwtAuthenticationConverter()))
                                                 .authenticationEntryPoint(new JWTAuthentication()))
                                 .oauth2Login(Customizer.withDefaults());
                 return http.build();
@@ -89,9 +87,9 @@ public class SecurityConfig {
         @Bean
         public JwtAuthenticationConverter jwtAuthenticationConverter() {
                 JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-                grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_"); 
-                grantedAuthoritiesConverter.setAuthoritiesClaimName("scope"); 
- 
+                grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_");
+                grantedAuthoritiesConverter.setAuthoritiesClaimName("scope");
+
                 JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
                 jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
                 return jwtAuthenticationConverter;
@@ -99,15 +97,15 @@ public class SecurityConfig {
 
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(allowedOrigins);
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
-        
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOrigins(allowedOrigins);
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                configuration.setAllowedHeaders(Arrays.asList("*"));
+                configuration.setAllowCredentials(true);
+
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
         }
 
 }
