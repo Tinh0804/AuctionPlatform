@@ -8,7 +8,10 @@ import com.ecommerce.auctionplatform.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -19,9 +22,9 @@ public class OrderMapper {
     public OrderResponse toOrderResponse(Order order) {
         String productName = null;
         String productImageUrl = null;
-        java.util.UUID auctionId = null;
-        java.math.BigDecimal depositAmount = null;
-        java.time.LocalDateTime paymentDeadline = null;
+        UUID auctionId = null;
+        BigDecimal depositAmount = null;
+        LocalDateTime paymentDeadline = null;
 
         if (order.getAuctionRecord() != null && order.getAuctionRecord().getAuction() != null) {
             var auction = order.getAuctionRecord().getAuction();
