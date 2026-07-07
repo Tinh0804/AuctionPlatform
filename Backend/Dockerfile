@@ -6,5 +6,5 @@ RUN mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jdk
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
-ENTRYPOINT ["java","-jar","/app.jar"]
+COPY --from=build /app/target/auctionplatform.jar app.jar
+ENTRYPOINT ["java","-jar","app.jar"]
