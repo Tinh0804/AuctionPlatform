@@ -101,16 +101,18 @@ public class AuctionService {
 
 
         if (request.getFiles() != null && request.getFiles().length > 0) {
-            boolean isCover = true;
+            int sortOrder = 0;
             for (MultipartFile file : request.getFiles()) {
-                String fileUrl = cloudinaryService.uploadFile(file,"products/" + product.getId());
+                String fileUrl = cloudinaryService.uploadFile(file, "products/" + product.getId());
                 Image image = Image.builder()
-                        .product(product)
+                        .referenceType(ImageReferenceType.PRODUCT)
+                        .referenceId(product.getId())
                         .fileUrl(fileUrl)
-                        .isCover(isCover)
+                        .isCover(sortOrder == 0)  // First image is cover
+                        .sortOrder(sortOrder)
                         .build();
                 imageRepository.save(image);
-                isCover = false; // Only first image is cover
+                sortOrder++;
             }
         } else if (request.getRelistId() != null && !request.getRelistId().isEmpty()) {
             Auction oldAuction = getAuction(request.getRelistId());
@@ -122,9 +124,11 @@ public class AuctionService {
             List<Image> oldImages = imageRepository.findByProductId(oldAuction.getProduct().getId());
             for (Image oldImg : oldImages) {
                 Image newImg = Image.builder()
-                        .product(product)
+                        .referenceType(ImageReferenceType.PRODUCT)
+                        .referenceId(product.getId())
                         .fileUrl(oldImg.getFileUrl())
                         .isCover(oldImg.getIsCover())
+                        .sortOrder(oldImg.getSortOrder())
                         .build();
                 imageRepository.save(newImg);
             }
