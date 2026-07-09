@@ -86,6 +86,7 @@ app:
   firebase:
     config-path: "classpath:firebase-admin.json"
   deduct-score: 20
+  days-to-expire: 7
 
 cloudinary:
   cloud_name: ${CLOUDINARY_CLOUD_NAME:}

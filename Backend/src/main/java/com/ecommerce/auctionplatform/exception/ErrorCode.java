@@ -50,6 +50,13 @@ public enum ErrorCode {
     WALLET_PIN_NOT_SET(400, "Wallet PIN is not set", HttpStatus.BAD_REQUEST),
     WALLET_PIN_WRONG(400, "Wallet PIN is incorrect", HttpStatus.BAD_REQUEST),
 
+    DISPUTE_NOT_FOUND(404, "Dispute not found", HttpStatus.NOT_FOUND),
+    DISPUTE_ALREADY_EXISTS(400, "An active dispute already exists for this order", HttpStatus.BAD_REQUEST),
+    DISPUTE_ALREADY_RESOLVED(400, "Dispute has already been resolved", HttpStatus.BAD_REQUEST),
+    ORDER_NOT_ELIGIBLE_FOR_DISPUTE(400, "Order is not eligible for dispute", HttpStatus.BAD_REQUEST),
+    INVALID_DISPUTE_OUTCOME(400, "Invalid dispute outcome", HttpStatus.BAD_REQUEST),
+    DISPUTE_EXPIRED(400, "Dispute period has expired", HttpStatus.BAD_REQUEST),
+
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
 
 

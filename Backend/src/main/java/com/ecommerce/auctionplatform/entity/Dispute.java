@@ -36,9 +36,6 @@ public class Dispute {
     @Column(length = 2000)
     String description;
 
-    @Column(name = "evidence_url", length = 500)
-    String evidenceUrl;
-
     @Builder.Default
     @Column(name = "status", nullable = false, columnDefinition = "dispute_status")
     @Enumerated(EnumType.STRING)

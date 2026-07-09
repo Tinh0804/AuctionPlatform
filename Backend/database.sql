@@ -424,36 +424,3 @@ CREATE INDEX idx_reputation_dispute_id    ON reputation_histories(dispute_id);
 CREATE INDEX idx_notifications_user_id    ON notifications(user_id);
 CREATE INDEX idx_notifications_unread     ON notifications(user_id, is_read);
 
-
--- ==========================================
--- MIGRATION: images – product_id → polymorphic (reference_type / reference_id)
--- Chạy script này trên DB production đã có dữ liệu
--- ==========================================
-/*
--- Bước 1: Tạo ENUM (nếu chưa có)
-CREATE TYPE image_reference_type AS ENUM ('PRODUCT', 'DISPUTE', 'USER');
-
--- Bước 2: Thêm cột mới
-ALTER TABLE images
-    ADD COLUMN IF NOT EXISTS reference_type image_reference_type,
-    ADD COLUMN IF NOT EXISTS reference_id   UUID,
-    ADD COLUMN IF NOT EXISTS sort_order     INT DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS description    VARCHAR(255);
-
--- Bước 3: Migrate dữ liệu cũ
-UPDATE images
-SET reference_type = 'PRODUCT',
-    reference_id   = product_id
-WHERE product_id IS NOT NULL;
-
--- Bước 3: Đặt NOT NULL sau khi migrate xong
-ALTER TABLE images
-    ALTER COLUMN reference_type SET NOT NULL,
-    ALTER COLUMN reference_id   SET NOT NULL;
-
--- Bước 4: Xoá cột cũ và FK cũ
-ALTER TABLE images DROP COLUMN IF EXISTS product_id;
-
--- Bước 5: Tạo index mới
-CREATE INDEX IF NOT EXISTS idx_images_reference ON images(reference_type, reference_id);
-*/

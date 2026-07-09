@@ -200,6 +200,9 @@ export default function OrdersPage() {
                                                 {p.status === 'SHIPPING' && (
                                                     <button onClick={() => setShowReviewModal(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đã nhận hàng</button>
                                                 )}
+                                                {(p.status === 'PAID' || p.status === 'SHIPPING') && (
+                                                    <button onClick={() => navigate(`/orders/${p.id}/dispute`)} className="ml-1 py-1.5 px-3 text-xs font-bold text-orange-500 border border-orange-500/25 hover:bg-orange-500/10">Khiếu nại</button>
+                                                )}
                                                 {p.status === 'COMPLETED' && !p.ratingScore && (
                                                     <button onClick={() => setShowReviewModal(p.id)} className="py-1.5 px-3 text-xs font-bold text-[#9A6A2F] border border-[#9A6A2F]/25 hover:bg-[#9A6A2F]/10">Đánh giá</button>
                                                 )}

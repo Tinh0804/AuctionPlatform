@@ -31,6 +31,8 @@ import OrderPayPage from '@/pages/bidder/OrderPayPage';
 // Seller pages
 import CreateAuction from '@/pages/seller/CreateAuction';
 
+import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
+
 // Fallback
 import NotFound from '@/pages/NotFound';
 
@@ -62,12 +64,14 @@ const AppRoutes = () => {
         <Route path="ekyc" element={<ProtectedRoute><EKyc /></ProtectedRoute>} />
         <Route path="invoices/:invoice_id/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="orders/:orderId/pay" element={<ProtectedRoute><OrderPayPage /></ProtectedRoute>} />
+        <Route path="orders/:orderId/dispute" element={<ProtectedRoute><CreateDisputePage /></ProtectedRoute>} />
         
         <Route path="wallets/deposit/momo-return" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />
         <Route path="payment/:status" element={<ProtectedRoute><PaymentResult /></ProtectedRoute>} />
 
         {/* Protected: Seller */}
         <Route path="auctions/create" element={<ProtectedRoute><CreateAuction /></ProtectedRoute>} />
+
 
         {/* 404 */}
         <Route path="*" element={<NotFound />} />

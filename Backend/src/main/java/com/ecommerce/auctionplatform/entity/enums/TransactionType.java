@@ -11,5 +11,6 @@ public enum TransactionType {
     PLATFORM_FEE,
     CANCELLATION_FEE,
     ESCROW_HOLD,
-    ESCROW_RELEASE
+    ESCROW_RELEASE,
+    DISPUTE_REFUND
 }
