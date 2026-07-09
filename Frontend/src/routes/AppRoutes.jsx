@@ -32,6 +32,7 @@ import OrderPayPage from '@/pages/bidder/OrderPayPage';
 import CreateAuction from '@/pages/seller/CreateAuction';
 
 import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
+import AdminDisputesPage from '@/pages/admin/AdminDisputesPage';
 
 // Fallback
 import NotFound from '@/pages/NotFound';
@@ -71,6 +72,9 @@ const AppRoutes = () => {
 
         {/* Protected: Seller */}
         <Route path="auctions/create" element={<ProtectedRoute><CreateAuction /></ProtectedRoute>} />
+
+        {/* Protected: Admin */}
+        <Route path="admin/disputes" element={<ProtectedRoute><AdminDisputesPage /></ProtectedRoute>} />
 
 
         {/* 404 */}

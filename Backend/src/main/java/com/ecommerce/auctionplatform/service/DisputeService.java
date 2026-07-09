@@ -1,6 +1,7 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.CreateDisputeRequest;
+import com.ecommerce.auctionplatform.dto.request.ResolveDisputeRequest;
 import com.ecommerce.auctionplatform.dto.respose.DisputeResponse;
 import com.ecommerce.auctionplatform.dto.respose.ImageResponse;
 import com.ecommerce.auctionplatform.entity.*;
@@ -124,13 +125,170 @@ public class DisputeService {
                 .stream().map(this::mapToResponse).collect(Collectors.toList());
     }
 
-
+    public List<DisputeResponse> getAllDisputes() {
+        return disputeRepository.findAllByOrderByCreatedAtDesc()
+                .stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
 
     public DisputeResponse getDisputeDetail(UUID disputeId) {
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new AppException(ErrorCode.DISPUTE_NOT_FOUND));
         return mapToResponse(dispute);
     }
+
+    @Transactional
+    public DisputeResponse resolveDispute(UUID disputeId, ResolveDisputeRequest request) {
+        User admin = getCurrentUser(); // Admin user
+        Dispute dispute = disputeRepository.findById(disputeId)
+                .orElseThrow(() -> new AppException(ErrorCode.DISPUTE_NOT_FOUND));
+
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.CLOSED) {
+            throw new AppException(ErrorCode.DISPUTE_ALREADY_RESOLVED);
+        }
+
+        Order order = dispute.getOrder();
+        BigDecimal totalAmount = order.getTotalAmount();
+        
+        Wallet sellerWallet = walletRepository.findByUserId(order.getSeller().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        Wallet buyerWallet = walletRepository.findByUserId(order.getBuyer().getId())
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        if ("BUYER_WIN".equalsIgnoreCase(request.getOutcome())) {
+            // Buyer wins: Refund buyer, deduct reputation from seller
+            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(totalAmount));
+            buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().add(totalAmount));
+
+            Transaction refundTx = Transaction.builder()
+                    .wallet(buyerWallet)
+                    .amount(totalAmount)
+                    .type(TransactionType.DISPUTE_REFUND)
+                    .status(TransactionStatus.SUCCESS)
+                    .note("Hoàn tiền do thắng khiếu nại đơn hàng " + order.getTrackingCode())
+                    .referenceType("DISPUTE")
+                    .referenceId(dispute.getId())
+                    .build();
+            transactionRepository.save(refundTx);
+
+            User seller = order.getSeller();
+            seller.setReputationScore(seller.getReputationScore() - 20);
+            userRepository.save(seller);
+
+            ReputationHistory rh = ReputationHistory.builder()
+                    .user(seller)
+                    .scoreChange(-20)
+                    .reason("Thua khiếu nại (bị trừ uy tín mạnh)")
+                    .dispute(dispute)
+                    .build();
+            reputationHistoryRepository.save(rh);
+
+            order.setStatus(OrderStatus.CANCELLED);
+            
+            // Notifications
+            notificationRepository.save(Notification.builder()
+                    .user(order.getBuyer())
+                    .type("DISPUTE_RESOLVED")
+                    .title("Kết quả khiếu nại: Thắng")
+                    .content("Bạn đã thắng khiếu nại. Tiền đã được hoàn về ví.")
+                    .referenceType("DISPUTE")
+                    .referenceId(dispute.getId()).build());
+
+            notificationRepository.save(Notification.builder()
+                    .user(order.getSeller())
+                    .type("DISPUTE_RESOLVED")
+                    .title("Kết quả khiếu nại: Thua")
+                    .content("Bạn đã thua khiếu nại. Đơn hàng bị huỷ và bạn bị trừ uy tín.")
+                    .referenceType("DISPUTE")
+                    .referenceId(dispute.getId()).build());
+
+        } else if ("SELLER_WIN".equalsIgnoreCase(request.getOutcome())) {
+            // Seller wins: Release escrow to seller, deduct reputation from buyer (fake claim)
+            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(totalAmount));
+            
+            // Platform fee logic (e.g., 5%)
+            BigDecimal platformFee = totalAmount.multiply(new BigDecimal("0.05"));
+            BigDecimal sellerReceived = totalAmount.subtract(platformFee);
+
+            sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(sellerReceived));
+
+            Transaction releaseTx = Transaction.builder()
+                    .wallet(sellerWallet)
+                    .amount(sellerReceived)
+                    .type(TransactionType.ESCROW_RELEASE)
+                    .status(TransactionStatus.SUCCESS)
+                    .note("Giải ngân (Thắng khiếu nại) đơn hàng " + order.getTrackingCode())
+                    .referenceType("DISPUTE")
+                    .referenceId(dispute.getId())
+                    .build();
+            transactionRepository.save(releaseTx);
+
+            // Platform fee transaction to admin wallet
+            User platformAdmin = userRepository.findByAccountId(
+                    accountRepository.findByUsername("admin").orElseThrow().getId()
+            ).orElse(null);
+            
+            if (platformAdmin != null) {
+                Wallet adminWallet = walletRepository.findByUserId(platformAdmin.getId()).orElse(null);
+                if (adminWallet != null) {
+                    adminWallet.setAvailableBalance(adminWallet.getAvailableBalance().add(platformFee));
+                    walletRepository.save(adminWallet);
+                    Transaction feeTx = Transaction.builder()
+                            .wallet(adminWallet)
+                            .amount(platformFee)
+                            .type(TransactionType.PLATFORM_FEE)
+                            .status(TransactionStatus.SUCCESS)
+                            .note("Phí nền tảng từ đơn hàng " + order.getTrackingCode())
+                            .build();
+                    transactionRepository.save(feeTx);
+                }
+            }
+
+            User buyer = order.getBuyer();
+            buyer.setReputationScore(buyer.getReputationScore() - 10);
+            userRepository.save(buyer);
+
+            ReputationHistory rh = ReputationHistory.builder()
+                    .user(buyer)
+                    .scoreChange(-10)
+                    .reason("Mở khiếu nại vô căn cứ")
+                    .dispute(dispute)
+                    .build();
+            reputationHistoryRepository.save(rh);
+
+            order.setStatus(OrderStatus.COMPLETED);
+
+             // Notifications
+             notificationRepository.save(Notification.builder()
+             .user(order.getSeller())
+             .type("DISPUTE_RESOLVED")
+             .title("Kết quả khiếu nại: Thắng")
+             .content("Bạn đã thắng khiếu nại. Tiền bán hàng đã được giải ngân.")
+             .referenceType("DISPUTE")
+             .referenceId(dispute.getId()).build());
+
+             notificationRepository.save(Notification.builder()
+                     .user(order.getBuyer())
+                     .type("DISPUTE_RESOLVED")
+                     .title("Kết quả khiếu nại: Thua")
+                     .content("Khiếu nại bị từ chối. Bạn bị trừ uy tín do khiếu nại không hợp lệ.")
+                     .referenceType("DISPUTE")
+                     .referenceId(dispute.getId()).build());
+        } else {
+            throw new AppException(ErrorCode.INVALID_DISPUTE_OUTCOME);
+        }
+
+        walletRepository.save(sellerWallet);
+        walletRepository.save(buyerWallet);
+        orderRepository.save(order);
+
+        dispute.setResolution(request.getResolution());
+        dispute.setStatus(DisputeStatus.RESOLVED);
+        dispute.setResolvedBy(admin);
+        dispute.setResolvedAt(LocalDateTime.now());
+
+        return mapToResponse(disputeRepository.save(dispute));
+    }
+
 
 
     private DisputeResponse mapToResponse(Dispute dispute) {
