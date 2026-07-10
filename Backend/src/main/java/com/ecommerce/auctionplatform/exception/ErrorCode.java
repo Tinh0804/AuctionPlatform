@@ -36,6 +36,7 @@ public enum ErrorCode {
     PHONE_EXISTED(400, "Phone number already exists", HttpStatus.BAD_REQUEST),
     LOW_REPUTATION(403, "User reputation is too low to perform this action", HttpStatus.FORBIDDEN),
     ROLE_NOT_EXISTS(404,"Role not exists", HttpStatus.NOT_FOUND),
+    USER_OR_PASSWORD_INCORRECT(401, "Username or password is incorrect", HttpStatus.UNAUTHORIZED),
 
     NOT_AUCTON_OWNER(403, "User is not the owner of the auction", HttpStatus.FORBIDDEN),
     USER_UNDERAGE(403, "You must be at least 18 years old to perform this action", HttpStatus.FORBIDDEN),
@@ -57,7 +58,8 @@ public enum ErrorCode {
     INVALID_DISPUTE_OUTCOME(400, "Invalid dispute outcome", HttpStatus.BAD_REQUEST),
     DISPUTE_EXPIRED(400, "Dispute period has expired", HttpStatus.BAD_REQUEST),
 
-    CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND);
+    CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND),
+    NOTIFICATION_NOT_FOUND(404, "Notification not found", HttpStatus.NOT_FOUND);
 
 
     private final String message;

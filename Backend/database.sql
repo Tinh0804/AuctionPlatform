@@ -53,7 +53,11 @@ CREATE TYPE transaction_type AS ENUM (
     'AUCTION_DEPOSIT_FORFEIT', -- tịch thu cọc
     'AUCTION_PAYMENT',         -- thanh toán tiền thắng
     'PLATFORM_FEE',            -- phí nền tảng
-    'CANCELLATION_FEE'         -- phí huỷ phiên
+    'CANCELLATION_FEE' ,        -- phí huỷ phiên
+    'ORDER_PAYMENT',
+    'ESCROW_HOLD',
+    'ESCROW_RELEASE',
+    'DISPUTE_REFUND'
 );
 
 CREATE TYPE transaction_status AS ENUM (
@@ -83,9 +87,9 @@ CREATE TYPE order_status AS ENUM (
     'MEETING_SCHEDULED', -- đã hẹn gặp
     'COMPLETED',         -- hoàn thành
     'CANCELLED',
-    'DISPUTED'
+    'DISPUTED',
+    'SHIPPING'
 );
-
 CREATE TYPE dispute_status AS ENUM (
     'OPEN',
     'UNDER_REVIEW',

@@ -19,10 +19,10 @@ export const logout = (token) =>
   apiClient.post('/auth/logout', { token }).then((r) => r.data);
 
 export const getNotifications = () =>
-  apiClient.get('/auth/me/notifications').then((r) => r.data);
+  apiClient.get('/notifications/my').then((r) => r.data);
 
 export const markNotificationRead = (id) =>
-  apiClient.post(`/auth/notifications/${id}/read`).then((r) => r.data);
+  apiClient.post(`/notifications/${id}/read`).then((r) => r.data);
 
 export const updateMyInfo = (data) =>
   apiClient.put('/users/my-info', data).then((r) => r.data);

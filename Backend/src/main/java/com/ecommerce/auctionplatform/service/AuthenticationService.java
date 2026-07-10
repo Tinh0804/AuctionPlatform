@@ -84,7 +84,7 @@ public class AuthenticationService {
 
     public AuthenticationResponse login(LoginRequest request) {
         Account account = accountRepository.findByUsername(request.getUserName())
-                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_OR_PASSWORD_INCORRECT));
 
         if(!encoder.matches(request.getPassWord(), account.getPassword()))
             throw new AppException(ErrorCode.UNAUTHENTACATED);

@@ -13,8 +13,4 @@ public class ConfigurationCommon {
 
         return new BCryptPasswordEncoder(10);
     }
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
-    }
 }
