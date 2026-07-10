@@ -16,6 +16,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,11 +42,17 @@ public class DisputeService {
     ReputationHistoryRepository reputationHistoryRepository;
     ImageRepository imageRepository;
     CloudinaryService cloudinaryService;
-    NotificationRepository notificationRepository;
+    NotificationService notificationService;
 
     @NonFinal
     @Value("${app.days-to-expire}")
     protected int daysToExpire;
+
+    // Các hằng số (Constants) giúp code dễ bảo trì hơn
+    private static final BigDecimal PLATFORM_FEE_RATE = new BigDecimal("0.05");
+    private static final int BUYER_WIN_SELLER_PENALTY = -20;
+    private static final int SELLER_WIN_BUYER_PENALTY = -10;
+    private static final int MAX_EVIDENCE_IMAGES = 5;
 
     @Transactional
     public DisputeResponse createDispute(CreateDisputeRequest request, MultipartFile[] files) {
@@ -53,92 +60,47 @@ public class DisputeService {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
-        if (!order.getBuyer().getId().equals(currentUser.getId())) {
-            throw new AppException(ErrorCode.FORBIDDEN);
-        }
+        validateDisputeEligibility(order, currentUser);
 
-        if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
-            throw new AppException(ErrorCode.ORDER_NOT_ELIGIBLE_FOR_DISPUTE);
-        }
-
-        // 7 days limit rule
-        if (order.getUpdatedAt().plusDays(daysToExpire).isBefore(LocalDateTime.now())) {
-             throw new AppException(ErrorCode.DISPUTE_EXPIRED);
-        }
-
-        if (disputeRepository.existsByOrderIdAndStatusIn(order.getId(), List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW))) {
-            throw new AppException(ErrorCode.DISPUTE_ALREADY_EXISTS);
-        }
-
-        Dispute dispute = Dispute.builder()
+        Dispute dispute = disputeRepository.save(Dispute.builder()
                 .order(order)
                 .claimant(currentUser)
                 .reason(request.getReason())
                 .description(request.getDescription())
                 .status(DisputeStatus.OPEN)
-                .build();
-        dispute = disputeRepository.save(dispute);
+                .build());
 
-        if (files != null && files.length > 0) {
-            int sortOrder = 0;
-            // Limit up to 5 images
-            int limit = Math.min(files.length, 5);
-            for (int i = 0; i < limit; i++) {
-                MultipartFile file = files[i];
-                try {
-                    String fileUrl = cloudinaryService.uploadFile(file, "disputes/" + dispute.getId());
-                    Image image = Image.builder()
-                            .referenceType(ImageReferenceType.DISPUTE)
-                            .referenceId(dispute.getId())
-                            .fileUrl(fileUrl)
-                            .sortOrder(sortOrder)
-                            .description("Bằng chứng khiếu nại #" + (i + 1))
-                            .build();
-                    imageRepository.save(image);
-                    sortOrder++;
-                } catch (Exception e) {
-                    log.error("Failed to upload dispute evidence", e);
-                }
-            }
-        }
+        handleEvidenceUploads(files, dispute.getId());
 
-        order.setStatus(OrderStatus.DISPUTED);
-        orderRepository.save(order);
+        order.setStatus(OrderStatus.DISPUTED); // Dirty checking sẽ tự lưu order
 
-        // Notify seller and admin
-        Notification notification = Notification.builder()
-                .user(order.getSeller())
-                .type("DISPUTE_OPENED")
-                .title("Đơn hàng bị khiếu nại")
-                .content("Người mua đã mở khiếu nại cho đơn hàng " + order.getTrackingCode())
-                .referenceType("DISPUTE")
-                .referenceId(dispute.getId())
-                .build();
-        notificationRepository.save(notification);
+        notifyDisputeOpened(order, dispute.getId());
 
         return mapToResponse(dispute);
     }
 
+    @Transactional(readOnly = true)
     public List<DisputeResponse> getMyDisputes() {
-        User currentUser = getCurrentUser();
-        return disputeRepository.findByClaimantIdOrderByCreatedAtDesc(currentUser.getId())
-                .stream().map(this::mapToResponse).collect(Collectors.toList());
+        return disputeRepository.findByClaimantIdOrderByCreatedAtDesc(getCurrentUser().getId())
+                .stream().map(this::mapToResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public List<DisputeResponse> getAllDisputes() {
         return disputeRepository.findAllByOrderByCreatedAtDesc()
-                .stream().map(this::mapToResponse).collect(Collectors.toList());
+                .stream().map(this::mapToResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public DisputeResponse getDisputeDetail(UUID disputeId) {
-        Dispute dispute = disputeRepository.findById(disputeId)
+        return disputeRepository.findById(disputeId)
+                .map(this::mapToResponse)
                 .orElseThrow(() -> new AppException(ErrorCode.DISPUTE_NOT_FOUND));
-        return mapToResponse(dispute);
     }
 
     @Transactional
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
     public DisputeResponse resolveDispute(UUID disputeId, ResolveDisputeRequest request) {
-        User admin = getCurrentUser(); // Admin user
         Dispute dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new AppException(ErrorCode.DISPUTE_NOT_FOUND));
 
@@ -146,175 +108,193 @@ public class DisputeService {
             throw new AppException(ErrorCode.DISPUTE_ALREADY_RESOLVED);
         }
 
-        Order order = dispute.getOrder();
-        BigDecimal totalAmount = order.getTotalAmount();
-        
-        Wallet sellerWallet = walletRepository.findByUserId(order.getSeller().getId())
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
-        Wallet buyerWallet = walletRepository.findByUserId(order.getBuyer().getId())
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        User admin = getCurrentUser();
 
-        if ("BUYER_WIN".equalsIgnoreCase(request.getOutcome())) {
-            // Buyer wins: Refund buyer, deduct reputation from seller
-            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(totalAmount));
-            buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().add(totalAmount));
-
-            Transaction refundTx = Transaction.builder()
-                    .wallet(buyerWallet)
-                    .amount(totalAmount)
-                    .type(TransactionType.DISPUTE_REFUND)
-                    .status(TransactionStatus.SUCCESS)
-                    .note("Hoàn tiền do thắng khiếu nại đơn hàng " + order.getTrackingCode())
-                    .referenceType("DISPUTE")
-                    .referenceId(dispute.getId())
-                    .build();
-            transactionRepository.save(refundTx);
-
-            User seller = order.getSeller();
-            seller.setReputationScore(seller.getReputationScore() - 20);
-            userRepository.save(seller);
-
-            ReputationHistory rh = ReputationHistory.builder()
-                    .user(seller)
-                    .scoreChange(-20)
-                    .reason("Thua khiếu nại (bị trừ uy tín mạnh)")
-                    .dispute(dispute)
-                    .build();
-            reputationHistoryRepository.save(rh);
-
-            order.setStatus(OrderStatus.CANCELLED);
-            
-            // Notifications
-            notificationRepository.save(Notification.builder()
-                    .user(order.getBuyer())
-                    .type("DISPUTE_RESOLVED")
-                    .title("Kết quả khiếu nại: Thắng")
-                    .content("Bạn đã thắng khiếu nại. Tiền đã được hoàn về ví.")
-                    .referenceType("DISPUTE")
-                    .referenceId(dispute.getId()).build());
-
-            notificationRepository.save(Notification.builder()
-                    .user(order.getSeller())
-                    .type("DISPUTE_RESOLVED")
-                    .title("Kết quả khiếu nại: Thua")
-                    .content("Bạn đã thua khiếu nại. Đơn hàng bị huỷ và bạn bị trừ uy tín.")
-                    .referenceType("DISPUTE")
-                    .referenceId(dispute.getId()).build());
-
-        } else if ("SELLER_WIN".equalsIgnoreCase(request.getOutcome())) {
-            // Seller wins: Release escrow to seller, deduct reputation from buyer (fake claim)
-            sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(totalAmount));
-            
-            // Platform fee logic (e.g., 5%)
-            BigDecimal platformFee = totalAmount.multiply(new BigDecimal("0.05"));
-            BigDecimal sellerReceived = totalAmount.subtract(platformFee);
-
-            sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(sellerReceived));
-
-            Transaction releaseTx = Transaction.builder()
-                    .wallet(sellerWallet)
-                    .amount(sellerReceived)
-                    .type(TransactionType.ESCROW_RELEASE)
-                    .status(TransactionStatus.SUCCESS)
-                    .note("Giải ngân (Thắng khiếu nại) đơn hàng " + order.getTrackingCode())
-                    .referenceType("DISPUTE")
-                    .referenceId(dispute.getId())
-                    .build();
-            transactionRepository.save(releaseTx);
-
-            // Platform fee transaction to admin wallet
-            User platformAdmin = userRepository.findByAccountId(
-                    accountRepository.findByUsername("admin").orElseThrow().getId()
-            ).orElse(null);
-            
-            if (platformAdmin != null) {
-                Wallet adminWallet = walletRepository.findByUserId(platformAdmin.getId()).orElse(null);
-                if (adminWallet != null) {
-                    adminWallet.setAvailableBalance(adminWallet.getAvailableBalance().add(platformFee));
-                    walletRepository.save(adminWallet);
-                    Transaction feeTx = Transaction.builder()
-                            .wallet(adminWallet)
-                            .amount(platformFee)
-                            .type(TransactionType.PLATFORM_FEE)
-                            .status(TransactionStatus.SUCCESS)
-                            .note("Phí nền tảng từ đơn hàng " + order.getTrackingCode())
-                            .build();
-                    transactionRepository.save(feeTx);
-                }
-            }
-
-            User buyer = order.getBuyer();
-            buyer.setReputationScore(buyer.getReputationScore() - 10);
-            userRepository.save(buyer);
-
-            ReputationHistory rh = ReputationHistory.builder()
-                    .user(buyer)
-                    .scoreChange(-10)
-                    .reason("Mở khiếu nại vô căn cứ")
-                    .dispute(dispute)
-                    .build();
-            reputationHistoryRepository.save(rh);
-
-            order.setStatus(OrderStatus.COMPLETED);
-
-             // Notifications
-             notificationRepository.save(Notification.builder()
-             .user(order.getSeller())
-             .type("DISPUTE_RESOLVED")
-             .title("Kết quả khiếu nại: Thắng")
-             .content("Bạn đã thắng khiếu nại. Tiền bán hàng đã được giải ngân.")
-             .referenceType("DISPUTE")
-             .referenceId(dispute.getId()).build());
-
-             notificationRepository.save(Notification.builder()
-                     .user(order.getBuyer())
-                     .type("DISPUTE_RESOLVED")
-                     .title("Kết quả khiếu nại: Thua")
-                     .content("Khiếu nại bị từ chối. Bạn bị trừ uy tín do khiếu nại không hợp lệ.")
-                     .referenceType("DISPUTE")
-                     .referenceId(dispute.getId()).build());
-        } else {
-            throw new AppException(ErrorCode.INVALID_DISPUTE_OUTCOME);
+        switch (request.getOutcome().toUpperCase()) {
+            case "BUYER_WIN" -> processBuyerWin(dispute);
+            case "SELLER_WIN" -> processSellerWin(dispute, admin);
+            default -> throw new AppException(ErrorCode.INVALID_DISPUTE_OUTCOME);
         }
-
-        walletRepository.save(sellerWallet);
-        walletRepository.save(buyerWallet);
-        orderRepository.save(order);
 
         dispute.setResolution(request.getResolution());
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setResolvedBy(admin);
         dispute.setResolvedAt(LocalDateTime.now());
 
-        return mapToResponse(disputeRepository.save(dispute));
+        return mapToResponse(dispute); // Dirty checking tự update Dispute
     }
 
 
+    private void validateDisputeEligibility(Order order, User currentUser) {
+        if (!order.getBuyer().getId().equals(currentUser.getId())) {
+            throw new AppException(ErrorCode.FORBIDDEN);
+        }
+        if (order.getStatus() != OrderStatus.PAID && order.getStatus() != OrderStatus.SHIPPING) {
+            throw new AppException(ErrorCode.ORDER_NOT_ELIGIBLE_FOR_DISPUTE);
+        }
+        if (order.getUpdatedAt().plusDays(daysToExpire).isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.DISPUTE_EXPIRED);
+        }
+        if (disputeRepository.existsByOrderIdAndStatusIn(order.getId(), List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW))) {
+            throw new AppException(ErrorCode.DISPUTE_ALREADY_EXISTS);
+        }
+    }
+
+    private void handleEvidenceUploads(MultipartFile[] files, UUID disputeId) {
+        if (files == null || files.length == 0) return;
+
+        int limit = Math.min(files.length, MAX_EVIDENCE_IMAGES);
+        for (int i = 0; i < limit; i++) {
+            try {
+                String fileUrl = cloudinaryService.uploadFile(files[i], "disputes/" + disputeId);
+                imageRepository.save(Image.builder()
+                        .referenceType(ImageReferenceType.DISPUTE)
+                        .referenceId(disputeId)
+                        .fileUrl(fileUrl)
+                        .sortOrder(i)
+                        .description("Bằng chứng khiếu nại #" + (i + 1))
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to upload dispute evidence for Dispute {}: {}", disputeId, e.getMessage());
+            }
+        }
+    }
+
+    private void notifyDisputeOpened(Order order, UUID disputeId) {
+        String title = "Đơn hàng bị khiếu nại";
+        String message = "Người mua đã mở khiếu nại cho đơn hàng " + order.getTrackingCode();
+
+        notificationService.sendNotification(order.getSeller(), "DISPUTE_OPENED", title, message, "DISPUTE", disputeId);
+
+        userRepository.findFirstByAccount_Role_Name(PredefinedRole.ADMIN.name())
+                .ifPresent(
+                        admin -> notificationService.sendNotification(
+                                admin, "DISPUTE_OPENED", title, message, "DISPUTE", disputeId)
+                );
+    }
+
+    private void processBuyerWin(Dispute dispute) {
+        Order order = dispute.getOrder();
+        BigDecimal amount = order.getTotalAmount();
+        Wallet sellerWallet = getWalletByUserId(order.getSeller().getId());
+        Wallet buyerWallet = getWalletByUserId(order.getBuyer().getId());
+
+        sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(amount));
+        buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().add(amount));
+
+        saveTransaction(buyerWallet, amount, TransactionType.DISPUTE_REFUND,
+                "Hoàn tiền do thắng khiếu nại đơn hàng " + order.getTrackingCode(), dispute);
+
+        updateReputation(order.getSeller(), BUYER_WIN_SELLER_PENALTY, "Thua khiếu nại (bị trừ uy tín mạnh)", dispute);
+
+        order.setStatus(OrderStatus.CANCELLED);
+
+        sendDisputeNotification(order.getBuyer(), "Thắng", "Bạn đã thắng khiếu nại. Tiền đã được hoàn về ví.", dispute.getId());
+        sendDisputeNotification(order.getSeller(), "Thua", "Bạn đã thua khiếu nại. Đơn hàng bị huỷ và bạn bị trừ uy tín.", dispute.getId());
+    }
+
+    private void processSellerWin(Dispute dispute, User admin) {
+        Order order = dispute.getOrder();
+        BigDecimal amount = order.getTotalAmount();
+        Wallet sellerWallet = getWalletByUserId(order.getSeller().getId());
+
+        sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(amount));
+
+        BigDecimal platformFee = amount.multiply(PLATFORM_FEE_RATE);
+        BigDecimal sellerReceived = amount.subtract(platformFee);
+        sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(sellerReceived));
+
+        saveTransaction(sellerWallet, sellerReceived, TransactionType.ESCROW_RELEASE,
+                "Giải ngân (Thắng khiếu nại) đơn hàng " + order.getTrackingCode(), dispute);
+
+        if (admin != null) {
+            Wallet adminWallet = getOrCreateAdminWallet(admin);
+            adminWallet.setAvailableBalance(adminWallet.getAvailableBalance().add(platformFee));
+            saveTransaction(adminWallet, platformFee, TransactionType.PLATFORM_FEE,
+                    "Phí nền tảng từ đơn hàng " + order.getTrackingCode(), null);
+        }
+
+        updateReputation(order.getBuyer(), SELLER_WIN_BUYER_PENALTY, "Mở khiếu nại vô căn cứ", dispute);
+
+        order.setStatus(OrderStatus.COMPLETED);
+
+        sendDisputeNotification(order.getSeller(), "Thắng", "Bạn đã thắng khiếu nại. Tiền bán hàng đã được giải ngân.", dispute.getId());
+        sendDisputeNotification(order.getBuyer(), "Thua", "Khiếu nại bị từ chối. Bạn bị trừ uy tín do khiếu nại không hợp lệ.", dispute.getId());
+    }
+
+    private Wallet getWalletByUserId(UUID userId) {
+        return walletRepository.findByUserId(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+    }
+
+    private Wallet getOrCreateAdminWallet(User admin) {
+        return walletRepository.findByUserId(admin.getId()).orElseGet(() ->
+                walletRepository.save(Wallet.builder()
+                        .user(admin)
+                        .availableBalance(BigDecimal.ZERO)
+                        .frozenBalance(BigDecimal.ZERO)
+                        .status(WalletStatus.ACTIVE)
+                        .createdAt(LocalDateTime.now())
+                        .build())
+        );
+    }
+
+    private void saveTransaction(Wallet wallet, BigDecimal amount, TransactionType type, String note, Dispute dispute) {
+        Transaction tx = Transaction.builder()
+                .wallet(wallet)
+                .amount(amount)
+                .type(type)
+                .status(TransactionStatus.SUCCESS)
+                .note(note)
+                .referenceType(dispute != null ? "DISPUTE" : null)
+                .referenceId(dispute != null ? dispute.getId() : null)
+                .build();
+        transactionRepository.save(tx);
+    }
+
+    private void updateReputation(User user, int scoreChange, String reason, Dispute dispute) {
+        user.setReputationScore(user.getReputationScore() + scoreChange);
+        reputationHistoryRepository.save(ReputationHistory.builder()
+                .user(user)
+                .scoreChange(scoreChange)
+                .reason(reason)
+                .dispute(dispute)
+                .build());
+    }
+
+    private void sendDisputeNotification(User user, String result, String message, UUID disputeId) {
+        notificationService.sendNotification(user, "DISPUTE_RESOLVED", "Kết quả khiếu nại: " + result, message, "DISPUTE", disputeId);
+    }
 
     private DisputeResponse mapToResponse(Dispute dispute) {
         String productName = null;
         String productImageUrl = null;
         BigDecimal orderAmount = null;
+        String sellerName = null;
+        String buyerName = null;
 
         if (dispute.getOrder() != null) {
-            orderAmount = dispute.getOrder().getTotalAmount();
-            if (dispute.getOrder().getAuctionRecord() != null && dispute.getOrder().getAuctionRecord().getAuction() != null) {
-                Product product = dispute.getOrder().getAuctionRecord().getAuction().getProduct();
+            Order order = dispute.getOrder();
+            orderAmount = order.getTotalAmount();
+            sellerName = order.getSeller() != null ? order.getSeller().getName() : null;
+            buyerName = order.getBuyer() != null ? order.getBuyer().getName() : null;
+
+            if (order.getAuctionRecord() != null && order.getAuctionRecord().getAuction() != null) {
+                Product product = order.getAuctionRecord().getAuction().getProduct();
                 if (product != null) {
                     productName = product.getName();
-                    List<Image> images = imageRepository.findByProductIdOrderByIsCoverDesc(product.getId());
-                    if (!images.isEmpty()) {
-                        productImageUrl = images.get(0).getFileUrl();
-                    }
+                    productImageUrl = imageRepository.findFirstByProductIdOrderByIsCoverDesc(product.getId())
+                            .map(Image::getFileUrl).orElse(null);
                 }
             }
         }
 
-        List<Image> evidenceImages = imageRepository.findByDisputeId(dispute.getId());
-        List<ImageResponse> evidences = evidenceImages.stream().map(img -> ImageResponse.builder()
-                .url(img.getFileUrl())
-                .isCover(img.getIsCover())
-                .build()).collect(Collectors.toList());
+        List<ImageResponse> evidences = imageRepository.findByDisputeId(dispute.getId()).stream()
+                .map(img -> ImageResponse.builder()
+                        .url(img.getFileUrl())
+                        .isCover(img.getIsCover())
+                        .build())
+                .toList();
 
         return DisputeResponse.builder()
                 .id(dispute.getId())
@@ -322,8 +302,8 @@ public class DisputeService {
                 .productName(productName)
                 .productImageUrl(productImageUrl)
                 .claimantName(dispute.getClaimant() != null ? dispute.getClaimant().getName() : null)
-                .sellerName(dispute.getOrder() != null && dispute.getOrder().getSeller() != null ? dispute.getOrder().getSeller().getName() : null)
-                .buyerName(dispute.getOrder() != null && dispute.getOrder().getBuyer() != null ? dispute.getOrder().getBuyer().getName() : null)
+                .sellerName(sellerName)
+                .buyerName(buyerName)
                 .orderAmount(orderAmount)
                 .reason(dispute.getReason())
                 .description(dispute.getDescription())
@@ -337,9 +317,9 @@ public class DisputeService {
     }
 
     private User getCurrentUser() {
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
-                new AppException(ErrorCode.UNAUTHORIZED)));
-        return userRepository.findById(userProfileId).orElseThrow(
-                () -> new AppException(ErrorCode.USER_NOT_FOUND));
+        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED)));
+        return userRepository.findById(userProfileId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 }

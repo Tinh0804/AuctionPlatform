@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.ecommerce.auctionplatform.entity.enums.ImageReferenceType;
@@ -18,6 +19,12 @@ public interface ImageRepository extends JpaRepository<Image, UUID> {
 
     List<Image> findByReferenceTypeAndReferenceIdOrderByIsCoverDescSortOrderAsc(
             ImageReferenceType referenceType, UUID referenceId);
+    Optional<Image> findFirstByReferenceTypeAndReferenceIdOrderByIsCoverDesc(ImageReferenceType referenceType, UUID referenceId);
+
+    default Optional<Image> findFirstByProductIdOrderByIsCoverDesc(UUID productId) {
+        return findFirstByReferenceTypeAndReferenceIdOrderByIsCoverDesc(ImageReferenceType.PRODUCT, productId);
+    }
+
 
     void deleteByReferenceTypeAndReferenceId(ImageReferenceType referenceType, UUID referenceId);
 

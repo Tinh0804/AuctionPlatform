@@ -9,6 +9,7 @@ import com.ecommerce.auctionplatform.dto.respose.WalletResponse;
 import com.ecommerce.auctionplatform.entity.Address;
 import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.entity.Wallet;
+import com.ecommerce.auctionplatform.entity.enums.PredefinedRole;
 import com.ecommerce.auctionplatform.entity.enums.WalletStatus;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
@@ -147,6 +148,7 @@ public class UserService {
         }
         return mapToAddressDto(addressRepository.save(address));
     }
+
 
     public void deleteAddress(UUID addressId) {
         addressRepository.deleteById(addressId);

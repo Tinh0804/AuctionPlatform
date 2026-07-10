@@ -63,6 +63,7 @@ public class AuctionService {
     ScheduleService scheduleService;
     AuctionRecordRepository auctionRecordRepository;
     OrderRepository orderRepository;
+    NotificationService notificationService;
 
     @NonFinal
     protected int DEDUCT_REPUTATION_SCORE = 20;
@@ -461,6 +462,15 @@ public class AuctionService {
                             .status(OrderStatus.PENDING_PAYMENT)
                             .build();
                     orderRepository.save(order);
+
+                    notificationService.sendNotification(
+                            topBid.getUser(),
+                            "AUCTION_WIN",
+                            "Chiến thắng đấu giá!",
+                            "Chúc mừng! Bạn đã chiến thắng phiên đấu giá " + auction.getProduct().getName() + ". Vui lòng thanh toán trong vòng 48h.",
+                            "AUCTION",
+                            auction.getId()
+                    );
                 }
             }
 
@@ -638,6 +648,15 @@ public class AuctionService {
                     .status(OrderStatus.PENDING_PAYMENT)
                     .build();
             orderRepository.save(order);
+
+            notificationService.sendNotification(
+                    nextRecord.getUser(),
+                    "AUCTION_WIN_PROMOTED",
+                    "Bạn đã được đôn lên thành người chiến thắng!",
+                    "Người thắng trước đó đã huỷ bỏ. Bạn đã được đôn lên làm người chiến thắng phiên đấu giá " + auction.getProduct().getName() + ". Vui lòng thanh toán trong vòng 48h.",
+                    "AUCTION",
+                    auction.getId()
+            );
 
             log.info("Auction {}: rank {} promoted to winner after bung hang. New deadline: {}",
                     auction.getId(), nextRecord.getWinningRank(), newDeadline);

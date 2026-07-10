@@ -45,7 +45,7 @@ public class OrderService {
     MoMoService moMoService;
     VNPayService vnPayService;
     ReputationHistoryRepository reputationHistoryRepository;
-    NotificationRepository notificationRepository;
+    NotificationService notificationService;
     RoleRepository roleRepository;
 
     private User getCurrentUser() {
@@ -525,16 +525,16 @@ public class OrderService {
 
         // 6. Gửi thông báo cho seller
         String ratingStars = "⭐".repeat(request.getRating());
-        notificationRepository.save(Notification.builder()
-                .user(seller)
-                .type("ORDER_COMPLETED")
-                .title("Đơn hàng hoàn thành " + ratingStars)
-                .content("Đơn hàng #" + orderId.toString().substring(0, 8) + " đã hoàn thành. "
+        notificationService.sendNotification(
+                seller,
+                "ORDER_COMPLETED",
+                "Đơn hàng hoàn thành " + ratingStars,
+                "Đơn hàng #" + orderId.toString().substring(0, 8) + " đã hoàn thành. "
                         + "Bạn nhận được đánh giá " + request.getRating() + " sao. "
-                        + "Số tiền " + String.format("%,.0f", netAmount) + "đ đã được giải ngân vào ví.")
-                .referenceType("ORDER")
-                .referenceId(orderId)
-                .build());
+                        + "Số tiền " + String.format("%,.0f", netAmount) + "đ đã được giải ngân vào ví.",
+                "ORDER",
+                orderId
+        );
 
         log.info("Order {} completed with review. Rating: {}, Reputation change: {}, Net amount: {}, Platform fee: {}",
                 orderId, request.getRating(), scoreChange, netAmount, platformFee);
