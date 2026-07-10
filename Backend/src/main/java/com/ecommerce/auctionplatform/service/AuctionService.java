@@ -450,8 +450,9 @@ public class AuctionService {
                         .expiryTime(paymentDeadline)
                         .build();
                 auctionRecordRepository.save(record);
-
+                
                 if (rank == 1) {
+                    scheduleService.schedulePaymentExpiry(record.getId().toString(), paymentDeadline);
                     Order order = Order.builder()
                             .auctionRecord(record)
                             .buyer(topBid.getUser())
@@ -521,22 +522,59 @@ public class AuctionService {
         return auctionRepository.findById(UUID.fromString(auctionId))
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
     }
+    
+    public AuctionRecord getAuctionRecord(UUID id) {
+        return auctionRecordRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+    }
 
     @Transactional
-    public void processAbandonedOrders() {
-        List<AuctionRecord> expired = auctionRecordRepository
+    public void processAllStuckEntities() {
+        // 1. Process abandoned orders (stuck in PENDING_PAYMENT)
+        List<AuctionRecord> expiredRecords = auctionRecordRepository
                 .findByStatusAndExpiryTimeBefore(AuctionRecordStatus.PENDING_PAYMENT, LocalDateTime.now());
 
-        for (AuctionRecord record : expired) {
+        for (AuctionRecord record : expiredRecords) {
             try {
                 handleOneAbandonedRecord(record);
             } catch (Exception e) {
                 log.error("Failed to process abandoned record {}: {}", record.getId(), e.getMessage());
             }
         }
+        
+        // 2. Process stuck activations
+        List<Auction> pendingAuctions = auctionRepository
+                .findByStatusInAndStartTimeBefore(
+                        List.of(AuctionStatus.APPROVED, AuctionStatus.PENDING), 
+                        LocalDateTime.now()
+                );
+        for (Auction a : pendingAuctions) {
+            try {
+                log.info("Fallback: Activating stuck auction {}", a.getId());
+                activateAuction(a.getId().toString());
+            } catch (Exception e) {
+                log.error("Failed to activate stuck auction {}: {}", a.getId(), e.getMessage());
+            }
+        }
+        
+        // 3. Process stuck closures
+        List<Auction> activeAuctions = auctionRepository
+                .findByStatusInAndEndTimeBefore(
+                        List.of(AuctionStatus.ACTIVE, AuctionStatus.EXTENDED), 
+                        LocalDateTime.now()
+                );
+        for (Auction a : activeAuctions) {
+            try {
+                log.info("Fallback: Closing stuck auction {}", a.getId());
+                closeAuction(a.getId().toString());
+            } catch (Exception e) {
+                log.error("Failed to close stuck auction {}: {}", a.getId(), e.getMessage());
+            }
+        }
     }
 
-    private void handleOneAbandonedRecord(AuctionRecord record) {
+    @Transactional
+    public void handleOneAbandonedRecord(AuctionRecord record) {
         Auction auction = record.getAuction();
         User abandoner = record.getUser();
 
@@ -588,6 +626,8 @@ public class AuctionService {
             nextRecord.setStatus(AuctionRecordStatus.PENDING_PAYMENT);
             nextRecord.setExpiryTime(newDeadline);
             auctionRecordRepository.save(nextRecord);
+            
+            scheduleService.schedulePaymentExpiry(nextRecord.getId().toString(), newDeadline);
 
             // Create new Order for the promoted winner
             Order order = Order.builder()

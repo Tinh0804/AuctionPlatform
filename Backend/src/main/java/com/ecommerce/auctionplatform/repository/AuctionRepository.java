@@ -13,6 +13,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
+import java.time.LocalDateTime;
 
 @Repository
 public interface AuctionRepository extends JpaRepository<Auction, UUID>, JpaSpecificationExecutor<Auction> {
@@ -20,4 +22,7 @@ public interface AuctionRepository extends JpaRepository<Auction, UUID>, JpaSpec
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Auction a WHERE a.id = :id")
     Optional<Auction> findByIdWithLock(@Param("id") UUID id);
+    
+    List<Auction> findByStatusInAndStartTimeBefore(List<AuctionStatus> statuses, LocalDateTime time);
+    List<Auction> findByStatusInAndEndTimeBefore(List<AuctionStatus> statuses, LocalDateTime time);
 }
