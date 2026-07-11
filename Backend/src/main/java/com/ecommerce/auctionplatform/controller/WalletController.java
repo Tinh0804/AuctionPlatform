@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
 import com.ecommerce.auctionplatform.dto.request.WithdrawRequest;
+import com.ecommerce.auctionplatform.dto.respose.TransactionResponse;
+import java.util.List;
 
 import java.util.Map;
 import java.util.UUID;
@@ -80,6 +83,15 @@ public class WalletController {
         return APIResponse.<Void>builder()
                 .status(200)
                 .message("Withdraw request submitted successfully")
+                .build();
+    }
+
+    @GetMapping("/history")
+    public APIResponse<List<TransactionResponse>> getWalletHistory() {
+        return APIResponse.<List<TransactionResponse>>builder()
+                .status(200)
+                .message("Lấy lịch sử giao dịch thành công")
+                .result(walletService.getMyWalletHistory())
                 .build();
     }
 }

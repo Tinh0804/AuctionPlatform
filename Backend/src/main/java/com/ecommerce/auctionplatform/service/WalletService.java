@@ -5,9 +5,14 @@ import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.entity.Wallet;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
+import com.ecommerce.auctionplatform.repository.TransactionRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.repository.WalletRepository;
 import com.ecommerce.auctionplatform.utils.SecurityUtils;
+import com.ecommerce.auctionplatform.dto.respose.TransactionResponse;
+import com.ecommerce.auctionplatform.entity.Transaction;
+import java.util.List;
+import java.util.stream.Collectors;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
 import lombok.AccessLevel;
@@ -29,6 +34,7 @@ public class WalletService {
     WalletRepository walletRepository;
     UserRepository userRepository;
     PasswordEncoder passwordEncoder;
+    TransactionRepository transactionRepository;
 
     @Transactional
     public void setupPin(PinSetupRequest request) {
@@ -66,6 +72,28 @@ public class WalletService {
         walletRepository.save(wallet);
 
         log.info("Wallet PIN successfully configured for user {}", userProfileId);
+    }
+
+    public List<TransactionResponse> getMyWalletHistory() {
+        User user = getCurrentUser();
+        Wallet wallet = walletRepository.findByUser(user)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        return transactionRepository.findByWalletIdOrderByCreatedAtDesc(wallet.getId())
+                .stream()
+                .map(this::mapToTransactionResponse)
+                .collect(Collectors.toList());
+    }
+
+    private TransactionResponse mapToTransactionResponse(Transaction tx) {
+        return TransactionResponse.builder()
+                .id(tx.getId())
+                .type(tx.getType())
+                .amount(tx.getAmount())
+                .status(tx.getStatus())
+                .note(tx.getNote())
+                .createdAt(tx.getCreatedAt())
+                .build();
     }
 
     private User getCurrentUser() {

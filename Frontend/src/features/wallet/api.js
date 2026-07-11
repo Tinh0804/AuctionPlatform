@@ -17,3 +17,8 @@ export const setupPin = (data) =>
   apiClient
     .post('/wallets/pin/setup', data)
     .then((r) => r.data);
+
+export const getWalletHistory = () =>
+  apiClient
+    .get('/wallets/history')
+    .then((r) => r.data);

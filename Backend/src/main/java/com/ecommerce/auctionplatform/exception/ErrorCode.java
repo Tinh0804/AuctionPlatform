@@ -57,6 +57,7 @@ public enum ErrorCode {
     ORDER_NOT_ELIGIBLE_FOR_DISPUTE(400, "Order is not eligible for dispute", HttpStatus.BAD_REQUEST),
     INVALID_DISPUTE_OUTCOME(400, "Invalid dispute outcome", HttpStatus.BAD_REQUEST),
     DISPUTE_EXPIRED(400, "Dispute period has expired", HttpStatus.BAD_REQUEST),
+    PAYMENT_METHOD_NOT_SUPPORTED(400, "Payment method not supported", HttpStatus.BAD_REQUEST),
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND),
     NOTIFICATION_NOT_FOUND(404, "Notification not found", HttpStatus.NOT_FOUND);

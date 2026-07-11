@@ -4,7 +4,7 @@ import { Wallet as WalletIcon, ArrowDownLeft, ArrowUpRight, Lock, CheckCircle, A
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/services/firebase';
 import { verifyVnpayReturn } from '@/features/payment/api';
-import { requestDeposit, requestWithdraw, setupPin as setupPinApi } from '@/features/wallet/api';
+import { requestDeposit, requestWithdraw, setupPin as setupPinApi, getWalletHistory } from '@/features/wallet/api';
 
 export default function WalletPage() {
     const { profile, fetchProfile } = useOutletContext();
@@ -28,6 +28,8 @@ export default function WalletPage() {
     const [pinLoading, setPinLoading] = useState(false);
     const [pinMessage, setPinMessage] = useState(null);
 
+    const [transactions, setTransactions] = useState([]);
+    const [loadingHistory, setLoadingHistory] = useState(true);
     useEffect(() => {
         const handlePaymentCallback = async () => {
             const queryParams = new URLSearchParams(location.search);
@@ -70,6 +72,20 @@ export default function WalletPage() {
         }
         return () => clearTimeout(timer);
     }, [countdown]);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            try {
+                const res = await getWalletHistory();
+                if (res.result) setTransactions(res.result);
+            } catch (error) {
+                console.error("Lỗi lấy lịch sử giao dịch:", error);
+            } finally {
+                setLoadingHistory(false);
+            }
+        };
+        fetchHistory();
+    }, []);
 
     const handleDeposit = async (provider) => {
         if (!depositAmount || depositAmount < 10000) {
@@ -357,7 +373,7 @@ export default function WalletPage() {
                         <span className="text-3xl font-bold text-[#9A6A2F]">{(profile.wallet?.available_balance || 0).toLocaleString('vi-VN')} đ</span>
                     </div>
                     <div className="p-6 bg-[#F8F1E6] border border-[#9A6A2F]/25 text-center">
-                        <span className="text-sm text-[#2F2418]/60 font-semibold block mb-2">Số dư đóng băng (Đang đấu giá)</span>
+                        <span className="text-sm text-[#2F2418]/60 font-semibold block mb-2">Số dư đóng băng</span>
                         <span className="text-3xl font-bold text-red-400">{(profile.wallet?.frozen_balance || 0).toLocaleString('vi-VN')} đ</span>
                     </div>
                 </div>
@@ -387,6 +403,37 @@ export default function WalletPage() {
                         <button onClick={() => setShowPinModal(true)} className="py-2.5 px-6 border border-[#9A6A2F]/25 text-sm font-bold text-[#9A6A2F] hover:bg-[#9A6A2F]/10 inline-flex items-center gap-2">
                             Cài đặt PIN ngay
                         </button>
+                    )}
+                </div>
+
+                <div className="mt-12 pt-8 border-t border-[#9A6A2F]/15">
+                    <h4 className="font-serif text-xl text-[#2F2418] mb-6">Lịch sử giao dịch</h4>
+                    {loadingHistory ? (
+                        <div className="text-center py-8 text-[#2F2418]/50"><Loader className="w-6 h-6 animate-spin mx-auto" /></div>
+                    ) : transactions.length === 0 ? (
+                        <div className="text-center py-8 text-[#2F2418]/50">Chưa có giao dịch nào.</div>
+                    ) : (
+                        <div className="space-y-4">
+                            {transactions.map((tx) => (
+                                <div key={tx.id} className="flex items-center justify-between p-4 bg-[#F8F1E6] border border-[#9A6A2F]/20">
+                                    <div className="flex items-start gap-4">
+                                        <div className={`mt-1 w-10 h-10 flex items-center justify-center shrink-0 ${['DEPOSIT', 'ESCROW_RELEASE', 'DISPUTE_REFUND', 'AUCTION_DEPOSIT_REFUND'].includes(tx.type) ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-500'}`}>
+                                            {['DEPOSIT', 'ESCROW_RELEASE', 'DISPUTE_REFUND', 'AUCTION_DEPOSIT_REFUND'].includes(tx.type) ? <ArrowDownLeft className="w-5 h-5" /> : <ArrowUpRight className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-[#2F2418]">{tx.note || tx.type}</p>
+                                            <p className="text-xs text-[#2F2418]/50 mt-1">{new Date(tx.createdAt).toLocaleString('vi-VN')}</p>
+                                            <span className={`inline-block mt-1 px-2 py-0.5 text-[10px] font-bold ${tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-600' : tx.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-red-500/10 text-red-600'}`}>
+                                                {tx.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className={`font-bold text-lg whitespace-nowrap ${['DEPOSIT', 'ESCROW_RELEASE', 'DISPUTE_REFUND', 'AUCTION_DEPOSIT_REFUND'].includes(tx.type) ? 'text-emerald-600' : 'text-red-500'}`}>
+                                        {['DEPOSIT', 'ESCROW_RELEASE', 'DISPUTE_REFUND', 'AUCTION_DEPOSIT_REFUND'].includes(tx.type) ? '+' : '-'}{tx.amount.toLocaleString('vi-VN')} đ
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>

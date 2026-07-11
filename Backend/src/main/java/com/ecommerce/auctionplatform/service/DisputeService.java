@@ -182,8 +182,9 @@ public class DisputeService {
         sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().subtract(amount));
         buyerWallet.setAvailableBalance(buyerWallet.getAvailableBalance().add(amount));
 
+        String productName = order.getAuctionRecord().getAuction().getProduct().getName();
         saveTransaction(buyerWallet, amount, TransactionType.DISPUTE_REFUND,
-                "Hoàn tiền do thắng khiếu nại đơn hàng " + order.getTrackingCode(), dispute);
+                "Hoàn tiền do thắng khiếu nại sản phẩm: " + productName, dispute);
 
         updateReputation(order.getSeller(), BUYER_WIN_SELLER_PENALTY, "Thua khiếu nại (bị trừ uy tín mạnh)", dispute);
 
@@ -204,14 +205,15 @@ public class DisputeService {
         BigDecimal sellerReceived = amount.subtract(platformFee);
         sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(sellerReceived));
 
+        String productName = order.getAuctionRecord().getAuction().getProduct().getName();
         saveTransaction(sellerWallet, sellerReceived, TransactionType.ESCROW_RELEASE,
-                "Giải ngân (Thắng khiếu nại) đơn hàng " + order.getTrackingCode(), dispute);
+                "Giải ngân (Thắng khiếu nại) sản phẩm: " + productName, dispute);
 
         if (admin != null) {
             Wallet adminWallet = getOrCreateAdminWallet(admin);
             adminWallet.setAvailableBalance(adminWallet.getAvailableBalance().add(platformFee));
             saveTransaction(adminWallet, platformFee, TransactionType.PLATFORM_FEE,
-                    "Phí nền tảng từ đơn hàng " + order.getTrackingCode(), null);
+                    "Phí nền tảng từ sản phẩm: " + order.getAuctionRecord().getAuction().getProduct().getName(), null);
         }
 
         updateReputation(order.getBuyer(), SELLER_WIN_BUYER_PENALTY, "Mở khiếu nại vô căn cứ", dispute);

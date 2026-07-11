@@ -318,6 +318,7 @@ public class AuctionService {
                         .amount(auction.getDepositAmount())
                         .status(TransactionStatus.SUCCESS)
                         .referenceType("REGISTRATION")
+                        .note("Tạm giữ cọc cho sản phẩm: " + auction.getProduct().getName())
                         .build();
                 transactionRepository.save(tx);
 
@@ -506,7 +507,7 @@ public class AuctionService {
                         .status(TransactionStatus.SUCCESS)
                         .referenceType("REGISTRATION")
                         .referenceId(reg.getId())
-                        .note("Hoàn cọc sau khi kết thúc phiên đấu giá")
+                        .note("Hoàn cọc sản phẩm: " + auction.getProduct().getName())
                         .build();
                 transactionRepository.save(refundTx);
             }
@@ -614,7 +615,7 @@ public class AuctionService {
                         .status(TransactionStatus.SUCCESS)
                         .referenceType("AUCTION_RECORD")
                         .referenceId(record.getId())
-                        .note("Tịch thu cọc do bùng hàng phiên đấu giá " + auction.getId())
+                        .note("Tịch thu cọc do không thanh toán sản phẩm: " + auction.getProduct().getName())
                         .build();
                 transactionRepository.save(forfeitTx);
             }

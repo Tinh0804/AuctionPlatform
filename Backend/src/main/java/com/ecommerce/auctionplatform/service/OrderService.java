@@ -132,16 +132,18 @@ public class OrderService {
             sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().add(totalAmount));
             walletRepository.save(sellerWallet);
 
+            String productName = order.getAuctionRecord().getAuction().getProduct().getName();
+
             transactionRepository.save(Transaction.builder()
                     .wallet(buyerWallet).type(TransactionType.AUCTION_PAYMENT)
                     .amount(totalAmount).status(TransactionStatus.SUCCESS)
                     .referenceType("ORDER").referenceId(order.getId())
-                    .note("Paid for Order: " + orderId + " via Wallet").build());
+                    .note("Thanh toán đơn hàng cho sản phẩm: " + productName).build());
             transactionRepository.save(Transaction.builder()
                     .wallet(sellerWallet).type(TransactionType.ESCROW_HOLD)
                     .amount(totalAmount).status(TransactionStatus.SUCCESS)
                     .referenceType("ORDER").referenceId(order.getId())
-                    .note("Escrow hold for Order: " + orderId).build());
+                    .note("Tạm giữ tiền chờ xác nhận cho sản phẩm: " + productName).build());
 
             order.setStatus(OrderStatus.PAID);
             orderRepository.save(order);
@@ -153,8 +155,7 @@ public class OrderService {
                     .order(orderMapper.toOrderResponse(order))
                     .build();
 
-        } else if ("MOMO".equals(method) || "VNPAY".equals(method)) {
-            // --- Gateway flow: pre-create Transaction, return payment URL ---
+        } else if (method.equals(PaymentMethod.MOMO.name()) || method.equals(PaymentMethod.VNPAY.name())) {
             Wallet buyerWallet = walletRepository.findByUser(buyer)
                     .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
@@ -166,7 +167,7 @@ public class OrderService {
                     .status(TransactionStatus.PENDING)
                     .referenceType("ORDER")
                     .referenceId(order.getId())
-                    .note("Gateway payment for Order: " + orderId)
+                    .note("Thanh toán đơn hàng cho sản phẩm: " + order.getAuctionRecord().getAuction().getProduct().getName())
                     .build();
             pendingTx = transactionRepository.save(pendingTx);
 
@@ -180,10 +181,13 @@ public class OrderService {
                     .build();
 
             PaymentResponse payResponse;
-            if ("MOMO".equals(method)) {
+            if (PaymentMethod.MOMO.name().equals(method)) {
                 payResponse = moMoService.createPayment(payReq);
-            } else {
+            } else if (PaymentMethod.VNPAY.name().equals(method)) {
                 payResponse = vnPayService.createPayment(payReq);
+            }
+            else {
+                throw new AppException(ErrorCode.PAYMENT_METHOD_NOT_SUPPORTED);
             }
 
             return OrderPaymentResponse.builder()
@@ -195,9 +199,7 @@ public class OrderService {
         }
     }
 
-    /**
-     * Called by MoMo/VNPay callback after successful gateway payment for an Order.
-     */
+     // Called by MoMo/VNPay callback after successful gateway payment for an Order.
     @Transactional
     public void handleGatewayPaymentSuccess(UUID orderId, BigDecimal paidAmount) {
         Order order = orderRepository.findById(orderId)
@@ -232,11 +234,12 @@ public class OrderService {
         if (sellerWallet != null) {
             sellerWallet.setFrozenBalance(sellerWallet.getFrozenBalance().add(totalAmount));
             walletRepository.save(sellerWallet);
+            String productName = order.getAuctionRecord().getAuction().getProduct().getName();
             transactionRepository.save(Transaction.builder()
                     .wallet(sellerWallet).type(TransactionType.ESCROW_HOLD)
                     .amount(totalAmount).status(TransactionStatus.SUCCESS)
                     .referenceType("ORDER").referenceId(orderId)
-                    .note("Escrow hold (gateway) for Order: " + orderId).build());
+                    .note("Tạm giữ tiền chờ xác nhận cho sản phẩm: " + productName).build());
         }
 
         order.setStatus(OrderStatus.PAID);
@@ -302,12 +305,13 @@ public class OrderService {
         walletRepository.save(sellerWallet);
 
         // Save transactions
+        String productName = order.getAuctionRecord().getAuction().getProduct().getName();
         Transaction buyerTransaction = Transaction.builder()
                 .wallet(buyerWallet)
                 .type(TransactionType.AUCTION_PAYMENT)
                 .amount(totalAmount)
                 .status(TransactionStatus.SUCCESS)
-                .note("Paid for Order: " + orderId + " (Escrow)")
+                .note("Thanh toán đơn hàng cho sản phẩm: " + productName)
                 .build();
         transactionRepository.save(buyerTransaction);
 
@@ -316,7 +320,7 @@ public class OrderService {
                 .type(TransactionType.ESCROW_HOLD)
                 .amount(totalAmount)
                 .status(TransactionStatus.SUCCESS)
-                .note("Escrow hold for Order: " + orderId)
+                .note("Tạm giữ tiền chờ xác nhận cho sản phẩm: " + productName)
                 .build();
         transactionRepository.save(sellerTransaction);
 
@@ -360,12 +364,13 @@ public class OrderService {
         sellerWallet.setAvailableBalance(sellerWallet.getAvailableBalance().add(totalAmount));
         walletRepository.save(sellerWallet);
 
+        String productName = order.getAuctionRecord().getAuction().getProduct().getName();
         Transaction releaseTransaction = Transaction.builder()
                 .wallet(sellerWallet)
                 .type(TransactionType.ESCROW_RELEASE)
                 .amount(totalAmount)
                 .status(TransactionStatus.SUCCESS)
-                .note("Escrow released for Order: " + orderId)
+                .note("Giải phóng tiền cho sản phẩm: " + productName)
                 .build();
         transactionRepository.save(releaseTransaction);
 
@@ -473,13 +478,14 @@ public class OrderService {
         walletRepository.save(sellerWallet);
 
         // Transaction: ESCROW_RELEASE cho seller
+        String productName = order.getAuctionRecord().getAuction().getProduct().getName();
         transactionRepository.save(Transaction.builder()
                 .wallet(sellerWallet)
                 .type(TransactionType.ESCROW_RELEASE)
                 .amount(netAmount)
                 .status(TransactionStatus.SUCCESS)
                 .referenceType("ORDER").referenceId(orderId)
-                .note("Escrow released for Order: " + orderId + " (after platform fee)")
+                .note("Giải phóng tiền cho sản phẩm: " + productName)
                 .build());
 
         // Phí nền tảng → ví Admin
@@ -500,7 +506,7 @@ public class OrderService {
                                 .amount(platformFee)
                                 .status(TransactionStatus.SUCCESS)
                                 .referenceType("ORDER").referenceId(orderId)
-                                .note("Platform fee from Order: " + orderId)
+                                .note("Phí nền tảng từ sản phẩm: " + productName)
                                 .build());
                         log.info("Platform fee {} transferred to admin wallet for Order {}", platformFee, orderId);
                     }
@@ -514,7 +520,7 @@ public class OrderService {
                     .amount(platformFee)
                     .status(TransactionStatus.SUCCESS)
                     .referenceType("ORDER").referenceId(orderId)
-                    .note("Platform fee deducted for Order: " + orderId)
+                    .note("Phí nền tảng từ sản phẩm: " + productName)
                     .build());
         }
 

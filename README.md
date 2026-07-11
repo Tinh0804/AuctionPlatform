@@ -23,7 +23,7 @@
 |:---------:|:-------------:|:----------:|
 | ![Login](docs/screenshots/login.png) | ![Profile](docs/screenshots/profile.png) | ![Checkout](docs/screenshots/checkout.png) |
 
-> 💡 *Thay thế ảnh trên bằng screenshot thực tế hoặc link video demo.*
+> 💡 *Link demo: https://auctionplatform.tinhlelaptrinh.id.vn *
 
 ---
 
