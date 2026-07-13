@@ -65,13 +65,13 @@ const MainLayout = () => {
           setNotifications(prev => {
             if (incoming.id && prev.some(n => n.id === incoming.id)) return prev;
             return [{
-              id: incoming.id || `${incoming.type}-${incoming.reference_id}-${Date.now()}`,
+              id: incoming.id || `${incoming.type}-${incoming.referenceId || incoming.reference_id}-${Date.now()}`,
               title: incoming.title,
               message: incoming.message,
               type: incoming.type,
-              reference_id: incoming.reference_id,
-              is_read: incoming.is_read ?? false,
-              created_at: incoming.created_at || new Date().toISOString(),
+              reference_id: incoming.referenceId || incoming.reference_id,
+              is_read: incoming.isRead != null ? incoming.isRead : (incoming.is_read ?? false),
+              created_at: incoming.createdAt || incoming.created_at || new Date().toISOString(),
             }, ...prev].slice(0, 20);
           });
         } catch (error) {

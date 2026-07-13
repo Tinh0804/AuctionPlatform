@@ -16,6 +16,7 @@ import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -27,8 +28,11 @@ public class WebSocketEventListener {
     SimpMessagingTemplate messagingTemplate;
     StringRedisTemplate redisTemplate;
 
-    // Track session id -> destination map to handle disconnects properly since SessionDisconnectEvent might not have the destination
-    Map<String, String> sessionDestinations = new ConcurrentHashMap<>();
+    // Map of sessionId -> Set of subscriptionIds
+    Map<String, Set<String>> sessionSubscriptions = new ConcurrentHashMap<>();
+    
+    // Map of subscriptionId -> auctionId
+    Map<String, String> subscriptionToAuction = new ConcurrentHashMap<>();
 
     static final String VIEWER_COUNT_KEY_PREFIX = "auction:viewers:";
 
@@ -37,11 +41,14 @@ public class WebSocketEventListener {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String destination = headerAccessor.getDestination();
         String sessionId = headerAccessor.getSessionId();
+        String subscriptionId = headerAccessor.getSubscriptionId();
 
-        if (destination != null && destination.startsWith("/topic/auction/")) {
-            sessionDestinations.put(sessionId, destination);
+        if (destination != null && destination.matches("^/topic/auction/[a-zA-Z0-9\\-]+$"))  { //bỏ qua kênh /topic/auction
             String auctionId = extractAuctionId(destination);
-            if (auctionId != null) {
+            if (auctionId != null && subscriptionId != null) {
+                subscriptionToAuction.put(subscriptionId, auctionId);
+                sessionSubscriptions.computeIfAbsent(sessionId, k -> ConcurrentHashMap.newKeySet()).add(subscriptionId);
+                
                 Long viewers = redisTemplate.opsForValue().increment(VIEWER_COUNT_KEY_PREFIX + auctionId);
                 broadcastViewerCount(auctionId, viewers);
             }
@@ -51,30 +58,47 @@ public class WebSocketEventListener {
     @EventListener
     public void handleWebSocketUnsubscribeListener(SessionUnsubscribeEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
+        String subscriptionId = headerAccessor.getSubscriptionId();
         String sessionId = headerAccessor.getSessionId();
-        handleDisconnection(sessionId);
+
+        if (subscriptionId != null) {
+            String auctionId = subscriptionToAuction.remove(subscriptionId);
+            if (auctionId != null) {
+                java.util.Set<String> subs = sessionSubscriptions.get(sessionId);
+                if (subs != null) {
+                    subs.remove(subscriptionId);
+                    if (subs.isEmpty()) {
+                        sessionSubscriptions.remove(sessionId);
+                    }
+                }
+                decrementAndBroadcast(auctionId);
+            }
+        }
     }
 
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
-        handleDisconnection(sessionId);
-    }
-
-    private void handleDisconnection(String sessionId) {
-        String destination = sessionDestinations.remove(sessionId);
-        if (destination != null && destination.startsWith("/topic/auction/")) {
-            String auctionId = extractAuctionId(destination);
-            if (auctionId != null) {
-                Long viewers = redisTemplate.opsForValue().decrement(VIEWER_COUNT_KEY_PREFIX + auctionId);
-                if (viewers != null && viewers < 0) {
-                    redisTemplate.opsForValue().set(VIEWER_COUNT_KEY_PREFIX + auctionId, "0");
-                    viewers = 0L;
+        
+        java.util.Set<String> subs = sessionSubscriptions.remove(sessionId);
+        if (subs != null) {
+            for (String subId : subs) {
+                String auctionId = subscriptionToAuction.remove(subId);
+                if (auctionId != null) {
+                    decrementAndBroadcast(auctionId);
                 }
-                broadcastViewerCount(auctionId, viewers);
             }
         }
+    }
+
+    private void decrementAndBroadcast(String auctionId) {
+        Long viewers = redisTemplate.opsForValue().decrement(VIEWER_COUNT_KEY_PREFIX + auctionId);
+        if (viewers != null && viewers < 0) {
+            redisTemplate.opsForValue().set(VIEWER_COUNT_KEY_PREFIX + auctionId, "0");
+            viewers = 0L;
+        }
+        broadcastViewerCount(auctionId, viewers);
     }
 
     private String extractAuctionId(String destination) {

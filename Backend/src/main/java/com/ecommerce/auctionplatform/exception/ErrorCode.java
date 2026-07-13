@@ -14,6 +14,7 @@ public enum ErrorCode {
     BID_TOO_LOW(400,"Bid amount is too low", HttpStatus.BAD_REQUEST),
     AUCTION_ENDED(400,"Auction has already ended", HttpStatus.BAD_REQUEST),
     CANNOT_BID_OWN_AUCTION(1014, "You cannot bid on your own auction", HttpStatus.BAD_REQUEST),
+    ALREADY_LEADING(1025, "Bạn đang dẫn đầu phiên đấu giá này", HttpStatus.BAD_REQUEST),
     INVALID_TOKEN(401,"Invalid token", HttpStatus.UNAUTHORIZED),
     UNVERIFIED_USER(403,"User is not verified", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(401,"Unauthorized", HttpStatus.UNAUTHORIZED),

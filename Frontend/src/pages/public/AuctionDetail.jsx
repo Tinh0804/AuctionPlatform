@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowUpRight, ChevronLeft, Clock3, Gavel, Info, Minus, Plus, Radio, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, ChevronLeft, Clock3, Gavel, Info, Minus, Plus, Radio, TrendingUp, Award } from 'lucide-react';
 import apiClient, { WS_URL } from '@/services/apiClient';
 import Skeleton from '@/components/Elements/Skeleton';
 import Confetti from '@/components/Elements/Confetti';
@@ -148,7 +148,7 @@ export default function AuctionDetail() {
 
     const stats = useMemo(() => {
         if (!auction) return null;
-        const bidderCount = new Set(bids.map(bid => bid.bidder_name).filter(Boolean)).size;
+        const bidderCount = new Set(bids.map(bid => bid.bidderName || bid.bidder_name).filter(Boolean)).size;
         const startPrice = auction.startPrice != null ? auction.startPrice : auction.start_price;
         const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
         const uplift = startPrice ? Math.max(0, Math.round(((currentPrice - startPrice) / startPrice) * 100)) : 0;
@@ -159,8 +159,9 @@ export default function AuctionDetail() {
 
     const isActive = auction.status === 'ACTIVE';
     const isOwner = currentUserId && (auction.sellerId === currentUserId || auction.seller_id === currentUserId);
-    const parts = getParts(timeLeft);
     const topBid = bids[0];
+    const isLeading = currentUserId && topBid && (topBid.bidderId === currentUserId || topBid.bidder_id === currentUserId);
+    const parts = getParts(timeLeft);
     const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
     const stepPrice = auction.stepPrice != null ? auction.stepPrice : auction.step_price;
     const minBid = currentPrice + stepPrice;
@@ -190,7 +191,7 @@ export default function AuctionDetail() {
 
                         <div className="curator-main-lot">
                             <ImageBox auction={auction} activeImage={activeImage} setActiveImage={setActiveImage} />
-                            <BidPanel auction={auction} parts={parts} timeLeft={timeLeft} topBid={topBid} bidAmount={bidAmount} setBidAmount={setBidAmount} minBid={minBid} errorMsg={errorMsg} isActive={isActive} isOwner={isOwner} handlePlaceBid={handlePlaceBid} />
+                            <BidPanel auction={auction} parts={parts} timeLeft={timeLeft} topBid={topBid} bidAmount={bidAmount} setBidAmount={setBidAmount} minBid={minBid} errorMsg={errorMsg} isActive={isActive} isOwner={isOwner} isLeading={isLeading} handlePlaceBid={handlePlaceBid} />
                         </div>
 
                         <section className="curator-description">
@@ -225,7 +226,7 @@ function ImageBox({ auction, activeImage, setActiveImage }) {
     );
 }
 
-function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, minBid, errorMsg, isActive, isOwner, handlePlaceBid }) {
+function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, minBid, errorMsg, isActive, isOwner, isLeading, handlePlaceBid }) {
     const currentPrice = auction.currentPrice != null ? auction.currentPrice : auction.current_price;
     const stepPrice = auction.stepPrice != null ? auction.stepPrice : auction.step_price;
     return (
@@ -235,12 +236,19 @@ function BidPanel({ auction, parts, timeLeft, topBid, bidAmount, setBidAmount, m
                 <div className="curator-panel-title"><Clock3 className="h-4 w-4" /> <span>{['PENDING', 'APPROVED'].includes(auction.status) ? 'Thời gian đến khi bắt đầu' : 'Thời gian còn lại'}</span> {isActive && <b>Đếm ngược trực tiếp</b>}</div>
                 {parts ? <div className="curator-time-grid">{['Ngày', 'Giờ', 'Phút', 'Giây'].map((label, i) => <div key={label}><strong>{parts[i]}</strong><span>{label}</span></div>)}</div> : <p className="curator-time-text">{timeLeft}</p>}
             </div>
-            <div className="curator-mini-grid"><Mini label="Người dẫn đầu" value={topBid?.bidder_name || 'Chưa có'} /><Mini label="Tối thiểu" value={`${money(minBid)}đ`} /></div>
+            <div className="curator-mini-grid"><Mini label="Người dẫn đầu" value={topBid?.bidderName || topBid?.bidder_name || 'Chưa có'} /><Mini label="Tối thiểu" value={`${money(minBid)}đ`} /></div>
             {isOwner ? (
                 <div className="curator-disabled">
                     <div className="flex items-center gap-2 justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         <span>Bạn không thể đặt giá cho phiên đấu giá của chính mình</span>
+                    </div>
+                </div>
+            ) : isLeading ? (
+                <div className="curator-disabled">
+                    <div className="flex items-center gap-2 justify-center text-[#9A6A2F] font-bold">
+                        <Award className="h-5 w-5" />
+                        <span>Bạn đang dẫn đầu phiên đấu giá này!</span>
                     </div>
                 </div>
             ) : isActive ? (
@@ -265,8 +273,12 @@ function ActivityFeed({ bids, auction }) {
 
 function BidRow({ bid, idx, prev, auction }) {
     const startPrice = auction.startPrice != null ? auction.startPrice : auction.start_price;
-    const inc = prev ? bid.bid_amount - prev.bid_amount : bid.bid_amount - startPrice;
-    return <div className={`curator-bid-row ${idx === 0 ? 'leader' : ''}`}><div className="curator-avatar">{bid.bidder_name?.charAt(0)?.toUpperCase() || '?'}</div><div className="curator-bidder"><p>{bid.bidder_name || 'Người tham gia'} {idx === 0 && <span>Dẫn đầu</span>} {inc > 0 && <em>+{money(inc)} đ</em>}</p><small>{new Date(bid.bid_time).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' })}</small></div><strong>{money(bid.bid_amount)}<small>đ</small></strong></div>;
+    const bidAmount = bid.bidAmount != null ? bid.bidAmount : bid.bid_amount;
+    const prevAmount = prev ? (prev.bidAmount != null ? prev.bidAmount : prev.bid_amount) : 0;
+    const inc = prev ? bidAmount - prevAmount : bidAmount - startPrice;
+    const bidderName = bid.bidderName || bid.bidder_name || 'Người tham gia';
+    const bidTime = bid.bidTime || bid.bid_time;
+    return <div className={`curator-bid-row ${idx === 0 ? 'leader' : ''}`}><div className="curator-avatar">{bidderName?.charAt(0)?.toUpperCase() || '?'}</div><div className="curator-bidder"><p>{bidderName} {idx === 0 && <span>Dẫn đầu</span>} {inc > 0 && <em>+{money(inc)} đ</em>}</p><small>{new Date(bidTime).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' })}</small></div><strong>{money(bidAmount)}<small>đ</small></strong></div>;
 }
 
 function AuctionSpecs({ auction, stats }) {

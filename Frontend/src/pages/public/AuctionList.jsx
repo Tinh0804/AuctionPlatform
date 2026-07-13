@@ -1,21 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, ArrowUpRight, ChevronRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X } from 'lucide-react';
+import { Activity, ArrowUpRight, ChevronRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X, Grid, List } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import EmptyState from '@/components/Elements/EmptyState';
 
 const statusOptions = [
-    { value: '', label: 'Tat ca phien' },
-    { value: 'ACTIVE', label: 'Dang dau gia' },
-    { value: 'PENDING', label: 'Sap mo san' },
-    { value: 'CLOSED', label: 'Da chot phien' },
+    { value: '', label: 'Tất cả phiên' },
+    { value: 'ACTIVE', label: 'Đang đấu giá' },
+    { value: 'PENDING', label: 'Sắp mở sàn' },
+    { value: 'CLOSED', label: 'Đã chốt phiên' },
 ];
 
-const formatCurrency = value => `${Number(value || 0).toLocaleString('vi-VN')} d`;
-const statusText = { ACTIVE: 'Dang dau gia', PENDING: 'Cho mo san', CLOSED: 'Da chot phien', ENDED: 'Da ket thuc', FAILED: 'That bai', CANCELLED: 'Da huy' };
+const formatCurrency = value => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
+const statusText = { 
+    ACTIVE: 'Đang đấu giá', 
+    PENDING: 'Chờ mở sàn', 
+    CLOSED: 'Đã chốt phiên', 
+    ENDED: 'Đã kết thúc', 
+    FAILED: 'Thất bại', 
+    CANCELLED: 'Đã hủy' 
+};
+
+const statusColors = {
+    ACTIVE: 'bg-green-600/20 text-green-400 border-green-500/30',
+    PENDING: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
+    CLOSED: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+    ENDED: 'bg-red-600/20 text-red-400 border-red-500/30',
+    FAILED: 'bg-red-600/20 text-red-400 border-red-500/30',
+    CANCELLED: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+};
 
 const getCountdown = auc => {
-    const targetDate = auc?.status === 'PENDING' ? new Date(auc.start_time) : new Date(auc?.end_time);
+    const targetDateStr = auc?.status === 'PENDING' ? (auc.startTime || auc.start_time) : (auc.endTime || auc.end_time);
+    const targetDate = new Date(targetDateStr);
     const difference = targetDate - new Date();
     if (!auc || Number.isNaN(targetDate.getTime()) || difference <= 0) return '00:00:00';
 
@@ -31,7 +48,7 @@ function AuctionList() {
     const [categories, setCategories] = useState([]);
     const [searchParams, setSearchParams] = useSearchParams();
     const [showMobileFilter, setShowMobileFilter] = useState(false);
-    const [heroCountdown, setHeroCountdown] = useState('');
+    const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
     const pageRef = useRef(null);
 
     const currentStatus = searchParams.get('status') || '';
@@ -50,83 +67,13 @@ function AuctionList() {
 
         const qs = params.toString();
         apiClient.get(`/auctions${qs ? '?' + qs : ''}`)
-            .then(res => setAuctions(res.data?.result || (Array.isArray(res.data) ? res.data : [])))
+            .then(res => {
+                const data = res.data;
+                const auctionsList = Array.isArray(data) ? data : (data?.content || data?.result || []);
+                setAuctions(auctionsList);
+            })
             .catch(console.error);
     }, [currentStatus, currentCategory]);
-
-    const activeLots = useMemo(() => auctions.filter(auc => auc.status === 'ACTIVE'), [auctions]);
-    const heroLot = useMemo(() => activeLots[0] || auctions[0], [activeLots, auctions]);
-    const featuredLots = useMemo(() => activeLots.filter(auc => auc.id !== heroLot?.id).slice(0, 6), [activeLots, heroLot]);
-
-    useEffect(() => {
-        if (!heroLot) return undefined;
-        setHeroCountdown(getCountdown(heroLot));
-        const timer = setInterval(() => setHeroCountdown(getCountdown(heroLot)), 1000);
-        return () => clearInterval(timer);
-    }, [heroLot]);
-
-    useEffect(() => {
-        const runFallbackReveal = () => {
-            const nodes = pageRef.current?.querySelectorAll('[data-reveal]') || [];
-            const observer = new IntersectionObserver(entries => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('is-visible');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.12 });
-            nodes.forEach(node => observer.observe(node));
-            return () => observer.disconnect();
-        };
-
-        const cleanup = runFallbackReveal();
-        const loadGsap = async () => {
-            if (!window.gsap || !window.ScrollTrigger) return;
-            const gsap = window.gsap;
-            const ScrollTrigger = window.ScrollTrigger;
-            gsap.registerPlugin(ScrollTrigger);
-            cleanup?.();
-            gsap.utils.toArray('[data-reveal]').forEach((node, index) => {
-                gsap.fromTo(node, { autoAlpha: 0, y: 72 }, {
-                    autoAlpha: 1,
-                    y: 0,
-                    duration: 1.15,
-                    delay: (index % 4) * 0.06,
-                    ease: 'power3.out',
-                    scrollTrigger: { trigger: node, start: 'top 86%' },
-                });
-            });
-            gsap.to('[data-parallax]', {
-                yPercent: 12,
-                ease: 'none',
-                scrollTrigger: { trigger: pageRef.current, start: 'top top', end: 'bottom top', scrub: true },
-            });
-        };
-
-        loadGsap();
-        return () => cleanup?.();
-    }, [auctions.length]);
-
-    /*
-        GSAP ScrollTrigger is intentionally loaded from index.html/CDN when available.
-        This keeps Docker dev containers from crashing if node_modules are stale; the
-        IntersectionObserver reveal above remains the safe fallback.
-    */
-    useEffect(() => {
-        if (window.gsap && window.ScrollTrigger) return;
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js';
-        script.async = true;
-        script.onload = () => {
-            const triggerScript = document.createElement('script');
-            triggerScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/ScrollTrigger.min.js';
-            triggerScript.async = true;
-            document.body.appendChild(triggerScript);
-        };
-        document.body.appendChild(script);
-        return () => {};
-    }, []);
 
     const updateFilter = (key, value) => {
         const newParams = new URLSearchParams(searchParams);
@@ -136,135 +83,383 @@ function AuctionList() {
 
     const activeFilterCount = (currentStatus ? 1 : 0) + (currentCategory ? 1 : 0);
 
-    const categoryPalette = ['01', '02', '03', '04', '05', '06', '07', '08'];
+    const clearAllFilters = () => {
+        setSearchParams({});
+    };
 
+    // Filter Panel Component
     const FilterPanel = ({ className = '' }) => (
-        <aside className={`auction-filter-panel ${className}`}>
-            <div className="auction-filter-glow" />
-            <div className="auction-filter-header">
-                <div>
-                    <div className="flex items-center gap-3 text-[#2F2418]">
-                        <Filter className="h-4 w-4 text-[#9A6A2F]" />
-                        <p className="text-xs uppercase tracking-[0.36em]">Bo Loc San</p>
+        <aside className={`${className}`}>
+            <div className="bg-[#1A140F] rounded-xl border border-[#9A6A2F]/20 p-6 sticky top-24">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <Filter className="h-5 w-5 text-[#E8C58F]" />
+                        <h3 className="text-sm font-medium text-[#FFF8ED]">Bộ lọc</h3>
                     </div>
-                    <p className="mt-3 text-xs leading-5 text-[#2F2418]/50">Loc nhanh theo trang thai phien va nhom hang de vao dung san dang co gia.</p>
-                </div>
-                {activeFilterCount > 0 && <span className="auction-filter-count">{activeFilterCount}</span>}
-            </div>
-            <div className="mt-8 space-y-8">
-                <div>
-                    <p className="mb-4 text-xs uppercase tracking-[0.28em] text-[#9A6A2F]">Trang thai phien</p>
-                    <div className="auction-status-grid">
-                        {statusOptions.map(opt => (
-                            <button key={opt.value} onClick={() => updateFilter('status', opt.value)} className={`auction-filter-chip ${currentStatus === opt.value ? 'is-active' : ''}`}>
-                                <span>{opt.label}</span>
-                                <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div>
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                        <p className="text-xs uppercase tracking-[0.28em] text-[#9A6A2F]">Danh mục</p>
-                        <Activity className="h-4 w-4 text-[#9A6A2F]/55" />
-                    </div>
-                    <div className="auction-category-list">
-                        <button onClick={() => updateFilter('category_id', '')} className={`auction-category-chip ${currentCategory === '' ? 'is-active' : ''}`}>
-                            <span className="auction-category-mark">All</span>
-                            <span className="auction-category-name">Tất cả danh mục</span>
-                            <ChevronRight className="h-4 w-4" />
+                    {activeFilterCount > 0 && (
+                        <button 
+                            onClick={clearAllFilters}
+                            className="text-xs text-[#9A6A2F] hover:text-[#E8C58F] transition-colors"
+                        >
+                            Xóa tất cả
                         </button>
-                        {categories.map((category, index) => (
-                            <button key={category.id} onClick={() => updateFilter('category_id', category.id)} className={`auction-category-chip tone-${categoryPalette[index % categoryPalette.length]} ${currentCategory === category.id ? 'is-active' : ''}`}>
-                                <span className="auction-category-mark">{String(index + 1).padStart(2, '0')}</span>
-                                <span className="auction-category-name">{category.name}</span>
-                                <ChevronRight className="h-4 w-4" />
+                    )}
+                </div>
+
+                {/* Status Filter */}
+                <div className="mb-6">
+                    <label className="block text-xs uppercase tracking-wider text-[#9A6A2F] mb-3">
+                        Trạng thái
+                    </label>
+                    <div className="space-y-1.5">
+                        {statusOptions.map(opt => (
+                            <button
+                                key={opt.value}
+                                onClick={() => updateFilter('status', opt.value)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                                    currentStatus === opt.value
+                                        ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
+                                        : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                                }`}
+                            >
+                                {opt.label}
+                                {currentStatus === opt.value && (
+                                    <span className="float-right text-[#E8C58F]">●</span>
+                                )}
                             </button>
                         ))}
                     </div>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                    <label className="block text-xs uppercase tracking-wider text-[#9A6A2F] mb-3">
+                        Danh mục
+                    </label>
+                    <div className="space-y-1.5">
+                        <button
+                            onClick={() => updateFilter('category_id', '')}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                                currentCategory === ''
+                                    ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
+                                    : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                            }`}
+                        >
+                            Tất cả danh mục
+                            {currentCategory === '' && (
+                                <span className="float-right text-[#E8C58F]">●</span>
+                            )}
+                        </button>
+                        {categories.map(category => (
+                            <button
+                                key={category.id}
+                                onClick={() => updateFilter('category_id', category.id)}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                                    currentCategory === category.id
+                                        ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
+                                        : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                                }`}
+                            >
+                                {category.name}
+                                {currentCategory === category.id && (
+                                    <span className="float-right text-[#E8C58F]">●</span>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Results count */}
+                <div className="mt-6 pt-6 border-t border-[#9A6A2F]/10">
+                    <p className="text-sm text-[#FFF8ED]/50">
+                        <span className="text-[#E8C58F] font-medium">{auctions.length}</span> phiên đấu giá
+                    </p>
                 </div>
             </div>
         </aside>
     );
 
-    const LotImage = ({ auc, className = '' }) => auc?.cover_image ? (
-        <img src={auc.cover_image} alt={auc.product_name} className={`h-full w-full object-cover ${className}`} loading="lazy" />
-    ) : <div className="flex h-full w-full items-center justify-center bg-[#FFF8ED] text-[#9A6A2F]"><Gavel className="h-12 w-12" /></div>;
+    // Lot Card Component
+    const LotCard = ({ auc }) => {
+        const coverImageUrl = (auc.images && auc.images.length > 0) 
+            ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
+            : (auc.coverImage || auc.cover_image);
 
-    const LotCard = ({ auc, index, featured = false }) => (
-        <Link to={`/auctions/${auc.id}`} data-reveal className={`auction-lot-card group ${featured ? 'featured' : ''}`}>
-            <div className="auction-lot-image">
-                <LotImage auc={auc} className="transition duration-[1200ms] ease-out group-hover:scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#2F2418]/36 via-transparent to-transparent opacity-70" />
-                    <div className={`absolute left-5 top-5 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.24em] shadow-sm backdrop-blur-md ${auc.status === 'ACTIVE' ? 'border-red-600/35 bg-red-700 text-white' : 'border-[#9A6A2F]/25 bg-[#FFF8ED]/82 text-[#2F2418]'}`}>
+        return (
+        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#9A6A2F]/5">
+            <div className="relative aspect-[16/10] overflow-hidden bg-[#0E0A07]">
+                {coverImageUrl ? (
+                    <img 
+                        src={coverImageUrl} 
+                        alt={auc.productName || auc.product_name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <Gavel className="h-12 w-12 text-[#9A6A2F]/30" />
+                    </div>
+                )}
+                
+                {/* Status Badge */}
+                <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${statusColors[auc.status] || statusColors.CLOSED}`}>
                     {statusText[auc.status] || auc.status}
                 </div>
-                {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between border border-white/25 bg-[#111827]/76 px-3 py-2 text-[#FFF8ED] backdrop-blur-md"><span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/68"><Clock3 className="h-3.5 w-3.5 text-[#E8C58F]" />{auc.status === 'ACTIVE' ? 'Con lai' : 'Mo sau'}</span><span className="font-mono text-sm font-bold tabular-nums">{getCountdown(auc)}</span></div>}
-            </div>
-            <div className="auction-lot-caption">
-                {auc.category_name && <p className="text-[10px] uppercase tracking-[0.28em] text-[#9A6A2F]">{auc.category_name}</p>}
-                <h3>{auc.product_name}</h3>
-                <div className="mt-4 flex items-end justify-between gap-4">
-                    <div>
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-[#2F2418]/50">Gia hien tai</p>
-                        <p className="font-serif text-xl text-[#2F2418]">{formatCurrency(auc.current_price)}</p>
+
+                {/* Countdown */}
+                {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && (
+                    <div className="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="flex items-center gap-2 text-xs text-white/70">
+                            <Clock3 className="h-3.5 w-3.5 text-[#E8C58F]" />
+                            {auc.status === 'ACTIVE' ? 'Còn lại' : 'Mở sau'}
+                        </span>
+                        <span className="font-mono text-sm font-bold text-[#E8C58F]">
+                            {getCountdown(auc)}
+                        </span>
                     </div>
-                    <span className="flex items-center gap-2 text-xs text-[#2F2418]/60"><Users className="h-3.5 w-3.5" />{Number(auc.bid_count || 0)} luot</span>
+                )}
+            </div>
+
+            <div className="p-4">
+                {(auc.categoryName || auc.category_name) && (
+                    <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
+                        {auc.categoryName || auc.category_name}
+                    </p>
+                )}
+                <h3 className="text-sm font-medium text-[#FFF8ED] line-clamp-1 group-hover:text-[#E8C58F] transition-colors">
+                    {auc.productName || auc.product_name}
+                </h3>
+                
+                <div className="mt-3 flex items-end justify-between">
+                    <div>
+                        <p className="text-[10px] uppercase tracking-wider text-[#FFF8ED]/40">
+                            Giá hiện tại
+                        </p>
+                        <p className="text-lg font-semibold text-[#E8C58F]">
+                            {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-[#FFF8ED]/50">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>{Number(auc.bidCount || auc.bid_count || 0)}</span>
+                    </div>
                 </div>
             </div>
         </Link>
-    );
+        );
+    };
 
-    return (
-        <main ref={pageRef} className="auction-house-page">
-            <div className="auction-market-ambience" aria-hidden="true">
-                <span className="auction-orbit auction-orbit-one" />
-                <span className="auction-orbit auction-orbit-two" />
-                <span className="auction-bid-ticker auction-bid-ticker-one">+ bid</span>
-                <span className="auction-bid-ticker auction-bid-ticker-two">LIVE</span>
-                <span className="auction-bid-ticker auction-bid-ticker-three">closing</span>
-            </div>
-            {heroLot && (
-                <section className="auction-hero">
-                    <div className="absolute inset-0 auction-hero-image-layer" data-parallax><LotImage auc={heroLot} /></div>
-                    <div className="auction-hero-scanline" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#0E0A07]/95 via-[#15110D]/72 to-[#15110D]/22" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#15110D] via-transparent to-[#2F2418]/12" />
-                    <div className="relative z-10 mx-auto flex min-h-[86vh] max-w-7xl items-end px-5 pb-16 pt-28 md:px-8 md:pb-24">
-                        <div className="max-w-3xl" data-reveal>
-                            <p className="mb-5 text-xs uppercase tracking-[0.48em] text-[#9A6A2F]">San dau gia truc tiep / Lot dang nong</p>
-                            <h1 className="font-serif text-5xl font-normal leading-[0.95] text-[#FFF8ED] md:text-7xl lg:text-8xl">{heroLot.product_name}</h1>
-                            <div className="mt-8 grid max-w-2xl grid-cols-2 gap-4 md:grid-cols-3">
-                                <div className="auction-hero-stat"><span>Gia hien tai</span><strong>{formatCurrency(heroLot.current_price)}</strong></div>
-                                <div className="auction-hero-stat"><span>Luot ra gia</span><strong>{Number(heroLot.bid_count || 0)}</strong></div>
-                                <div className="auction-hero-stat col-span-2 md:col-span-1"><span>Dem nguoc</span><strong>{heroCountdown}</strong></div>
+    // List View Card
+    const LotListItem = ({ auc }) => {
+        const coverImageUrl = (auc.images && auc.images.length > 0) 
+            ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
+            : (auc.coverImage || auc.cover_image);
+
+        return (
+        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300">
+            <div className="flex flex-col sm:flex-row">
+                <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 overflow-hidden bg-[#0E0A07]">
+                    {coverImageUrl ? (
+                        <img 
+                            src={coverImageUrl} 
+                            alt={auc.productName || auc.product_name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Gavel className="h-12 w-12 text-[#9A6A2F]/30" />
+                        </div>
+                    )}
+                    <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${statusColors[auc.status] || statusColors.CLOSED}`}>
+                        {statusText[auc.status] || auc.status}
+                    </div>
+                </div>
+
+                <div className="flex-1 p-4 flex flex-col justify-between">
+                    <div>
+                        {(auc.categoryName || auc.category_name) && (
+                            <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
+                                {auc.categoryName || auc.category_name}
+                            </p>
+                        )}
+                        <h3 className="text-base font-medium text-[#FFF8ED] group-hover:text-[#E8C58F] transition-colors">
+                            {auc.productName || auc.product_name}
+                        </h3>
+                        
+                        {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-[#FFF8ED]/60">
+                                <Clock3 className="h-4 w-4 text-[#E8C58F]" />
+                                <span>{auc.status === 'ACTIVE' ? 'Còn lại' : 'Mở sau'}:</span>
+                                <span className="font-mono font-bold text-[#E8C58F]">
+                                    {getCountdown(auc)}
+                                </span>
                             </div>
-                            <Link to={`/auctions/${heroLot.id}`} className="auction-hero-cta">Tham Gia Đấu Giá <ArrowUpRight className="h-5 w-5" /></Link>
+                        )}
+                    </div>
+
+                    <div className="mt-3 flex items-end justify-between">
+                        <div>
+                            <p className="text-[10px] uppercase tracking-wider text-[#FFF8ED]/40">
+                                Giá hiện tại
+                            </p>
+                            <p className="text-xl font-semibold text-[#E8C58F]">
+                                {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-1.5 text-sm text-[#FFF8ED]/50">
+                                <Users className="h-4 w-4" />
+                                <span>{Number(auc.bidCount || auc.bid_count || 0)} lượt</span>
+                            </div>
+                            <ArrowUpRight className="h-5 w-5 text-[#9A6A2F] group-hover:text-[#E8C58F] transition-colors" />
                         </div>
                     </div>
-                </section>
+                </div>
+            </div>
+        </Link>
+        );
+    };
+
+    return (
+        <main ref={pageRef} className="min-h-screen bg-[#0E0A07]">
+            {/* Header */}
+            <div className="relative bg-gradient-to-b from-[#1A140F] to-[#0E0A07] border-b border-[#9A6A2F]/10">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-[#FFF8ED]">
+                                Phiên đấu giá
+                            </h1>
+                            <p className="mt-2 text-sm text-[#FFF8ED]/50">
+                                Khám phá các phiên đấu giá đang diễn ra và sắp tới
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {/* View Toggle */}
+                            <div className="flex rounded-lg border border-[#9A6A2F]/20 p-1">
+                                <button
+                                    onClick={() => setViewMode('grid')}
+                                    className={`p-1.5 rounded transition-colors ${
+                                        viewMode === 'grid' 
+                                            ? 'bg-[#9A6A2F]/20 text-[#E8C58F]' 
+                                            : 'text-[#FFF8ED]/40 hover:text-[#FFF8ED]'
+                                    }`}
+                                >
+                                    <Grid className="h-4 w-4" />
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    className={`p-1.5 rounded transition-colors ${
+                                        viewMode === 'list' 
+                                            ? 'bg-[#9A6A2F]/20 text-[#E8C58F]' 
+                                            : 'text-[#FFF8ED]/40 hover:text-[#FFF8ED]'
+                                    }`}
+                                >
+                                    <List className="h-4 w-4" />
+                                </button>
+                            </div>
+                            {/* Mobile Filter Button */}
+                            <button
+                                onClick={() => setShowMobileFilter(true)}
+                                className="lg:hidden flex items-center gap-2 px-4 py-2 rounded-lg border border-[#9A6A2F]/20 text-[#FFF8ED]/70 hover:bg-[#1A140F] transition-colors"
+                            >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                <span className="text-sm">Lọc</span>
+                                {activeFilterCount > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.5 bg-[#9A6A2F] text-xs rounded-full text-white">
+                                        {activeFilterCount}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Filter Panel - Desktop */}
+                    <div className="hidden lg:block w-72 flex-shrink-0">
+                        <FilterPanel />
+                    </div>
+
+                    {/* Auction List */}
+                    <div className="flex-1">
+                        {/* Results Header */}
+                        <div className="flex items-center justify-between mb-6">
+                            <p className="text-sm text-[#FFF8ED]/50">
+                                Hiển thị <span className="text-[#E8C58F] font-medium">{auctions.length}</span> phiên
+                            </p>
+                            {activeFilterCount > 0 && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-[#FFF8ED]/40">Đang lọc:</span>
+                                    <div className="flex items-center gap-2">
+                                        {currentStatus && (
+                                            <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#E8C58F] rounded">
+                                                {statusOptions.find(o => o.value === currentStatus)?.label}
+                                            </span>
+                                        )}
+                                        {currentCategory && (
+                                            <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#E8C58F] rounded">
+                                                {categories.find(c => c.id === currentCategory)?.name}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Results */}
+                        {auctions.length > 0 ? (
+                            viewMode === 'grid' ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 xl:gap-6">
+                                    {auctions.map(auc => (
+                                        <LotCard key={auc.id} auc={auc} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {auctions.map(auc => (
+                                        <LotListItem key={auc.id} auc={auc} />
+                                    ))}
+                                </div>
+                            )
+                        ) : (
+                            <EmptyState 
+                                icon={Search} 
+                                title="Không tìm thấy kết quả" 
+                                description="Thử thay đổi bộ lọc hoặc quay lại sau" 
+                            />
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Mobile Filter Modal */}
+            {showMobileFilter && (
+                <div className="fixed inset-0 z-50 lg:hidden">
+                    <div 
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+                        onClick={() => setShowMobileFilter(false)} 
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto bg-[#1A140F] rounded-t-2xl shadow-2xl">
+                        <div className="sticky top-0 bg-[#1A140F] border-b border-[#9A6A2F]/10 p-4 flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-[#FFF8ED]">Bộ lọc</h3>
+                            <button 
+                                onClick={() => setShowMobileFilter(false)}
+                                className="p-2 hover:bg-[#2F2418] rounded-lg transition-colors"
+                            >
+                                <X className="h-5 w-5 text-[#FFF8ED]/60" />
+                            </button>
+                        </div>
+                        <div className="p-4 pb-8">
+                            <FilterPanel />
+                        </div>
+                    </div>
+                </div>
             )}
-
-            <section className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-28">
-                <div data-reveal className="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end">
-                    <div><p className="auction-kicker">Phien dang mo</p><h2 className="auction-section-title">Cac phien dang dau gia</h2></div>
-                    <p className="max-w-md text-sm leading-7 text-[#FFF8ED]/62">Danh sach nay chi hien cac phien ACTIVE thuc te tu he thong, khong chen so lieu ao.</p>
-                </div>
-                {featuredLots.length > 0 ? <div className="auction-lot-grid">{featuredLots.map((auc, index) => <LotCard key={auc.id} auc={auc} index={index} featured />)}</div> : <div data-reveal className="border border-[#E8C58F]/25 bg-[#15110D]/55 p-8 text-[#FFF8ED]/70">Hien chua co them phien ACTIVE nao ngoai phien noi bat.</div>}
-            </section>
-
-            <section className="mx-auto max-w-7xl px-5 pb-24 md:px-8 md:pb-32">
-                <div className="mb-10 flex items-center justify-between gap-4" data-reveal>
-                    <div><p className="auction-kicker">Bang phien</p><h2 className="auction-section-title">Tat ca phien dau gia</h2><p className="mt-3 text-sm text-[#FFF8ED]/58">Dang hien thi {auctions.length} phien theo bo loc hien tai</p></div>
-                    <button onClick={() => setShowMobileFilter(true)} className="inline-flex items-center gap-2 border border-[#9A6A2F]/35 px-4 py-3 text-xs uppercase tracking-[0.22em] text-[#2F2418] md:hidden"><SlidersHorizontal className="h-4 w-4" />Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</button>
-                </div>
-                <div className="grid gap-10 lg:grid-cols-[260px_1fr]">
-                    <FilterPanel className="hidden lg:block" />
-                    {auctions.length > 0 ? <div className="auction-lot-grid">{auctions.map((auc, index) => <LotCard key={auc.id} auc={auc} index={index} />)}</div> : <EmptyState icon={Search} title="Không tìm thấy kết quả" description="Thử thay đổi bộ lọc hoặc quay lại sau" />}
-                </div>
-            </section>
-
-            {showMobileFilter && <div className="fixed inset-0 z-50 lg:hidden"><div className="absolute inset-0 bg-[#2F2418]/28 backdrop-blur-sm" onClick={() => setShowMobileFilter(false)} /><div className="absolute bottom-0 left-0 right-0 max-h-[86vh] overflow-y-auto bg-[#F8F1E6] p-6 shadow-2xl"><div className="mb-6 flex items-center justify-between"><p className="text-sm uppercase tracking-[0.3em] text-[#2F2418]">Filters</p><button onClick={() => setShowMobileFilter(false)} className="grid h-10 w-10 place-items-center border border-[#9A6A2F]/30 text-[#2F2418]"><X className="h-4 w-4" /></button></div><FilterPanel /></div></div>}
         </main>
     );
 }

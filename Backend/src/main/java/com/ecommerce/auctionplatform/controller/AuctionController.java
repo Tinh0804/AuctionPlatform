@@ -5,6 +5,7 @@ import com.ecommerce.auctionplatform.dto.request.BidRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuctionCreationResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse;
+import com.ecommerce.auctionplatform.dto.respose.AuctionResponse;
 import com.ecommerce.auctionplatform.dto.respose.BidResponse;
 import com.ecommerce.auctionplatform.dto.respose.CategoryResponse;
 import com.ecommerce.auctionplatform.service.AuctionService;
@@ -32,11 +33,11 @@ public class AuctionController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public APIResponse<Page<AuctionDetailResponse>> getAllAuctions(
+    public APIResponse<Page<AuctionResponse>> getAllAuctions(
             @RequestParam(required = false) String status,
             @RequestParam(name = "category_id", required = false) String categoryId,
             @PageableDefault(size = 12) Pageable pageable) {
-        return APIResponse.<Page<AuctionDetailResponse>>builder()
+        return APIResponse.<Page<AuctionResponse>>builder()
                 .status(HttpStatus.OK.value())
                 .message("Auctions fetched successfully")
                 .result(auctionService.getAllAuctions(status, categoryId, pageable))

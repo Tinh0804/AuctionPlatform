@@ -4,6 +4,7 @@ import com.ecommerce.auctionplatform.dto.request.AuctionCreationRequest;
 import com.ecommerce.auctionplatform.dto.request.BidRequest;
 import com.ecommerce.auctionplatform.dto.respose.AuctionCreationResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuctionDetailResponse;
+import com.ecommerce.auctionplatform.dto.respose.AuctionResponse;
 import com.ecommerce.auctionplatform.dto.respose.BidResponse;
 import com.ecommerce.auctionplatform.dto.respose.ImageResponse;
 import com.ecommerce.auctionplatform.entity.*;
@@ -166,7 +167,7 @@ public class AuctionService {
                 .message("Auction created successfully")
                 .build();
     }
-    public Page<AuctionDetailResponse> getAllAuctions(String statusStr, String categoryIdStr, Pageable pageable) {
+    public Page<AuctionResponse> getAllAuctions(String statusStr, String categoryIdStr, Pageable pageable) {
         AuctionStatus status = null;
         if (statusStr != null && !statusStr.isBlank()) {
             try {
@@ -201,29 +202,22 @@ public class AuctionService {
         Page<Auction> auctions = auctionRepository.findAll(spec, pageable);
         return auctions.map(auction -> {
             List<Image> images = imageRepository.findByProductId(auction.getProduct().getId());
-            List<ImageResponse> imageResponses = images.stream()
-                    .map(img -> ImageResponse.builder()
-                            .url(img.getFileUrl())
-                            .isCover(img.getIsCover())
-                            .build())
-                    .toList();
+            String coverImage = images.stream()
+                    .filter(img -> Boolean.TRUE.equals(img.getIsCover()))
+                    .map(Image::getFileUrl)
+                    .findFirst()
+                    .orElse(images.isEmpty() ? null : images.get(0).getFileUrl());
 
-            return AuctionDetailResponse.builder()
+            return AuctionResponse.builder()
                     .id(auction.getId())
                     .productName(auction.getProduct().getName())
-                    .description(auction.getDescription())
+                    .categoryName(auction.getProduct().getCategory() != null ? auction.getProduct().getCategory().getName() : null)
                     .status(auction.getStatus().name())
-                    .startPrice(auction.getStartPrice())
                     .currentPrice(auction.getCurrentPrice())
-                    .stepPrice(auction.getStepPrice())
-                    .depositAmount(auction.getDepositAmount())
+                    .bidCount(bidRepository.countByAuctionId(auction.getId()))
                     .startTime(auction.getStartTime())
                     .endTime(auction.getEndTime())
-                    .autoExtend(auction.getAutoExtend())
-                    .extendMinutes(auction.getExtendMinutes())
-                    .sellerName(auction.getUser().getName())
-                    .sellerId(auction.getUser().getId())
-                    .images(imageResponses)
+                    .coverImage(coverImage)
                     .build();
         });
     }
@@ -337,9 +331,17 @@ public class AuctionService {
         }
 
         BigDecimal minBid = auction.getCurrentPrice().add(auction.getStepPrice());
-        if (bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId).isEmpty()) {
+        List<Bid> bids = bidRepository.findByAuctionIdOrderByBidTimeDesc(auctionId);
+        
+        if (bids.isEmpty()) {
             minBid = auction.getStartPrice();
+        } else {
+            Bid topBid = bids.get(0);
+            if (topBid.getUser().getId().equals(user.getId())) {
+                throw new AppException(ErrorCode.ALREADY_LEADING);
+            }
         }
+        
         if (request.getBidAmount().compareTo(minBid) < 0) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
