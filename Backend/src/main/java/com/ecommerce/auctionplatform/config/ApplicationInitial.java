@@ -88,6 +88,7 @@ public class ApplicationInitial {
                         .build();
                 userRepository.save(adminProfile);
 
+
                 log.warn(">>> Account Admin khởi tạo thành công với mật khẩu: {}", PASSWORD_ADMIN);
             } else {
                 log.info("Tài khoản Admin đã tồn tại.");

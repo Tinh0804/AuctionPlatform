@@ -5,6 +5,8 @@ import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.entity.Wallet;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
+import com.ecommerce.auctionplatform.entity.enums.PredefinedRole;
+import com.ecommerce.auctionplatform.entity.enums.WalletStatus;
 import com.ecommerce.auctionplatform.repository.TransactionRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.repository.WalletRepository;
@@ -23,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -101,6 +104,22 @@ public class WalletService {
                 new AppException(ErrorCode.UNAUTHORIZED)));
         return userRepository.findById(userProfileId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    public Wallet getAdminWallet() {
+        User adminUser = userRepository.findFirstByAccount_Role_Name(PredefinedRole.ADMIN.name())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        return walletRepository.findByUser(adminUser)
+                .orElse(walletRepository.save(
+                    Wallet.builder()
+                    .user(adminUser)
+                    .availableBalance(BigDecimal.ZERO)
+                    .frozenBalance(BigDecimal.ZERO)
+                    .status(WalletStatus.ACTIVE)
+                    .createdAt(LocalDateTime.now())
+                    .notes("Wallet for admin")
+                    .build()
+                ));
     }
 
     private String verifyFirebaseTokenAndGetPhone(String idToken) {

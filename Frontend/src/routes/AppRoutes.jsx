@@ -6,6 +6,7 @@ import { Routes, Route } from 'react-router-dom';
 import MainLayout from '@/layouts/MainLayout';
 import AuthLayout from '@/layouts/AuthLayout';
 import ProtectedRoute from '@/routes/ProtectedRoute';
+import AdminProtectedRoute from '@/routes/AdminProtectedRoute';
 
 // Public pages
 import Home from '@/pages/public/Home';
@@ -33,6 +34,9 @@ import CreateAuction from '@/pages/seller/CreateAuction';
 
 import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
 import AdminDisputesPage from '@/pages/admin/AdminDisputesPage';
+import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
+import AdminLoginPage from '@/pages/admin/AdminLoginPage';
+import AdminLayout from '@/layouts/AdminLayout';
 
 // Fallback
 import NotFound from '@/pages/NotFound';
@@ -44,6 +48,15 @@ const AppRoutes = () => {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+      </Route>
+
+      {/* ── Admin Login ── */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+
+      {/* ── Admin Layout ── */}
+      <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
+        <Route index element={<AdminDashboardPage />} />
+        <Route path="disputes" element={<AdminDisputesPage />} />
       </Route>
 
       {/* ── Main Layout ── */}
@@ -73,7 +86,6 @@ const AppRoutes = () => {
         {/* Protected: Seller */}
         <Route path="auctions/create" element={<ProtectedRoute><CreateAuction /></ProtectedRoute>} />
 
-        {/* Protected: Admin */}
         <Route path="admin/disputes" element={<ProtectedRoute><AdminDisputesPage /></ProtectedRoute>} />
 
 

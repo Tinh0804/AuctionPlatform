@@ -151,12 +151,19 @@ export default function Login() {
                 </div>
 
                 {/* Footer */}
-                <p className="text-center text-sm text-[#2F2418]/55 mt-8">
-                    Chưa có tài khoản?{' '}
-                    <Link to="/register" className="text-[#9A6A2F] font-semibold hover:underline">
-                        Đăng ký ngay
-                    </Link>
-                </p>
+                <div className="text-center mt-8 space-y-4">
+                    <p className="text-sm text-[#2F2418]/55">
+                        Chưa có tài khoản?{' '}
+                        <Link to="/register" className="text-[#9A6A2F] font-semibold hover:underline">
+                            Đăng ký ngay
+                        </Link>
+                    </p>
+                    <div className="border-t border-[#2F2418]/10 pt-4">
+                        <Link to="/admin/login" className="text-xs text-[#2F2418]/40 hover:text-[#9A6A2F] transition-colors inline-flex items-center gap-1">
+                            <Lock className="w-3 h-3" /> Đăng nhập dành cho Quản trị viên
+                        </Link>
+                    </div>
+                </div>
             </div>
         </div>
     );
