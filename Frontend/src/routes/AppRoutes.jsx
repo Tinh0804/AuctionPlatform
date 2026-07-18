@@ -35,6 +35,7 @@ import CreateAuction from '@/pages/seller/CreateAuction';
 import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
 import AdminDisputesPage from '@/pages/admin/AdminDisputesPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
+import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import AdminLayout from '@/layouts/AdminLayout';
 
@@ -56,6 +57,7 @@ const AppRoutes = () => {
       {/* ── Admin Layout ── */}
       <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
         <Route index element={<AdminDashboardPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
         <Route path="disputes" element={<AdminDisputesPage />} />
       </Route>
 

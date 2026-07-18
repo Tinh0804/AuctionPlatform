@@ -1,19 +1,24 @@
 package com.ecommerce.auctionplatform.service;
 
 import com.ecommerce.auctionplatform.dto.request.AddressRequest;
+import com.ecommerce.auctionplatform.dto.request.AdminUserUpdateRequest;
 import com.ecommerce.auctionplatform.dto.request.PhoneUpdateRequest;
 import com.ecommerce.auctionplatform.dto.request.UserUpdateRequest;
 import com.ecommerce.auctionplatform.dto.respose.AddressDto;
 import com.ecommerce.auctionplatform.dto.respose.UserResponse;
 import com.ecommerce.auctionplatform.dto.respose.WalletResponse;
+import com.ecommerce.auctionplatform.entity.Account;
 import com.ecommerce.auctionplatform.entity.Address;
 import com.ecommerce.auctionplatform.entity.User;
 import com.ecommerce.auctionplatform.entity.Wallet;
 import com.ecommerce.auctionplatform.entity.enums.PredefinedRole;
+import com.ecommerce.auctionplatform.entity.enums.VerificationStatus;
 import com.ecommerce.auctionplatform.entity.enums.WalletStatus;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.mapper.UserMapper;
+import com.ecommerce.auctionplatform.mapper.WalletMapper;
+import com.ecommerce.auctionplatform.repository.AccountRepository;
 import com.ecommerce.auctionplatform.repository.AddressRepository;
 import com.ecommerce.auctionplatform.repository.UserRepository;
 import com.ecommerce.auctionplatform.repository.WalletRepository;
@@ -26,8 +31,14 @@ import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.prepost.PreAuthorize;
+import jakarta.persistence.criteria.Predicate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,7 +49,9 @@ import java.util.stream.Collectors;
 @FieldDefaults(level = AccessLevel.PRIVATE,makeFinal = true)
 public class UserService {
     UserRepository userRepository;
+    AccountRepository accountRepository;
     UserMapper userMapper;
+    WalletMapper walletMapper;
     WalletRepository walletRepository;
     AddressRepository addressRepository;
     CloudinaryService cloudinaryService;
@@ -188,5 +201,136 @@ public class UserService {
     public boolean isCreatedAuction(){
         User user = getCurrentUser();
         return user.getVerificationStatus()!= null && user.getVerificationStatus().name().equals("VERIFIED") && user.getReputationScore()>=50;
+    }
+
+    // --- Admin Methods ---
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    public Page<UserResponse> getAllUsers(String keyword, Pageable pageable) {
+        Specification<User> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            predicates.add(cb.notEqual(root.get("account").get("role").get("name"), "ADMIN"));
+
+            if (keyword != null && !keyword.trim().isEmpty()) {
+                String searchPattern = "%" + keyword.trim().toLowerCase() + "%";
+                Predicate namePredicate = cb.like(cb.lower(root.get("name")), searchPattern);
+                Predicate emailPredicate = cb.like(cb.lower(root.get("email")), searchPattern);
+                Predicate phonePredicate = cb.like(cb.lower(root.get("phone")), searchPattern);
+                Predicate usernamePredicate = cb.like(cb.lower(root.get("account").get("username")), searchPattern);
+                
+                predicates.add(cb.or(namePredicate, emailPredicate, phonePredicate, usernamePredicate));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        return userRepository.findAll(spec, pageable).map(userMapper::toUserResponse);
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    public UserResponse getUserDetail(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        UserResponse response = userMapper.toUserResponse(user);
+        
+        walletRepository.findByUser(user).ifPresent(wallet -> {
+            response.setWallet(walletMapper.toWalletResponse(wallet));
+        });
+        
+        return response;
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    public void toggleUserStatus(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                
+        if (PredefinedRole.ADMIN.name().equals(user.getAccount().getRole().getName())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        Account account = user.getAccount();
+        account.setIsActive(!account.getIsActive());
+        accountRepository.save(account);
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    public void toggleWalletStatus(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                
+        Wallet wallet = walletRepository.findByUser(user)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        if (wallet.getStatus() == WalletStatus.ACTIVE) {
+            wallet.setStatus(WalletStatus.FROZEN);
+        } else {
+            wallet.setStatus(WalletStatus.ACTIVE);
+        }
+        walletRepository.save(wallet);
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    public void updateVerificationStatus(UUID id, String status) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                
+        try {
+            VerificationStatus newStatus = VerificationStatus.valueOf(status.toUpperCase());
+            user.setVerificationStatus(newStatus);
+            userRepository.save(user);
+        } catch (IllegalArgumentException e) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+    }
+
+    public UserResponse adminUpdateUser(UUID id, AdminUserUpdateRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (request.getName() != null && !request.getName().trim().isEmpty()) {
+            user.setName(request.getName());
+        }
+        if (request.getPhone() != null && !request.getPhone().trim().isEmpty()) {
+            user.setPhone(request.getPhone());
+        }
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            user.setEmail(request.getEmail());
+        }
+        if (request.getIdentityCard() != null) {
+            user.setIdentityCard(request.getIdentityCard().trim().isEmpty() ? null : request.getIdentityCard());
+        }
+        if (request.getGender() != null) {
+            user.setGender(request.getGender());
+        }
+        if (request.getDob() != null) {
+            user.setDob(request.getDob());
+        }
+        if (request.getReputationScore() != null) {
+            user.setReputationScore(request.getReputationScore());
+        }
+
+        userRepository.save(user);
+        return userMapper.toUserResponse(user);
+    }
+
+    public void deleteUser(UUID id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        // Soft delete implementation: Deactivate account and anonymize sensitive data
+        Account account = user.getAccount();
+        if (account != null) {
+            account.setIsActive(false);
+            accountRepository.save(account);
+        }
+        
+        // Anonymize user data to prevent future logins and comply with privacy
+        user.setEmail("deleted_" + id + "@deleted.com");
+        user.setPhone("0000000000");
+        user.setIdentityCard(null);
+        userRepository.save(user);
     }
 }
