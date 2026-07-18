@@ -12,8 +12,7 @@ export default function AdminLayout() {
     const navItems = [
         { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
         { name: 'Người dùng', path: '/admin/users', icon: Users },
-        { name: 'Phiên đấu giá', path: '/admin/auctions', icon: Scale },
-        { name: 'Sản phẩm', path: '/admin/products', icon: ShoppingBag },
+        { name: 'Đấu giá', path: '/admin/auctions', icon: Scale },
         { name: 'Danh mục', path: '/admin/categories', icon: FolderOpen },
         { name: 'Khiếu nại', path: '/admin/disputes', icon: Scale },
         { name: 'Thông báo', path: '/admin/notifications', icon: Bell },

@@ -25,3 +25,32 @@ export const updateUser = (id, data) =>
 export const deleteUser = (id) =>
     apiClient.delete(`/admin/users/${id}`).then(r => r.data);
 
+
+// Categories Management
+export const getAllCategories = () =>
+    apiClient.get('/auctions/categories').then(r => r.data);
+
+export const createCategory = (data) =>
+    apiClient.post('/admin/categories', data).then(r => r.data);
+
+export const updateCategory = (id, data) =>
+    apiClient.put(`/admin/categories/${id}`, data).then(r => r.data);
+
+export const deleteCategory = (id) =>
+    apiClient.delete(`/admin/categories/${id}`).then(r => r.data);
+
+// Auctions Management
+export const getAllAuctions = (params) =>
+    apiClient.get('/admin/auctions', { params }).then(r => r.data);
+
+export const getAuctionDetail = (id) =>
+    apiClient.get(`/auctions/${id}`).then(r => r.data);
+
+export const updateAuctionStatus = (id, status) =>
+    apiClient.put(`/admin/auctions/${id}/status?status=${status}`).then(r => r.data);
+
+export const updateAuction = (id, data) =>
+    apiClient.put(`/admin/auctions/${id}`, data).then(r => r.data);
+
+export const deleteAuction = (id) =>
+    apiClient.delete(`/admin/auctions/${id}`).then(r => r.data);

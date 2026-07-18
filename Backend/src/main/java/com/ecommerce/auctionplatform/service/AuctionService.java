@@ -23,6 +23,7 @@ import lombok.experimental.NonFinal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -248,7 +249,13 @@ public class AuctionService {
                 .extendMinutes(auction.getExtendMinutes())
                 .sellerName(auction.getUser().getName())
                 .sellerId(auction.getUser().getId())
-                .images(imageResponses)
+                .productImages(imageResponses)
+                .productCondition(auction.getProduct().getCondition() != null ? auction.getProduct().getCondition().name() : null)
+                .productManufactureYear(auction.getProduct().getManufactureYear())
+                .productOrigin(auction.getProduct().getOrigin())
+                .hasCertificate(auction.getProduct().getHasCertificate())
+                .provenanceFileUrl(auction.getProduct().getProvenanceFileUrl())
+                .productDescription(auction.getProduct().getDescription())
                 .build();
     }
 
@@ -687,5 +694,93 @@ public class AuctionService {
         }
     }
 
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    @Transactional
+    public void adminUpdateAuctionStatus(UUID id, String statusStr) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+                
+        AuctionStatus newStatus;
+        try {
+            newStatus = AuctionStatus.valueOf(statusStr);
+        } catch (IllegalArgumentException e) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        
+        // Admin only approves or rejects PENDING auctions
+        if (!auction.getStatus().equals(AuctionStatus.PENDING)) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        
+        if (!newStatus.equals(AuctionStatus.APPROVED) && !newStatus.equals(AuctionStatus.CANCELLED)) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        auction.setStatus(newStatus);
+        auctionRepository.save(auction);
+        
+        // Update product status as well
+        Product product = auction.getProduct();
+        if (newStatus.equals(AuctionStatus.APPROVED)) {
+            product.setStatus(ProductStatus.APPROVED);
+        } else {
+            product.setStatus(ProductStatus.REJECTED);
+        }
+        productRepository.save(product);
+    }
+    
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public void adminUpdateAuction(UUID id, com.ecommerce.auctionplatform.dto.request.AdminAuctionUpdateRequest request) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+                
+        // Only allow updating if the auction hasn't started yet or is PENDING
+        if (auction.getStatus() == AuctionStatus.ACTIVE || auction.getStatus() == AuctionStatus.CLOSED) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        Product product = auction.getProduct();
+        if (request.getName() != null) product.setName(request.getName());
+        if (request.getOrigin() != null) product.setOrigin(request.getOrigin());
+        if (request.getCondition() != null) product.setCondition(com.ecommerce.auctionplatform.entity.enums.ProductCondition.valueOf(request.getCondition()));
+        if (request.getManufactureYear() != null) product.setManufactureYear(request.getManufactureYear());
+        if (request.getCategoryId() != null) {
+            Category category = categoryRepository.findById(UUID.fromString(request.getCategoryId()))
+                    .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
+            product.setCategory(category);
+        }
+        productRepository.save(product);
+
+        if (request.getDescription() != null) auction.setDescription(request.getDescription());
+        if (request.getStartPrice() != null) {
+            auction.setStartPrice(request.getStartPrice());
+            auction.setCurrentPrice(request.getStartPrice());
+        }
+        if (request.getStepPrice() != null) auction.setStepPrice(request.getStepPrice());
+        if (request.getDepositAmount() != null) auction.setDepositAmount(request.getDepositAmount());
+        if (request.getStartTime() != null) auction.setStartTime(request.getStartTime());
+        if (request.getEndTime() != null) auction.setEndTime(request.getEndTime());
+        
+        auctionRepository.save(auction);
+    }
+    
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public void adminDeleteAuction(UUID id) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+                
+        if (auction.getStatus() == AuctionStatus.ACTIVE) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        
+        auction.setStatus(AuctionStatus.CANCELLED);
+        auctionRepository.save(auction);
+        
+        Product product = auction.getProduct();
+        product.setStatus(ProductStatus.REJECTED);
+        productRepository.save(product);
+    }
 }
 

@@ -32,6 +32,11 @@ public class AuctionDetailResponse {
     Integer extendMinutes;
     String sellerName;
     UUID sellerId;
-    List<ImageResponse> images;
-
+    List<ImageResponse> productImages;
+    String productCondition;
+    String productManufactureYear;
+    String productOrigin;
+    Boolean hasCertificate;
+    String provenanceFileUrl;
+    String productDescription;
 }

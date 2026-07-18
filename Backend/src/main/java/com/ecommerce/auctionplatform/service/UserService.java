@@ -286,6 +286,7 @@ public class UserService {
         }
     }
 
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
     public UserResponse adminUpdateUser(UUID id, AdminUserUpdateRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -316,21 +317,11 @@ public class UserService {
         return userMapper.toUserResponse(user);
     }
 
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
     public void deleteUser(UUID id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         
-        // Soft delete implementation: Deactivate account and anonymize sensitive data
-        Account account = user.getAccount();
-        if (account != null) {
-            account.setIsActive(false);
-            accountRepository.save(account);
-        }
-        
-        // Anonymize user data to prevent future logins and comply with privacy
-        user.setEmail("deleted_" + id + "@deleted.com");
-        user.setPhone("0000000000");
-        user.setIdentityCard(null);
-        userRepository.save(user);
+        userRepository.delete(user);
     }
 }

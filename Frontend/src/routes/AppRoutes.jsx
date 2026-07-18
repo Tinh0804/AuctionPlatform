@@ -36,6 +36,8 @@ import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
 import AdminDisputesPage from '@/pages/admin/AdminDisputesPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
+import AdminCategoriesPage from '@/pages/admin/AdminCategoriesPage';
+import AdminAuctionsPage from '@/pages/admin/AdminAuctionsPage';
 import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import AdminLayout from '@/layouts/AdminLayout';
 
@@ -59,6 +61,8 @@ const AppRoutes = () => {
         <Route index element={<AdminDashboardPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="disputes" element={<AdminDisputesPage />} />
+        <Route path="categories" element={<AdminCategoriesPage />} />
+        <Route path="auctions" element={<AdminAuctionsPage />} />
       </Route>
 
       {/* ── Main Layout ── */}
