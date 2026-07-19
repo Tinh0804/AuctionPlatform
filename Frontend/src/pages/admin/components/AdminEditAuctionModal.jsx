@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { updateAuction, getAllCategories } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 
 export default function AdminEditAuctionModal({ auctionDetail, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function AdminEditAuctionModal({ auctionDetail, onClose, onSucces
     });
 
     useEffect(() => {
-        getAllCategories().then(res => {
+        adminApi.getAllCategories().then(res => {
             if (res.result) setCategories(res.result);
         });
         
@@ -57,7 +57,7 @@ export default function AdminEditAuctionModal({ auctionDetail, onClose, onSucces
         e.preventDefault();
         try {
             setLoading(true);
-            await updateAuction(auctionDetail.id, formData);
+            await adminApi.updateAuction(auctionDetail.id, formData);
             toast.success('Cập nhật phiên đấu giá thành công');
             onSuccess();
         } catch (error) {

@@ -14,4 +14,6 @@ public class CategoryResponse {
     UUID id;
     String name;
     String description;
+    Long productCount;
+    String imageUrl;
 }

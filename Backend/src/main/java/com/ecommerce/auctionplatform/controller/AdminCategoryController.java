@@ -22,18 +22,18 @@ import java.util.UUID;
 public class AdminCategoryController {
     CategoryService categoryService;
 
-    @PostMapping
-    public APIResponse<CategoryResponse> createCategory(@RequestBody @Valid CategoryRequest request) {
+    @PostMapping(consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public APIResponse<CategoryResponse> createCategory(@ModelAttribute @Valid CategoryRequest request) {
         return APIResponse.<CategoryResponse>builder()
                 .result(categoryService.createCategory(request))
                 .message("Category created successfully")
                 .build();
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public APIResponse<CategoryResponse> updateCategory(
             @PathVariable UUID id,
-            @RequestBody @Valid CategoryRequest request) {
+            @ModelAttribute @Valid CategoryRequest request) {
         return APIResponse.<CategoryResponse>builder()
                 .result(categoryService.updateCategory(id, request))
                 .message("Category updated successfully")

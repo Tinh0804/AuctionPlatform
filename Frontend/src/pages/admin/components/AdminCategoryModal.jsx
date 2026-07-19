@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Image as ImageIcon, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { createCategory, updateCategory } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 
 export default function AdminCategoryModal({ category, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -18,6 +20,9 @@ export default function AdminCategoryModal({ category, onClose, onSuccess }) {
                 description: category.description || '',
                 parentId: category.parentId || ''
             });
+            if (category.imageUrl) {
+                setImagePreview(category.imageUrl);
+            }
         }
     }, [category]);
 
@@ -31,11 +36,18 @@ export default function AdminCategoryModal({ category, onClose, onSuccess }) {
 
         try {
             setLoading(true);
+
+        const submitData = new FormData();
+        submitData.append('name', formData.name);
+        if (formData.description) submitData.append('description', formData.description);
+        if (formData.parentId) submitData.append('parentId', formData.parentId);
+        if (imageFile) submitData.append('image', imageFile);
+
             if (category) {
-                await updateCategory(category.id, formData);
+                await adminApi.updateCategory(category.id, submitData);
                 toast.success('Cập nhật danh mục thành công');
             } else {
-                await createCategory(formData);
+                await adminApi.createCategory(submitData);
                 toast.success('Thêm danh mục thành công');
             }
             onSuccess();
@@ -62,6 +74,46 @@ export default function AdminCategoryModal({ category, onClose, onSuccess }) {
 
                 <div className="p-6 overflow-y-auto">
                     <form id="category-form" onSubmit={handleSubmit} className="space-y-4">
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Ảnh đại diện / Icon
+                            </label>
+                            <div className="flex items-center gap-4">
+                                {imagePreview ? (
+                                    <div className="relative w-20 h-20 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 flex-shrink-0 group">
+                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        <button 
+                                            type="button"
+                                            onClick={() => { setImageFile(null); setImagePreview(null); }}
+                                            className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-5 h-5 text-white" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50 flex-shrink-0">
+                                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                                setImageFile(file);
+                                                setImagePreview(URL.createObjectURL(file));
+                                            }
+                                        }}
+                                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-colors"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500">PNG, JPG, WEBP (Max 2MB)</p>
+                                </div>
+                            </div>
+                        </div>
+    
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Tên danh mục <span className="text-red-500">*</span>

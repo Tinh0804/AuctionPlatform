@@ -6,6 +6,8 @@ import com.ecommerce.auctionplatform.entity.Category;
 import com.ecommerce.auctionplatform.exception.AppException;
 import com.ecommerce.auctionplatform.exception.ErrorCode;
 import com.ecommerce.auctionplatform.repository.CategoryRepository;
+import com.ecommerce.auctionplatform.repository.ProductRepository;
+import com.ecommerce.auctionplatform.service.CloudinaryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CategoryService {
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
+    private final CloudinaryService cloudinaryService;
 
     public List<CategoryResponse> getAllCategories() {
         return categoryRepository.findAll().stream()
@@ -27,9 +31,19 @@ public class CategoryService {
     
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request) {
+        String imageUrl = null;
+        if (request.getImage() != null && !request.getImage().isEmpty()) {
+            try {
+                imageUrl = cloudinaryService.uploadFile(request.getImage(), "categories");
+            } catch (Exception e) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+        }
+
         Category category = Category.builder()
                 .name(request.getName())
                 .description(request.getDescription())
+                .imageUrl(imageUrl)
                 .build();
                 
         if (request.getParentId() != null && !request.getParentId().isEmpty()) {
@@ -48,6 +62,15 @@ public class CategoryService {
                 
         category.setName(request.getName());
         category.setDescription(request.getDescription());
+        
+        if (request.getImage() != null && !request.getImage().isEmpty()) {
+            try {
+                String imageUrl = cloudinaryService.uploadFile(request.getImage(), "categories");
+                category.setImageUrl(imageUrl);
+            } catch (Exception e) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+        }
         
         if (request.getParentId() != null && !request.getParentId().isEmpty()) {
             Category parent = categoryRepository.findById(UUID.fromString(request.getParentId()))
@@ -68,10 +91,13 @@ public class CategoryService {
     }
     
     private CategoryResponse mapToResponse(Category category) {
+        long productCount = productRepository.countByCategoryId(category.getId());
         return CategoryResponse.builder()
                 .id(category.getId())
                 .name(category.getName())
                 .description(category.getDescription())
+                .productCount(productCount)
+                .imageUrl(category.getImageUrl())
                 .build();
     }
 }

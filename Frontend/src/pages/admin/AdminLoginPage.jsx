@@ -1,7 +1,8 @@
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '@/config/constants';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, User, Eye, EyeOff, Terminal } from 'lucide-react';
-import { login, getMyInfo } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 import useAuthStore from '@/store/useAuthStore';
 
 export default function AdminLoginPage() {
@@ -18,7 +19,7 @@ export default function AdminLoginPage() {
         setError("");
         setLoading(true);
         try {
-             const res = await login({
+             const res = await authApi.login({
                  userName: formData.username,
                  passWord: formData.password
              });
@@ -32,15 +33,15 @@ export default function AdminLoginPage() {
                      throw new Error("Tài khoản không có quyền quản trị viên");
                  }
 
-                 localStorage.setItem('token', token);
+                 localStorage.setItem(TOKEN_KEY, token);
                  if (refreshToken) {
-                     localStorage.setItem('refreshToken', refreshToken);
+                     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
                  }
                  
                  useAuthStore.getState().setToken(token);
                  
                  try {
-                     const myInfoRes = await getMyInfo();
+                     const myInfoRes = await authApi.getMyInfo();
                      useAuthStore.getState().setUser(myInfoRes.result || myInfoRes);
                  } catch (err) {
                      useAuthStore.getState().setUser(account);

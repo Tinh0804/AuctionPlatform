@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Search, MoreVertical, Filter, UserX, UserCheck, Eye, Lock, Unlock, ShieldAlert, ShieldCheck, Edit2, Trash2 } from 'lucide-react';
-import { getAllUsers, toggleUserStatus, toggleWalletStatus, updateVerificationStatus, getUserDetail, deleteUser } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 import { useToast } from '@/components/Elements/Toast';
 import AdminEditUserModal from './components/AdminEditUserModal';
 
@@ -19,7 +19,7 @@ export default function AdminUsersPage() {
     const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await getAllUsers({ keyword, page, size: 10 });
+            const res = await adminApi.getAllUsers({ keyword, page, size: 10 });
             if (res.result) {
                 setUsers(res.result.content);
                 setTotalPages(res.result.totalPages);
@@ -42,7 +42,7 @@ export default function AdminUsersPage() {
         try {
             setDetailLoading(true);
             setIsViewModalOpen(true);
-            const res = await getUserDetail(id);
+            const res = await adminApi.getUserDetail(id);
             if (res.result) {
                 setSelectedUser(res.result);
             }
@@ -57,7 +57,7 @@ export default function AdminUsersPage() {
     const handleToggleAccount = async (id) => {
         if (!window.confirm("Bạn có chắc chắn muốn thay đổi trạng thái đăng nhập của người dùng này?")) return;
         try {
-            await toggleUserStatus(id);
+            await adminApi.toggleUserStatus(id);
             toast.success("Đã thay đổi trạng thái tài khoản");
             if (selectedUser && selectedUser.id === id) {
                 setSelectedUser(prev => ({
@@ -74,7 +74,7 @@ export default function AdminUsersPage() {
     const handleToggleWallet = async (id) => {
         if (!window.confirm("Bạn có chắc chắn muốn thay đổi trạng thái ví của người dùng này?")) return;
         try {
-            await toggleWalletStatus(id);
+            await adminApi.toggleWalletStatus(id);
             toast.success("Đã thay đổi trạng thái ví");
             if (selectedUser && selectedUser.id === id) {
                 setSelectedUser(prev => ({
@@ -92,7 +92,7 @@ export default function AdminUsersPage() {
 
     const handleVerification = async (id, status) => {
         try {
-            await updateVerificationStatus(id, status);
+            await adminApi.updateVerificationStatus(id, status);
             toast({ title: "Thành công", description: "Cập nhật trạng thái định danh thành công", type: "success" });
             fetchUsers();
             if (selectedUser?.id === id) {
@@ -108,7 +108,7 @@ export default function AdminUsersPage() {
             return;
         }
         try {
-            await deleteUser(id);
+            await adminApi.deleteUser(id);
             toast({ title: "Thành công", description: "Đã xóa người dùng thành công", type: "success" });
             setSelectedUser(null);
             fetchUsers();

@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Scale, Search, Eye, Filter, CheckCircle, XCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAllAuctions, getAuctionDetail, updateAuctionStatus } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 import AdminAuctionDetailModal from './components/AdminAuctionDetailModal';
 import AdminEditAuctionModal from './components/AdminEditAuctionModal';
-import { deleteAuction } from '@/features/admin/api';
 import { Edit2, Trash2 } from 'lucide-react';
 
 export default function AdminAuctionsPage() {
+    const location = useLocation();
     const [auctions, setAuctions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('search') || '';
+    });
     const [statusFilter, setStatusFilter] = useState('');
     
     // Pagination states
@@ -30,7 +34,7 @@ export default function AdminAuctionsPage() {
             const params = { page, size: pageSize };
             if (statusFilter) params.status = statusFilter;
             
-            const res = await getAllAuctions(params);
+            const res = await adminApi.getAllAuctions(params);
             if (res.result) {
                 setAuctions(res.result.content);
                 setTotalPages(res.result.totalPages);
@@ -53,7 +57,7 @@ export default function AdminAuctionsPage() {
 
     const handleEdit = async (auction) => {
         try {
-            const res = await getAuctionDetail(auction.id);
+            const res = await adminApi.getAuctionDetail(auction.id);
             if (res.result) {
                 setSelectedAuctionForEdit(res.result);
                 setIsEditModalOpen(true);
@@ -66,7 +70,7 @@ export default function AdminAuctionsPage() {
     const handleDelete = async (id) => {
         if (!window.confirm("Bạn có chắc chắn muốn xóa phiên đấu giá này?")) return;
         try {
-            await deleteAuction(id);
+            await adminApi.deleteAuction(id);
             toast.success("Đã xóa phiên đấu giá");
             fetchAuctions();
         } catch (error) {
@@ -78,7 +82,7 @@ export default function AdminAuctionsPage() {
         if (!window.confirm(`Bạn có chắc chắn muốn ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} phiên đấu giá này?`)) return;
         
         try {
-            await updateAuctionStatus(id, status);
+            await adminApi.updateAuctionStatus(id, status);
             toast.success(`Đã ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} phiên đấu giá`);
             fetchAuctions();
             setIsDetailModalOpen(false);

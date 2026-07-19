@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getOverviewStats } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 import { Users, Scale, ShoppingBag, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -18,7 +18,7 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const overviewRes = await getOverviewStats(period);
+                const overviewRes = await adminApi.getOverviewStats(period);
                 
                 if (overviewRes.result) {
                     setOverview({

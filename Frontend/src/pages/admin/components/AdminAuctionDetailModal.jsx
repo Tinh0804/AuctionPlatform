@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, XCircle, ShoppingBag, Info, Clock, Check, ChevronLeft, ChevronRight, Scale } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getAuctionDetail } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 
 export default function AdminAuctionDetailModal({ auctionId, onClose, onStatusChange }) {
     const [loading, setLoading] = useState(true);
@@ -12,7 +12,7 @@ export default function AdminAuctionDetailModal({ auctionId, onClose, onStatusCh
         const fetchDetail = async () => {
             try {
                 setLoading(true);
-                const res = await getAuctionDetail(auctionId);
+                const res = await adminApi.getAuctionDetail(auctionId);
                 if (res.result) {
                     setDetail(res.result);
                 }

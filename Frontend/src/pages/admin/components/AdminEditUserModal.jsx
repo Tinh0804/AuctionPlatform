@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import { updateUser } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 import { useToast } from '@/components/Elements/Toast';
 
 export default function AdminEditUserModal({ user, onClose, onSuccess }) {
@@ -46,7 +46,7 @@ export default function AdminEditUserModal({ user, onClose, onSuccess }) {
                 ...formData,
                 reputationScore: parseInt(formData.reputationScore, 10)
             };
-            await updateUser(user.id, dataToSubmit);
+            await adminApi.updateUser(user.id, dataToSubmit);
             toast({ title: 'Thành công', description: 'Cập nhật thông tin thành công', type: 'success' });
             onSuccess();
         } catch (error) {

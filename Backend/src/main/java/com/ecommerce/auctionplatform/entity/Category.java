@@ -25,4 +25,7 @@ public class Category {
     @ManyToOne
     @JoinColumn(name = "parent_id")
     Category parent;
+
+    @Column(name = "image_url")
+    String imageUrl;
 }

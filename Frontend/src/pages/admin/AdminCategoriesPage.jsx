@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FolderOpen, Plus, Edit2, Trash2, Search } from 'lucide-react';
+import { FolderOpen, Plus, Edit2, Trash2, Search, Gavel } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { getAllCategories, deleteCategory } from '@/features/admin/api';
+import { adminApi } from '@/features/admin/api';
 import AdminCategoryModal from './components/AdminCategoryModal';
 
 export default function AdminCategoriesPage() {
+    const navigate = useNavigate();
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -16,7 +18,7 @@ export default function AdminCategoriesPage() {
     const fetchCategories = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await getAllCategories();
+            const res = await adminApi.getAllCategories();
             if (res.result) {
                 setCategories(res.result);
             }
@@ -35,7 +37,7 @@ export default function AdminCategoriesPage() {
         if (!window.confirm("Bạn có chắc chắn muốn xóa danh mục này?")) return;
         
         try {
-            await deleteCategory(id);
+            await adminApi.deleteCategory(id);
             toast.success("Đã xóa danh mục");
             fetchCategories();
         } catch (error) {
@@ -98,6 +100,7 @@ export default function AdminCategoriesPage() {
                         <thead>
                             <tr className="bg-gray-50/50 border-b border-gray-100">
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Danh mục</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Số lượng sản phẩm</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Mô tả</th>
                                 <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Thao tác</th>
                             </tr>
@@ -125,17 +128,33 @@ export default function AdminCategoriesPage() {
                                     <tr key={category.id} className="hover:bg-gray-50/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                                    <FolderOpen className="w-5 h-5" />
+                                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                    {category.imageUrl ? (
+                                                        <img src={category.imageUrl} alt={category.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <FolderOpen className="w-5 h-5" />
+                                                    )}
                                                 </div>
                                                 <span className="font-semibold text-gray-900">{category.name}</span>
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                {category.productCount || 0}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="text-sm text-gray-600 line-clamp-2">{category.description || '-'}</span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex items-center justify-end gap-2">
+                                                <button 
+                                                    onClick={() => navigate(`/admin/auctions?search=${encodeURIComponent(category.name)}`)}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                    title="Xem Đấu giá"
+                                                >
+                                                    <Gavel className="w-5 h-5" />
+                                                </button>
                                                 <button 
                                                     onClick={() => handleEdit(category)}
                                                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
