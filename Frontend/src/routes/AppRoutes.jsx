@@ -92,7 +92,6 @@ const AppRoutes = () => {
         {/* Protected: Seller */}
         <Route path="auctions/create" element={<ProtectedRoute><CreateAuction /></ProtectedRoute>} />
 
-        <Route path="admin/disputes" element={<ProtectedRoute><AdminDisputesPage /></ProtectedRoute>} />
 
 
         {/* 404 */}

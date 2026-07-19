@@ -75,6 +75,7 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
 
+    @Builder.Default
     @Column(name = "updated_at")
-    LocalDateTime updatedAt;
+    LocalDateTime updatedAt = LocalDateTime.now();
 }

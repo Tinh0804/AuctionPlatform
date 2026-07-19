@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import useAuthStore from '@/store/useAuthStore';
-import { LayoutDashboard, Users, ShoppingBag, FolderOpen, Scale, Bell, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, FolderOpen, Scale, Bell, Settings, LogOut, ShieldAlert } from 'lucide-react';
 export default function AdminLayout() {
     const { user, logout } = useAuthStore();
     const navigate = useNavigate();
@@ -14,7 +14,7 @@ export default function AdminLayout() {
         { name: 'Người dùng', path: '/admin/users', icon: Users },
         { name: 'Đấu giá', path: '/admin/auctions', icon: Scale },
         { name: 'Danh mục', path: '/admin/categories', icon: FolderOpen },
-        { name: 'Khiếu nại', path: '/admin/disputes', icon: Scale },
+        { name: 'Khiếu nại', path: '/admin/disputes', icon: ShieldAlert },
         { name: 'Thông báo', path: '/admin/notifications', icon: Bell },
         { name: 'Cài đặt', path: '/admin/settings', icon: Settings },
     ];
@@ -29,7 +29,8 @@ export default function AdminLayout() {
             {/* Sidebar */}
             <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
                 <div className="h-16 flex items-center px-6 border-b border-gray-200">
-                    <span className="text-xl font-black tracking-tighter text-[#111111]">AUCTION<span className="text-gray-400">ADMIN</span></span>
+                    <img className="w-10 h-10 mr-2" src="/favicon.svg" alt="Logo" />
+                    <span className="text-xl font-black tracking-tighter text-[#111111]">AUCTION</span>
                 </div>
                 <nav className="flex-1 overflow-y-auto py-4">
                     <ul className="space-y-1 px-3">

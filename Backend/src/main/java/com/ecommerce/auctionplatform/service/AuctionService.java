@@ -1,5 +1,6 @@
 package com.ecommerce.auctionplatform.service;
 
+import com.ecommerce.auctionplatform.dto.request.AdminAuctionUpdateRequest;
 import com.ecommerce.auctionplatform.dto.request.AuctionCreationRequest;
 import com.ecommerce.auctionplatform.dto.request.BidRequest;
 import com.ecommerce.auctionplatform.dto.respose.AuctionCreationResponse;
@@ -729,9 +730,9 @@ public class AuctionService {
         productRepository.save(product);
     }
     
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
     @Transactional
-    public void adminUpdateAuction(UUID id, com.ecommerce.auctionplatform.dto.request.AdminAuctionUpdateRequest request) {
+    public void adminUpdateAuction(UUID id, AdminAuctionUpdateRequest request) {
         Auction auction = auctionRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
                 
@@ -765,7 +766,7 @@ public class AuctionService {
         auctionRepository.save(auction);
     }
     
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
     @Transactional
     public void adminDeleteAuction(UUID id) {
         Auction auction = auctionRepository.findById(id)

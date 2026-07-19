@@ -1,5 +1,6 @@
 package com.ecommerce.auctionplatform.controller;
 
+import com.ecommerce.auctionplatform.dto.request.AdminAuctionUpdateRequest;
 import com.ecommerce.auctionplatform.dto.respose.APIResponse;
 import com.ecommerce.auctionplatform.dto.respose.AuctionResponse;
 import com.ecommerce.auctionplatform.entity.enums.PredefinedRole;
@@ -47,7 +48,7 @@ public class AdminAuctionController {
     @PutMapping("/{id}")
     public APIResponse<Void> updateAuction(
             @PathVariable UUID id,
-            @RequestBody com.ecommerce.auctionplatform.dto.request.AdminAuctionUpdateRequest request) {
+            @RequestBody AdminAuctionUpdateRequest request) {
         auctionService.adminUpdateAuction(id, request);
         return APIResponse.<Void>builder()
                 .message("Auction updated successfully")

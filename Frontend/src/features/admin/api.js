@@ -50,5 +50,15 @@ export const adminApi = {
     apiClient.put(`/admin/auctions/${id}`, data).then(r => r.data),
 
   deleteAuction: (id) =>
-    apiClient.delete(`/admin/auctions/${id}`).then(r => r.data)
+    apiClient.delete(`/admin/auctions/${id}`).then(r => r.data),
+
+  // Disputes Management
+  getAllDisputes: (params) =>
+    apiClient.get('/admin/disputes', { params }).then(r => r.data),
+
+  getDisputeDetail: (id) =>
+    apiClient.get(`/admin/disputes/${id}`).then(r => r.data),
+
+  resolveDispute: (id, data) =>
+    apiClient.post(`/admin/disputes/${id}/resolve`, data).then(r => r.data)
 };
