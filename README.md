@@ -2,132 +2,143 @@
 
 # 🏷️ Auction Platform — Nền tảng Đấu giá Trực tuyến
 
-**Ứng dụng web full-stack cho phép người dùng đăng bán sản phẩm, tạo phiên đấu giá, đặt giá (bid) theo thời gian thực, và quản lý toàn bộ vòng đời giao dịch từ đặt cọc, thanh toán đến nhận hàng.**
+Ứng dụng web full-stack cho phép người dùng đăng bán sản phẩm, tham gia đấu giá theo thời gian thực (real-time bid), và quản lý toàn bộ vòng đời giao dịch từ đặt cọc, thanh toán đến nhận hàng.
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen)
 ![React](https://img.shields.io/badge/React-18.2-blue)
-![License](https://img.shields.io/badge/license-Portfolio-lightgrey)
 
 </div>
 
 ---
 
-## 📸 Demo / Screenshots
+## 📸 Ảnh minh họa (Demo)
 
-| Trang chủ | Chi tiết đấu giá | Tạo phiên đấu giá |
-|:---------:|:----------------:|:-----------------:|
-| ![Home](docs/screenshots/home.png) | ![Detail](docs/screenshots/auction-detail.png) | ![Create](docs/screenshots/create-auction.png) |
+### Giao diện Người dùng
+| Trang chủ | Chi tiết đấu giá |
+|:---------:|:----------------:|
+| ![Home](Frontend/public/screenshots/user/home.png) | ![Auction](Frontend/public/screenshots/user/auction.png) |
 
-| Đăng nhập | Hồ sơ & eKYC | Thanh toán |
+### Giao diện Quản trị viên
+| Bảng điều khiển | Quản lý Đấu giá |
+|:---------:|:----------------:|
+| ![Dispute](Frontend/public/screenshots/admin/dispute.png) | ![Admin Auction](Frontend/public/screenshots/admin/auction.png) |
+
+<details>
+<summary><b>🖱️ Xem thêm các hình ảnh khác</b></summary>
+<br>
+
+**Người dùng:**
+| Đơn hàng | Hồ sơ | Ví điện tử |
 |:---------:|:-------------:|:----------:|
-| ![Login](docs/screenshots/login.png) | ![Profile](docs/screenshots/profile.png) | ![Checkout](docs/screenshots/checkout.png) |
+| ![Order](Frontend/public/screenshots/user/order.png) | ![Profile](Frontend/public/screenshots/user/profile.png) | ![Wallet](Frontend/public/screenshots/user/wallet.png) |
 
-> 💡 *Link demo: https://auctionplatform.tinhlelaptrinh.id.vn *
+**Quản trị viên:**
+| Người dùng | Danh mục | Khiếu nại |
+|:---------:|:-------------:|:----------:|
+| ![User](Frontend/public/screenshots/admin/user.png) | ![Category](Frontend/public/screenshots/admin/category.png) | ![Dispute](Frontend/public/screenshots/admin/dispute.png) |
 
----
-
-## 🛠️ Công nghệ (Tech Stack)
-
-**Backend**
-* **Framework:** Java 21, Spring Boot 4.0.6
-* **Bảo mật & Xác thực:** Spring Security, OAuth2 (Google/Facebook), JWT (Nimbus JOSE+JWT)
-* **Real-time:** Spring WebSocket
-* **Cơ sở dữ liệu:** PostgreSQL (dữ liệu quan hệ), Redis (cache, blacklist token)
-* **Tích hợp bên thứ 3:** Cloudinary (lưu ảnh), FPT.AI Vision (OCR eKYC), MoMo & VNPay API
-* **Khác:** Spring Data JPA, MapStruct, Lombok, SpringDoc OpenAPI (Swagger)
-
-**Frontend**
-* **Core:** React 18.2, Vite 4.4.5
-* **State Management:** Zustand 5
-* **Styling & UI:** TailwindCSS 3, GSAP (animation), Lucide React (icon)
-* **Routing:** React Router 6
-* **Form & Validation:** Zod
-* **HTTP Client:** Axios
-* **Auth phía client:** Firebase (Google OAuth)
-
-**DevOps**
-* **Deployment:** Docker (container hóa Frontend)
-* **Build tool:** Maven, npm
+</details>
 
 ---
 
-## ✨ Điểm nổi bật (Features)
+## ✨ Tính năng nổi bật
 
-* **🔐 Xác thực & Bảo mật:** Đăng nhập cục bộ + OAuth2 (Google/Facebook), JWT Access/Refresh Token, Token Blacklist qua Redis, phân quyền theo Role (ADMIN, STAFF, USER).
-* **🪪 eKYC — Xác minh danh tính:** Tích hợp FPT.AI Vision OCR tự động nhận diện CCCD (số, họ tên, giới tính), upload ảnh bảo mật lên Cloudinary.
-* **🏷️ Quản lý phiên đấu giá:** Tạo phiên với đầy đủ thông tin sản phẩm/giá/thời gian, vòng đời trạng thái (`PENDING → APPROVED → ACTIVE → EXTENDED → CLOSED`), tự động gia hạn khi có bid phút cuối (anti-snipe).
-* **💰 Đấu giá Real-time:** Đặt giá qua WebSocket, lưu lịch sử bid, đăng ký tham gia kèm đặt cọc, xếp hạng người thắng chính + dự phòng.
-* **💳 Ví điện tử & Thanh toán:** Ví với số dư khả dụng/đóng băng, tích hợp MoMo & VNPay, đa dạng loại giao dịch (nạp/rút, cọc, hoàn cọc, phí nền tảng).
-* **📦 Đơn hàng hậu đấu giá:** Tự động tạo đơn sau khi kết thúc phiên, vòng đời đầy đủ (chờ thanh toán → hẹn gặp → hoàn thành), đánh giá sau giao dịch.
-* **⚖️ Khiếu nại & Uy tín:** Hệ thống Dispute có bằng chứng, Admin xử lý và phán quyết, điểm uy tín theo dõi lịch sử hành vi.
-* **🔔 Thông báo real-time:** Qua WebSocket cho bid mới, thắng đấu giá, hoàn cọc, đơn hàng, khiếu nại...
+- **Xác thực đa luồng & eKYC:** Đăng nhập JWT/OAuth2, tự động trích xuất thông tin CCCD qua FPT.AI Vision (OCR).
+- **Đấu giá Real-time:** Đặt giá và cập nhật trạng thái ngay lập tức qua WebSocket, cơ chế chống snipe tự gia hạn giờ.
+- **Ví điện tử:** Tích hợp ví nội bộ (số dư đóng băng/khả dụng) và cổng thanh toán MoMo/VNPay.
+- **Quy trình hoàn chỉnh:** Tự động tạo đơn hàng sau đấu giá, theo dõi trạng thái giao hàng, đánh giá người bán/mua.
+- **Quản lý & Khiếu nại:** Cung cấp Dashboard toàn diện cho Admin và hệ thống giải quyết tranh chấp giao dịch minh bạch.
 
 ---
 
-## 🚀 Hướng dẫn Cài đặt & Chạy thử
+## 📂 Cấu trúc dự án
 
-Yêu cầu hệ thống: **Java 21, Node.js 18+, PostgreSQL 14+, Redis 7+, Maven.**
+```text
+AuctionPlatform/
+├── Backend/                            # Spring Boot application
+│   ├── src/main/java/.../auctionplatform/
+│   │   ├── config/                     # Cấu hình bảo mật, Redis, WebSocket
+│   │   ├── controller/                 # Các API endpoints 
+│   │   ├── dto/                        # Đối tượng truyền tải dữ liệu (Request/Response)
+│   │   ├── entity/                     # Thực thể cơ sở dữ liệu (JPA Models)
+│   │   ├── exception/                  # Xử lý ngoại lệ (Exception handler)
+│   │   ├── repository/                 # Giao tiếp với Database
+│   │   ├── service/                    # Logic nghiệp vụ (Business logic)
+│   │   └── utils/                      # Các tiện ích hỗ trợ (Security, Validation)
+│   ├── src/main/resources/
+│   │   └── application.yaml            # File cấu hình môi trường
+│   └── database.sql                    # Script khởi tạo cơ sở dữ liệu
+│
+└── Frontend/                           # React application (Vite)
+    ├── public/                         # Tài nguyên tĩnh (hình ảnh, icon)
+    ├── src/
+    │   ├── components/                 # Các UI Component dùng chung (Button, Input, Modal...)
+    │   ├── features/                   # Tách biệt API và logic theo từng domain (admin, auth, auction...)
+    │   ├── layouts/                    # Cấu trúc bố cục trang (AdminLayout, UserLayout)
+    │   ├── pages/                      # Các màn hình chính của ứng dụng
+    │   ├── routes/                     # Cấu hình điều hướng (React Router)
+    │   ├── services/                   # Cấu hình HTTP Client (Axios, interceptors) & WebSocket
+    │   ├── store/                      # Quản lý State toàn cục bằng Zustand
+    │   └── utils/                      # Tiện ích định dạng tiền tệ, ngày tháng...
+    ├── tailwind.config.js              # Cấu hình giao diện TailwindCSS
+    └── package.json                    # Danh sách thư viện phụ thuộc
+```
 
-### Bước 1: Clone dự án & Khởi tạo CSDL
+
+---
+
+## 🚀 Hướng dẫn cài đặt (Installation)
+
+**Yêu cầu hệ thống:** Java 21, Node.js 18+, PostgreSQL 14+, Redis 7+.
+
+**1. Clone dự án & Thiết lập Database:**
 ```bash
-git clone https://github.com/<your-username>/auction-platform.git
-cd auction-platform
-
-# Tạo database và import schema
+git clone https://github.com/Tinh0804/AuctionPlatform.git
+cd AuctionPlatform
 psql -U postgres -c "CREATE DATABASE auctiondb;"
 psql -U postgres -d auctiondb -f Backend/database.sql
 ```
 
-### Bước 2: Cấu hình và Khởi động Backend
-1. Mở `Backend/src/main/resources/application.yaml`, cập nhật thông tin PostgreSQL, Redis.
-2. Điền các key: Cloudinary (`cloud_name`, `api_key`, `api_secret`), FPT.AI (`app.fptai.key`), OAuth2 Google/Facebook.
-3. Chạy Backend bằng Maven:
+**2. Cấu hình Backend:**
+- Cập nhật các biến môi trường trong `Backend/src/main/resources/application.yaml` (Database, Redis, Cloudinary, FPT.AI, OAuth2).
+- Chạy Backend:
 ```bash
+cd Backend
 ./mvnw clean install -DskipTests
 ./mvnw spring-boot:run
 ```
-*(Server chạy tại: `http://localhost:8080/AuctionPlatform` — Swagger UI: `/swagger-ui.html`)*
 
-### Bước 3: Cấu hình và Khởi động Frontend
+**3. Khởi chạy Redis & Frontend:**
 ```bash
+docker run -d -p 6379:6379 redis:7-alpine
+
 cd Frontend
 npm install
 echo "VITE_API_URL=http://localhost:8080/AuctionPlatform" > .env
 npm run dev
 ```
-*(Mở trình duyệt truy cập: `http://localhost:5173`)*
-
-### Bước 4: Khởi động Redis
-```bash
-# Docker (khuyến nghị)
-docker run -d -p 6379:6379 redis:7-alpine
-```
 
 ---
 
-## 🔑 Tài khoản Demo
+## 💡 Hướng dẫn sử dụng (Usage)
 
-Hệ thống tự động tạo tài khoản Admin khi khởi chạy lần đầu:
+Sau khi hệ thống khởi chạy thành công:
+- **Frontend:** Truy cập `http://localhost:5174`
+- **Backend (Swagger API):** Truy cập `http://localhost:8081/AuctionPlatform/swagger-ui.html`
 
+**Tài khoản dùng thử có sẵn:**
 | Vai trò | Username | Password |
 |---------|----------|----------|
-| **Admin** | `admin` | `12345` |
-| **Seller** | `0366900822` | `123456` |
-| **Buyer** | `0366900823` | `123456` |
+| **Admin** | `admin` | `admin` |
+| **Seller** | `seller` | `123456` |
+| **Buyer** | `buyer` | `123456` |
 
-*Bạn cũng có thể tự đăng ký tài khoản Người mua/Người bán mới trực tiếp trên hệ thống.*
-
----
-
-## 📄 Giấy phép
-
-Dự án này được phát triển cho mục đích **học tập và portfolio**. Mọi quyền thuộc về tác giả.
+Để tạo một phiên đấu giá: Đăng nhập quyền Người bán -> Tới Hồ sơ -> Sản phẩm -> Thêm mới -> Gửi yêu cầu duyệt lên Admin.
 
 ---
 
-<div align="center">
+## 📄 Giấy phép (License)
 
-*Xây dựng với mong muốn tạo ra một nền tảng đấu giá minh bạch, an toàn và trải nghiệm real-time mượt mà!* ⭐
-
-</div>
+Dự án này được cấp phép theo tiêu chuẩn **MIT License**. Bạn có quyền sử dụng, sao chép, và chỉnh sửa cho mục đích cá nhân hoặc thương mại.
+Mọi chi tiết xin liên hệ hoặc pull request đóng góp cho dự án.
