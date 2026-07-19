@@ -1,7 +1,8 @@
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '@/config/constants';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Gavel, Eye, EyeOff, User, Lock, LogIn } from 'lucide-react';
-import { login, getMyInfo } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 import useAuthStore from '@/store/useAuthStore';
 
 export default function Login() {
@@ -18,7 +19,7 @@ export default function Login() {
         setError("");
         setLoading(true);
         try {
-             const res = await login({
+             const res = await authApi.login({
                  userName: formData.username,
                  passWord: formData.password
              });
@@ -28,15 +29,15 @@ export default function Login() {
              const account = res.result?.account;
              
              if (token) {
-                 localStorage.setItem('token', token);
+                 localStorage.setItem(TOKEN_KEY, token);
                  if (refreshToken) {
-                     localStorage.setItem('refreshToken', refreshToken);
+                     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
                  }
                  
                  useAuthStore.getState().setToken(token);
                  
                  try {
-                     const myInfoRes = await getMyInfo();
+                     const myInfoRes = await authApi.getMyInfo();
                      useAuthStore.getState().setUser(myInfoRes.result || myInfoRes);
                  } catch (err) {
                      useAuthStore.getState().setUser(account);

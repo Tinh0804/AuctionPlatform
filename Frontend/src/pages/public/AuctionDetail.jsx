@@ -1,3 +1,4 @@
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '@/config/constants';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, Clock3, Gavel, Info, Minus, Plus, Radio, TrendingUp, Award } from 'lucide-react';
@@ -11,7 +12,7 @@ const money = value => Number(value || 0).toLocaleString('vi-VN');
 const statusLabel = { ACTIVE: 'Đang diễn ra', PENDING: 'Sắp bắt đầu', CLOSED: 'Đã chốt phiên', ENDED: 'Đã kết thúc', FAILED: 'Thất bại', CANCELLED: 'Đã hủy' };
 
 function getCurrentUserId() {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem(TOKEN_KEY);
     if (!token) return null;
     try {
         return JSON.parse(atob(token.split('.')[1]))?.user_id || null;

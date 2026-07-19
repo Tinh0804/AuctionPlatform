@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Gavel, Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, ArrowLeft, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
-import { register } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 import { registerSchema } from '@/schemas/dto';
 import { useToast } from '@/components/Elements/Toast';
 
@@ -69,7 +69,7 @@ export default function Register() {
                 email: formData.email
             };
 
-            await register(requestData);
+            await authApi.register(requestData);
             
             setSuccess('Đăng ký tài khoản thành công! Bạn sẽ được chuyển hướng sang trang đăng nhập.');
             toast.success('Đăng ký tài khoản thành công! 🎉');

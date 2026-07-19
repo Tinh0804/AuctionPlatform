@@ -11,7 +11,7 @@ import {
   Award, Gem, ChevronRight, Headphones, Settings,
 } from 'lucide-react';
 import { useStomp } from '@/hooks/useStomp';
-import { getMyInfo, getNotifications, markNotificationRead } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 import useAuthStore from '@/store/useAuthStore';
 
 const MainLayout = () => {
@@ -36,7 +36,7 @@ const MainLayout = () => {
   // Nếu có token nhưng chưa có user (ví dụ layout render trước App.jsx), tự fetch
   useEffect(() => {
     if (token && !user) {
-      getMyInfo()
+      authApi.getMyInfo()
         .then(res => setUser(res.result || res))
         .catch(() => { });
     }
@@ -45,7 +45,7 @@ const MainLayout = () => {
   // Lấy thông báo khi đã có user
   useEffect(() => {
     if (token) {
-      getNotifications()
+      authApi.getNotifications()
         .then(res => setNotifications(Array.isArray(res.result) ? res.result : (Array.isArray(res) ? res : [])))
         .catch(console.error);
     }
@@ -238,7 +238,7 @@ const MainLayout = () => {
                               to={n.type === 'auction_won' ? `/invoices/${n.reference_id}/checkout` : n.type === 'auction_failed' ? `/auctions/create?relist_id=${n.reference_id}` : '/profile'}
                               onClick={() => {
                                 if (!n.is_read) {
-                                  markNotificationRead(n.id).then(() => {
+                                  authApi.markNotificationRead(n.id).then(() => {
                                     setNotifications(notifications.map(notif => notif.id === n.id ? { ...notif, is_read: true } : notif));
                                   });
                                 }

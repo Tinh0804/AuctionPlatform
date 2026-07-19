@@ -3,8 +3,8 @@ import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Wallet as WalletIcon, ArrowDownLeft, ArrowUpRight, Lock, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/services/firebase';
-import { verifyVnpayReturn } from '@/features/payment/api';
-import { requestDeposit, requestWithdraw, setupPin as setupPinApi, getWalletHistory } from '@/features/wallet/api';
+import { paymentApi } from '@/features/payment/api';
+import { walletApi } from '@/features/wallet/api';
 
 export default function WalletPage() {
     const { profile, fetchProfile } = useOutletContext();
@@ -36,7 +36,7 @@ export default function WalletPage() {
             
             if (queryParams.has('vnp_SecureHash')) {
                 try {
-                    const res = await verifyVnpayReturn(location.search);
+                    const res = await paymentApi.verifyVnpayReturn(location.search);
                     if (res.paymentStatus === 'SUCCESS') {
                         setSuccessPopup({ title: 'Nạp tiền thành công!', message: 'Số dư ví đã được cập nhật qua VNPay.' });
                         setShowSuccessPopup(true);
@@ -76,7 +76,7 @@ export default function WalletPage() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                const res = await getWalletHistory();
+                const res = await walletApi.getWalletHistory();
                 if (res.result) setTransactions(res.result);
             } catch (error) {
                 console.error("Lỗi lấy lịch sử giao dịch:", error);
@@ -93,7 +93,7 @@ export default function WalletPage() {
             return;
         }
         try {
-            const res = await requestDeposit(depositAmount, provider);
+            const res = await walletApi.requestDeposit(depositAmount, provider);
             if (res.result?.payment_url) {
                 window.location.href = res.result.payment_url;
             } else if (res.result?.message) {
@@ -110,7 +110,7 @@ export default function WalletPage() {
             return;
         }
         try {
-            await requestWithdraw(withdrawInfo);
+            await walletApi.requestWithdraw(withdrawInfo);
             setSuccessPopup({ title: 'Yêu cầu rút tiền thành công!', message: 'Hệ thống đang xử lý giao dịch của bạn.' });
             setShowSuccessPopup(true);
             setShowWithdrawModal(false);
@@ -190,7 +190,7 @@ export default function WalletPage() {
         setPinLoading(true);
         try {
             const idToken = await auth.currentUser.getIdToken();
-            await setupPinApi({ firebase_id_token: idToken, new_pin: newPin });
+            await walletApi.setupPin({ firebase_id_token: idToken, new_pin: newPin });
             fetchProfile(); // refresh to update has_pin
             setSuccessPopup({ title: 'Thiết lập PIN thành công!', message: 'Ví của bạn đã được bảo vệ bằng mã PIN mới.' });
             setShowSuccessPopup(true);

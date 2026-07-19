@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { ToastProvider } from '@/components/Elements/Toast';
 import AppRoutes from '@/routes/AppRoutes';
 import useAuthStore from '@/store/useAuthStore';
-import { getMyInfo } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 
 // Scroll to top on route change (instant, not smooth)
 function ScrollToTop() {
@@ -19,7 +19,7 @@ function App() {
 
   useEffect(() => {
     if (token && !user) {
-      getMyInfo()
+      authApi.getMyInfo()
         .then((res) => {
           setUser(res.result || res);
         })

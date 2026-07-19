@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LogOut, User as UserIcon, Award, Wallet as WalletIcon, Package, Headphones, Settings, Loader } from 'lucide-react';
 import useAuthStore from '@/store/useAuthStore';
-import { getMyInfo } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 
 export default function ProfileLayout() {
     const navigate = useNavigate();
@@ -10,7 +10,7 @@ export default function ProfileLayout() {
     const [loading, setLoading] = useState(!profile);
 
     const fetchProfile = () => {
-        getMyInfo()
+        authApi.getMyInfo()
             .then(res => {
                 setUser(res.result || res);
                 setLoading(false);

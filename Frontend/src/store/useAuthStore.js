@@ -2,25 +2,26 @@
 // src/store/useAuthStore.js
 // Zustand store quản lý trạng thái xác thực toàn cục
 // ============================================================
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '@/config/constants';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const useAuthStore = create(
   persist(
     (set) => ({
-      token: localStorage.getItem('token') || null,
+      token: localStorage.getItem(TOKEN_KEY) || null,
       user: null,
 
       setToken: (token) => {
-        localStorage.setItem('token', token);
+        localStorage.setItem(TOKEN_KEY, token);
         set({ token });
       },
 
       setUser: (user) => set({ user }),
 
       logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
         set({ token: null, user: null });
       },
 

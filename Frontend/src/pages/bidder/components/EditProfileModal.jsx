@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { updateMyInfo, updateMyPhone, uploadAvatar, addAddress, deleteAddress } from '@/features/auth/api';
+import { authApi } from '@/features/auth/api';
 import { X, CheckCircle, AlertCircle, Upload, Trash2, Plus, MapPin } from 'lucide-react';
 import { auth } from '@/services/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
@@ -55,14 +55,14 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
         setError(null);
         try {
             if (avatarFile) {
-                await uploadAvatar(avatarFile);
+                await authApi.uploadAvatar(avatarFile);
             }
             
             const formattedDob = (dobYear && dobMonth && dobDay) 
                 ? `${dobYear}-${dobMonth.padStart(2, '0')}-${dobDay.padStart(2, '0')}` 
                 : null;
 
-            await updateMyInfo({
+            await authApi.updateMyInfo({
                 name: formData.name,
                 email: formData.email,
                 dob: formattedDob,
@@ -120,7 +120,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
         try {
             const result = await confirmationResult.confirm(otp);
             const token = await result.user.getIdToken();
-            await updateMyPhone(token);
+            await authApi.updateMyPhone(token);
             onSuccess();
             onClose();
         } catch (err) {
@@ -136,7 +136,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
         setLoading(true);
         setError(null);
         try {
-            await addAddress(newAddress);
+            await authApi.addAddress(newAddress);
             await onSuccess(); // refresh profile data
             setNewAddress({ addressLine: '', city: '', district: '', ward: '', isDefault: false });
             setShowAddAddress(false);
@@ -152,7 +152,7 @@ const EditProfileModal = ({ profile, onClose, onSuccess }) => {
         setLoading(true);
         setError(null);
         try {
-            await deleteAddress(id);
+            await authApi.deleteAddress(id);
             await onSuccess();
         } catch (err) {
             setError(err?.response?.data?.message || 'Không thể xóa địa chỉ.');
