@@ -1,3 +1,5 @@
 antigravity.json
 /backup_payment_files/**.java
 /backup_payment_files/**.jsx
+.agents/
+docs/

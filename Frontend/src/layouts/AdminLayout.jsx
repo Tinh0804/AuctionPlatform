@@ -14,6 +14,7 @@ export default function AdminLayout() {
         { name: 'Người dùng', path: '/admin/users', icon: Users },
         { name: 'Đấu giá', path: '/admin/auctions', icon: Scale },
         { name: 'Danh mục', path: '/admin/categories', icon: FolderOpen },
+        { name: 'Đơn hàng', path: '/admin/orders', icon: ShoppingBag },
         { name: 'Khiếu nại', path: '/admin/disputes', icon: ShieldAlert },
         { name: 'Thông báo', path: '/admin/notifications', icon: Bell },
         { name: 'Cài đặt', path: '/admin/settings', icon: Settings },

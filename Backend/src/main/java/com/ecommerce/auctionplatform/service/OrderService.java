@@ -20,6 +20,11 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -546,6 +551,55 @@ public class OrderService {
                 orderId, request.getRating(), scoreChange, netAmount, platformFee);
 
         return orderMapper.toOrderResponse(order);
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> getAllOrdersAdmin(String statusStr, Pageable pageable) {
+        Specification<Order> spec = (root, query, cb) -> {
+            if (statusStr != null && !statusStr.isBlank()) {
+                try {
+                    OrderStatus status = OrderStatus.valueOf(statusStr);
+                    return cb.equal(root.get("status"), status);
+                } catch (IllegalArgumentException e) {
+                    return cb.conjunction();
+                }
+            }
+            return cb.conjunction();
+        };
+
+        return orderRepository.findAll(spec, pageable).map(orderMapper::toOrderResponse);
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    @Transactional
+    public OrderResponse adminCancelOrder(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() == OrderStatus.COMPLETED || 
+            order.getStatus() == OrderStatus.CANCELLED) {
+            throw new AppException(ErrorCode.INVALID_STATUS);
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        
+        return orderMapper.toOrderResponse(orderRepository.save(order));
+    }
+
+    @PreAuthorize(PredefinedRole.HAS_ROLE_ADMIN)
+    @Transactional
+    public OrderResponse adminForcePayOrder(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            throw new AppException(ErrorCode.INVALID_STATUS);
+        }
+
+        handleGatewayPaymentSuccess(orderId, order.getTotalAmount());
+        
+        return orderMapper.toOrderResponse(orderRepository.findById(orderId).get());
     }
 
     private int calculateReputationChange(int rating) {

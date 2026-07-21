@@ -60,5 +60,18 @@ export const adminApi = {
     apiClient.get(`/admin/disputes/${id}`).then(r => r.data),
 
   resolveDispute: (id, data) =>
-    apiClient.post(`/admin/disputes/${id}/resolve`, data).then(r => r.data)
+    apiClient.post(`/admin/disputes/${id}/resolve`, data).then(r => r.data),
+
+  // Orders Management
+  getAllOrders: (params) =>
+    apiClient.get('/admin/orders', { params }).then(r => r.data),
+
+  getOrderDetail: (id) =>
+    apiClient.get(`/admin/orders/${id}`).then(r => r.data),
+
+  cancelOrder: (id) =>
+    apiClient.post(`/admin/orders/${id}/cancel`).then(r => r.data),
+
+  forcePayOrder: (id) =>
+    apiClient.post(`/admin/orders/${id}/pay`).then(r => r.data),
 };

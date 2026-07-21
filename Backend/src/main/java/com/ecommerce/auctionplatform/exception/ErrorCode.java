@@ -61,7 +61,8 @@ public enum ErrorCode {
     PAYMENT_METHOD_NOT_SUPPORTED(400, "Payment method not supported", HttpStatus.BAD_REQUEST),
 
     CATEGORY_NOT_FOUND(404,"Category not found", HttpStatus.NOT_FOUND),
-    NOTIFICATION_NOT_FOUND(404, "Notification not found", HttpStatus.NOT_FOUND);
+    NOTIFICATION_NOT_FOUND(404, "Notification not found", HttpStatus.NOT_FOUND),
+    INVALID_STATUS(400, "Invalid status", HttpStatus.BAD_REQUEST);
 
 
     private final String message;

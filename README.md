@@ -41,6 +41,8 @@
 </details>
 
 ---
+## 📸 Link Project(Demo)  
+🔗 **Link demo trực tiếp:** [auctionplatform.tinhlelaptrinh.id.vn](https://auctionplatform.tinhlelaptrinh.id.vn/)
 
 ## ✨ Tính năng nổi bật
 
