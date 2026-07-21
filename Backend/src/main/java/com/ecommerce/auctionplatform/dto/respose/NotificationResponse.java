@@ -22,4 +22,8 @@ public class NotificationResponse {
     UUID referenceId;
     Boolean isRead;
     LocalDateTime createdAt;
+
+    // Admin-only fields (for listing all notifications)
+    String recipientName;
+    UUID recipientId;
 }

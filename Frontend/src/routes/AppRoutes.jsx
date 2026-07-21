@@ -39,6 +39,7 @@ import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminCategoriesPage from '@/pages/admin/AdminCategoriesPage';
 import AdminAuctionsPage from '@/pages/admin/AdminAuctionsPage';
 import AdminOrdersPage from '@/pages/admin/AdminOrdersPage';
+import AdminNotificationsPage from '@/pages/admin/AdminNotificationsPage';
 import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import AdminLayout from '@/layouts/AdminLayout';
 
@@ -65,6 +66,7 @@ const AppRoutes = () => {
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="auctions" element={<AdminAuctionsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="notifications" element={<AdminNotificationsPage />} />
       </Route>
 
       {/* ── Main Layout ── */}

@@ -74,4 +74,26 @@ export const adminApi = {
 
   forcePayOrder: (id) =>
     apiClient.post(`/admin/orders/${id}/pay`).then(r => r.data),
+
+  // Notifications Management
+  getAllNotifications: (params) =>
+    apiClient.get('/admin/notifications', { params }).then(r => r.data),
+
+  getAdminNotifications: () =>
+    apiClient.get('/admin/notifications/my').then(r => r.data),
+
+  getUnreadCount: () =>
+    apiClient.get('/admin/notifications/unread-count').then(r => r.data),
+
+  sendNotification: (data) =>
+    apiClient.post('/admin/notifications/send', data).then(r => r.data),
+
+  markNotificationRead: (id) =>
+    apiClient.put(`/admin/notifications/${id}/read`).then(r => r.data),
+
+  markAllNotificationsRead: () =>
+    apiClient.put('/admin/notifications/read-all').then(r => r.data),
+
+  deleteNotification: (id) =>
+    apiClient.delete(`/admin/notifications/${id}`).then(r => r.data),
 };
