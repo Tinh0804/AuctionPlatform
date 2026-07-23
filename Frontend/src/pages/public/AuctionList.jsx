@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, ArrowUpRight, ChevronRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X, Grid, List } from 'lucide-react';
+import { ArrowUpRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X, Grid, List } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import EmptyState from '@/components/Elements/EmptyState';
 
@@ -22,12 +22,12 @@ const statusText = {
 };
 
 const statusColors = {
-    ACTIVE: 'bg-green-600/20 text-green-400 border-green-500/30',
-    PENDING: 'bg-yellow-600/20 text-yellow-400 border-yellow-500/30',
-    CLOSED: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
-    ENDED: 'bg-red-600/20 text-red-400 border-red-500/30',
-    FAILED: 'bg-red-600/20 text-red-400 border-red-500/30',
-    CANCELLED: 'bg-gray-600/20 text-gray-400 border-gray-500/30',
+    ACTIVE: 'bg-emerald-900/82 text-white border-white/20',
+    PENDING: 'bg-[#9A6A2F]/90 text-white border-white/20',
+    CLOSED: 'bg-[#1c1815]/76 text-white border-white/20',
+    ENDED: 'bg-[#1c1815]/76 text-white border-white/20',
+    FAILED: 'bg-red-800/82 text-white border-white/20',
+    CANCELLED: 'bg-[#746b62]/82 text-white border-white/20',
 };
 
 const getCountdown = auc => {
@@ -90,16 +90,16 @@ function AuctionList() {
     // Filter Panel Component
     const FilterPanel = ({ className = '' }) => (
         <aside className={`${className}`}>
-            <div className="bg-[#1A140F] rounded-xl border border-[#9A6A2F]/20 p-6 sticky top-24">
+            <div className="sticky top-24 rounded-2xl border border-[#1c1815]/10 bg-[#fffdf8] p-6 shadow-[0_18px_50px_rgba(28,24,21,0.06)]">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
-                        <Filter className="h-5 w-5 text-[#E8C58F]" />
-                        <h3 className="text-sm font-medium text-[#FFF8ED]">Bộ lọc</h3>
+                        <Filter className="h-5 w-5 text-[#9A6A2F]" />
+                        <h3 className="text-sm font-bold text-[#1c1815]">Bộ lọc</h3>
                     </div>
                     {activeFilterCount > 0 && (
                         <button 
                             onClick={clearAllFilters}
-                            className="text-xs text-[#9A6A2F] hover:text-[#E8C58F] transition-colors"
+                            className="text-xs text-[#9A6A2F] hover:text-[#1c1815] transition-colors"
                         >
                             Xóa tất cả
                         </button>
@@ -108,7 +108,7 @@ function AuctionList() {
 
                 {/* Status Filter */}
                 <div className="mb-6">
-                    <label className="block text-xs uppercase tracking-wider text-[#9A6A2F] mb-3">
+                    <label className="mb-3 block text-[10px] font-bold uppercase tracking-[0.2em] text-[#9A6A2F]">
                         Trạng thái
                     </label>
                     <div className="space-y-1.5">
@@ -118,13 +118,13 @@ function AuctionList() {
                                 onClick={() => updateFilter('status', opt.value)}
                                 className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
                                     currentStatus === opt.value
-                                        ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
-                                        : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                                        ? 'bg-[#1c1815] text-white'
+                                        : 'text-[#746b62] hover:bg-[#f2ece2] hover:text-[#1c1815]'
                                 }`}
                             >
                                 {opt.label}
                                 {currentStatus === opt.value && (
-                                    <span className="float-right text-[#E8C58F]">●</span>
+                                    <span className="float-right text-[#d5b47a]">●</span>
                                 )}
                             </button>
                         ))}
@@ -133,7 +133,7 @@ function AuctionList() {
 
                 {/* Category Filter */}
                 <div>
-                    <label className="block text-xs uppercase tracking-wider text-[#9A6A2F] mb-3">
+                    <label className="mb-3 block text-[10px] font-bold uppercase tracking-[0.2em] text-[#9A6A2F]">
                         Danh mục
                     </label>
                     <div className="space-y-1.5">
@@ -141,13 +141,13 @@ function AuctionList() {
                             onClick={() => updateFilter('category_id', '')}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
                                 currentCategory === ''
-                                    ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
-                                    : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                                    ? 'bg-[#1c1815] text-white'
+                                    : 'text-[#746b62] hover:bg-[#f2ece2] hover:text-[#1c1815]'
                             }`}
                         >
                             Tất cả danh mục
                             {currentCategory === '' && (
-                                <span className="float-right text-[#E8C58F]">●</span>
+                                <span className="float-right text-[#d5b47a]">●</span>
                             )}
                         </button>
                         {categories.map(category => (
@@ -155,14 +155,14 @@ function AuctionList() {
                                 key={category.id}
                                 onClick={() => updateFilter('category_id', category.id)}
                                 className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                                    currentCategory === category.id
-                                        ? 'bg-[#9A6A2F]/20 text-[#E8C58F] border border-[#9A6A2F]/40'
-                                        : 'text-[#FFF8ED]/60 hover:bg-[#2F2418]/50 hover:text-[#FFF8ED]'
+                                    String(currentCategory) === String(category.id)
+                                        ? 'bg-[#1c1815] text-white'
+                                        : 'text-[#746b62] hover:bg-[#f2ece2] hover:text-[#1c1815]'
                                 }`}
                             >
                                 {category.name}
-                                {currentCategory === category.id && (
-                                    <span className="float-right text-[#E8C58F]">●</span>
+                                {String(currentCategory) === String(category.id) && (
+                                    <span className="float-right text-[#d5b47a]">●</span>
                                 )}
                             </button>
                         ))}
@@ -170,9 +170,9 @@ function AuctionList() {
                 </div>
 
                 {/* Results count */}
-                <div className="mt-6 pt-6 border-t border-[#9A6A2F]/10">
-                    <p className="text-sm text-[#FFF8ED]/50">
-                        <span className="text-[#E8C58F] font-medium">{auctions.length}</span> phiên đấu giá
+                <div className="mt-6 border-t border-[#1c1815]/10 pt-6">
+                    <p className="text-sm text-[#746b62]">
+                        <span className="font-bold text-[#9A6A2F]">{auctions.length}</span> phiên đấu giá
                     </p>
                 </div>
             </div>
@@ -186,8 +186,8 @@ function AuctionList() {
             : (auc.coverImage || auc.cover_image);
 
         return (
-        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#9A6A2F]/5">
-            <div className="relative aspect-[16/10] overflow-hidden bg-[#0E0A07]">
+        <Link to={`/auctions/${auc.id}`} className="group block overflow-hidden rounded-2xl border border-[#1c1815]/10 bg-[#fffdf8] shadow-[0_14px_45px_rgba(28,24,21,0.055)] transition-all duration-500 hover:-translate-y-1 hover:border-[#9A6A2F]/30 hover:shadow-[0_22px_60px_rgba(28,24,21,0.11)]">
+            <div className="relative aspect-[4/3] overflow-hidden bg-[#eee6db]">
                 {coverImageUrl ? (
                     <img 
                         src={coverImageUrl} 
@@ -208,7 +208,7 @@ function AuctionList() {
 
                 {/* Countdown */}
                 {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && (
-                    <div className="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center justify-between">
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between rounded-xl border border-white/15 bg-[#1c1815]/72 px-3 py-2 backdrop-blur-md">
                         <span className="flex items-center gap-2 text-xs text-white/70">
                             <Clock3 className="h-3.5 w-3.5 text-[#E8C58F]" />
                             {auc.status === 'ACTIVE' ? 'Còn lại' : 'Mở sau'}
@@ -220,26 +220,26 @@ function AuctionList() {
                 )}
             </div>
 
-            <div className="p-4">
+            <div className="p-5">
                 {(auc.categoryName || auc.category_name) && (
                     <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
                         {auc.categoryName || auc.category_name}
                     </p>
                 )}
-                <h3 className="text-sm font-medium text-[#FFF8ED] line-clamp-1 group-hover:text-[#E8C58F] transition-colors">
+                <h3 className="line-clamp-1 font-serif text-xl font-medium text-[#1c1815] transition-colors group-hover:text-[#9A6A2F]">
                     {auc.productName || auc.product_name}
                 </h3>
                 
                 <div className="mt-3 flex items-end justify-between">
                     <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#FFF8ED]/40">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#746b62]">
                             Giá hiện tại
                         </p>
-                        <p className="text-lg font-semibold text-[#E8C58F]">
+                        <p className="text-lg font-bold text-[#1c1815]">
                             {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
                         </p>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-[#FFF8ED]/50">
+                    <div className="flex items-center gap-1.5 text-xs text-[#746b62]">
                         <Users className="h-3.5 w-3.5" />
                         <span>{Number(auc.bidCount || auc.bid_count || 0)}</span>
                     </div>
@@ -256,9 +256,9 @@ function AuctionList() {
             : (auc.coverImage || auc.cover_image);
 
         return (
-        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300">
+        <Link to={`/auctions/${auc.id}`} className="group block overflow-hidden rounded-2xl border border-[#1c1815]/10 bg-[#fffdf8] shadow-[0_12px_38px_rgba(28,24,21,0.05)] transition-all duration-500 hover:border-[#9A6A2F]/30 hover:shadow-[0_20px_50px_rgba(28,24,21,0.1)]">
             <div className="flex flex-col sm:flex-row">
-                <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 overflow-hidden bg-[#0E0A07]">
+                <div className="relative h-52 w-full flex-shrink-0 overflow-hidden bg-[#eee6db] sm:h-auto sm:w-56">
                     {coverImageUrl ? (
                         <img 
                             src={coverImageUrl} 
@@ -276,22 +276,22 @@ function AuctionList() {
                     </div>
                 </div>
 
-                <div className="flex-1 p-4 flex flex-col justify-between">
+                <div className="flex flex-1 flex-col justify-between p-5 sm:p-6">
                     <div>
                         {(auc.categoryName || auc.category_name) && (
                             <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
                                 {auc.categoryName || auc.category_name}
                             </p>
                         )}
-                        <h3 className="text-base font-medium text-[#FFF8ED] group-hover:text-[#E8C58F] transition-colors">
+                        <h3 className="font-serif text-2xl font-medium text-[#1c1815] transition-colors group-hover:text-[#9A6A2F]">
                             {auc.productName || auc.product_name}
                         </h3>
                         
                         {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && (
-                            <div className="mt-2 flex items-center gap-2 text-sm text-[#FFF8ED]/60">
-                                <Clock3 className="h-4 w-4 text-[#E8C58F]" />
+                            <div className="mt-3 flex items-center gap-2 text-sm text-[#746b62]">
+                                <Clock3 className="h-4 w-4 text-[#9A6A2F]" />
                                 <span>{auc.status === 'ACTIVE' ? 'Còn lại' : 'Mở sau'}:</span>
-                                <span className="font-mono font-bold text-[#E8C58F]">
+                                <span className="font-mono font-bold text-[#1c1815]">
                                     {getCountdown(auc)}
                                 </span>
                             </div>
@@ -300,19 +300,19 @@ function AuctionList() {
 
                     <div className="mt-3 flex items-end justify-between">
                         <div>
-                            <p className="text-[10px] uppercase tracking-wider text-[#FFF8ED]/40">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#746b62]">
                                 Giá hiện tại
                             </p>
-                            <p className="text-xl font-semibold text-[#E8C58F]">
+                            <p className="text-xl font-bold text-[#1c1815]">
                                 {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
                             </p>
                         </div>
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-1.5 text-sm text-[#FFF8ED]/50">
+                            <div className="flex items-center gap-1.5 text-sm text-[#746b62]">
                                 <Users className="h-4 w-4" />
                                 <span>{Number(auc.bidCount || auc.bid_count || 0)} lượt</span>
                             </div>
-                            <ArrowUpRight className="h-5 w-5 text-[#9A6A2F] group-hover:text-[#E8C58F] transition-colors" />
+                            <ArrowUpRight className="h-5 w-5 text-[#9A6A2F] transition-colors group-hover:text-[#1c1815]" />
                         </div>
                     </div>
                 </div>
@@ -322,28 +322,30 @@ function AuctionList() {
     };
 
     return (
-        <main ref={pageRef} className="min-h-screen bg-[#0E0A07]">
+        <main ref={pageRef} className="min-h-screen bg-[#f2ece2] text-[#1c1815]">
             {/* Header */}
-            <div className="relative bg-gradient-to-b from-[#1A140F] to-[#0E0A07] border-b border-[#9A6A2F]/10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+            <div className="relative overflow-hidden border-b border-[#1c1815]/10 bg-[#ece4d8]">
+                <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(154,106,47,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(154,106,47,0.05)_1px,transparent_1px)] [background-size:72px_72px]" />
+                <div className="relative mx-auto max-w-[90rem] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
                     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                         <div>
-                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-[#FFF8ED]">
-                                Phiên đấu giá
+                            <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.3em] text-[#9A6A2F]">Live catalogue · The Curator</p>
+                            <h1 className="font-serif text-4xl font-medium text-[#1c1815] sm:text-5xl lg:text-6xl">
+                                Phiên đấu giá tuyển chọn
                             </h1>
-                            <p className="mt-2 text-sm text-[#FFF8ED]/50">
+                            <p className="mt-4 text-sm text-[#746b62]">
                                 Khám phá các phiên đấu giá đang diễn ra và sắp tới
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
                             {/* View Toggle */}
-                            <div className="flex rounded-lg border border-[#9A6A2F]/20 p-1">
+                            <div className="flex rounded-full border border-[#1c1815]/10 bg-white/45 p-1">
                                 <button
                                     onClick={() => setViewMode('grid')}
                                     className={`p-1.5 rounded transition-colors ${
                                         viewMode === 'grid' 
-                                            ? 'bg-[#9A6A2F]/20 text-[#E8C58F]' 
-                                            : 'text-[#FFF8ED]/40 hover:text-[#FFF8ED]'
+                                            ? 'bg-[#1c1815] text-white'
+                                            : 'text-[#746b62] hover:text-[#1c1815]'
                                     }`}
                                 >
                                     <Grid className="h-4 w-4" />
@@ -352,8 +354,8 @@ function AuctionList() {
                                     onClick={() => setViewMode('list')}
                                     className={`p-1.5 rounded transition-colors ${
                                         viewMode === 'list' 
-                                            ? 'bg-[#9A6A2F]/20 text-[#E8C58F]' 
-                                            : 'text-[#FFF8ED]/40 hover:text-[#FFF8ED]'
+                                            ? 'bg-[#1c1815] text-white'
+                                            : 'text-[#746b62] hover:text-[#1c1815]'
                                     }`}
                                 >
                                     <List className="h-4 w-4" />
@@ -362,7 +364,7 @@ function AuctionList() {
                             {/* Mobile Filter Button */}
                             <button
                                 onClick={() => setShowMobileFilter(true)}
-                                className="lg:hidden flex items-center gap-2 px-4 py-2 rounded-lg border border-[#9A6A2F]/20 text-[#FFF8ED]/70 hover:bg-[#1A140F] transition-colors"
+                                className="flex items-center gap-2 rounded-full border border-[#1c1815]/10 bg-white/45 px-4 py-2 text-[#746b62] transition-colors hover:bg-white hover:text-[#1c1815] lg:hidden"
                             >
                                 <SlidersHorizontal className="h-4 w-4" />
                                 <span className="text-sm">Lọc</span>
@@ -378,8 +380,8 @@ function AuctionList() {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex flex-col lg:flex-row gap-6">
+            <div className="mx-auto max-w-[90rem] px-4 py-10 sm:px-6 lg:px-8">
+                <div className="flex flex-col gap-8 lg:flex-row">
                     {/* Filter Panel - Desktop */}
                     <div className="hidden lg:block w-72 flex-shrink-0">
                         <FilterPanel />
@@ -389,20 +391,20 @@ function AuctionList() {
                     <div className="flex-1">
                         {/* Results Header */}
                         <div className="flex items-center justify-between mb-6">
-                            <p className="text-sm text-[#FFF8ED]/50">
-                                Hiển thị <span className="text-[#E8C58F] font-medium">{auctions.length}</span> phiên
+                            <p className="text-sm text-[#746b62]">
+                                Hiển thị <span className="font-bold text-[#9A6A2F]">{auctions.length}</span> phiên
                             </p>
                             {activeFilterCount > 0 && (
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-[#FFF8ED]/40">Đang lọc:</span>
+                                    <span className="text-xs text-[#746b62]">Đang lọc:</span>
                                     <div className="flex items-center gap-2">
                                         {currentStatus && (
-                                            <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#E8C58F] rounded">
+                                            <span className="rounded-full bg-[#9A6A2F]/10 px-3 py-1 text-xs text-[#9A6A2F]">
                                                 {statusOptions.find(o => o.value === currentStatus)?.label}
                                             </span>
                                         )}
                                         {currentCategory && (
-                                            <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#E8C58F] rounded">
+                                            <span className="rounded-full bg-[#9A6A2F]/10 px-3 py-1 text-xs text-[#9A6A2F]">
                                                 {categories.find(c => c.id === currentCategory)?.name}
                                             </span>
                                         )}
@@ -444,14 +446,14 @@ function AuctionList() {
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
                         onClick={() => setShowMobileFilter(false)} 
                     />
-                    <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto bg-[#1A140F] rounded-t-2xl shadow-2xl">
-                        <div className="sticky top-0 bg-[#1A140F] border-b border-[#9A6A2F]/10 p-4 flex items-center justify-between">
-                            <h3 className="text-sm font-medium text-[#FFF8ED]">Bộ lọc</h3>
+                    <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-[#f2ece2] shadow-2xl">
+                        <div className="sticky top-0 flex items-center justify-between border-b border-[#1c1815]/10 bg-[#fffdf8] p-4">
+                            <h3 className="text-sm font-bold text-[#1c1815]">Bộ lọc</h3>
                             <button 
                                 onClick={() => setShowMobileFilter(false)}
-                                className="p-2 hover:bg-[#2F2418] rounded-lg transition-colors"
+                                className="rounded-lg p-2 transition-colors hover:bg-[#f2ece2]"
                             >
-                                <X className="h-5 w-5 text-[#FFF8ED]/60" />
+                                <X className="h-5 w-5 text-[#746b62]" />
                             </button>
                         </div>
                         <div className="p-4 pb-8">
