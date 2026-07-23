@@ -30,15 +30,6 @@ const heroSlides = [
     ['/images/home/auction-hero-art-auto.webp', 'Bộ sưu tập đấu giá nghệ thuật, thiết kế và xe'],
 ];
 
-const mockAuctions = [
-    { id: 'preview-01', _mock: true, status: 'ACTIVE', productName: 'Bình nguyệt men lam thế kỷ XIX', categoryName: 'Gốm cổ', currentPrice: 128000000, bidCount: 24, endTime: '2027-08-18T14:30:00', coverImage: '/images/home/lot-porcelain.webp' },
-    { id: 'preview-02', _mock: true, status: 'PENDING', productName: 'Tủ sơn son thếp vàng triều Nguyễn', categoryName: 'Nội thất cổ', currentPrice: 245000000, bidCount: 0, startTime: '2027-08-12T09:00:00', coverImage: '/images/home/lot-lacquer-cabinet.webp' },
-    { id: 'preview-03', _mock: true, status: 'ACTIVE', productName: 'Tượng Quan Âm đồng cổ', categoryName: 'Điêu khắc', currentPrice: 186000000, bidCount: 31, endTime: '2027-08-16T20:15:00', coverImage: '/images/home/lot-bronze-statue.webp' },
-    { id: 'preview-04', _mock: true, status: 'ACTIVE', productName: 'Trống đồng Đông Sơn tuyển chọn', categoryName: 'Khảo cổ', currentPrice: 320000000, bidCount: 18, endTime: '2027-08-20T16:00:00', coverImage: '/images/home/lot-bronze-drum.webp' },
-    { id: 'preview-05', _mock: true, status: 'PENDING', productName: 'Sơn mài phong cảnh Bắc Bộ', categoryName: 'Mỹ thuật', currentPrice: 96000000, bidCount: 0, startTime: '2027-08-14T10:00:00', coverImage: '/images/home/lot-lacquer-art.webp' },
-    { id: 'preview-06', _mock: true, status: 'CLOSED', productName: 'Ghế học giả gỗ trắc chạm hoa', categoryName: 'Nội thất cổ', currentPrice: 158000000, bidCount: 42, endTime: '2026-07-20T18:00:00', coverImage: '/images/home/lot-scholar-chair.webp' },
-];
-
 const getStatusText = (status) => {
     const map = {
         ACTIVE: 'Đang đấu giá',
@@ -66,8 +57,6 @@ export default function Home() {
     
     const currentStatus = searchParams.get('status') || '';
     const currentCategory = searchParams.get('category_id') || '';
-    const displayAuctions = auctions.length ? auctions : mockAuctions.filter(auc => !currentStatus || auc.status === currentStatus);
-
     const [sectionRef] = useScrollAnimation({ threshold: 0.05 });
     const [ctaRef, ctaVisible] = useScrollAnimation({ threshold: 0.2 });
     
@@ -224,7 +213,7 @@ export default function Home() {
         const priceLabel = auc.status === 'CLOSED' ? 'Giá chốt' : auc.status === 'PENDING' ? 'Giá khởi điểm' : 'Giá hiện tại';
 
         return (
-        <Link to={auc._mock ? '/auctions' : `/auctions/${auc.id}`} className="group block">
+        <Link to={`/auctions/${auc.id}`} className="group block">
             <article className="overflow-hidden rounded-2xl border border-[#1c1815]/10 bg-[#fffdf8] shadow-[0_12px_38px_rgba(28,24,21,0.055)] transition-all duration-400 hover:border-[#9A6A2F]/30 hover:shadow-[0_20px_50px_rgba(28,24,21,0.1)]">
                 <div className="grid md:grid-cols-[210px_1fr_220px] md:items-stretch">
                     <div className="relative h-56 overflow-hidden bg-[#F8F1E6] md:h-full md:min-h-[178px]">
@@ -460,7 +449,7 @@ export default function Home() {
                             </p>
                             <div className="mt-6 flex items-center justify-between border-t border-[#1c1815]/12 pt-4">
                                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#746b62]">
-                                    {displayAuctions.length} phiên
+                                    {auctions.length} phiên
                                 </span>
                                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#9A6A2F]">Đang cập nhật</span>
                             </div>
@@ -484,11 +473,19 @@ export default function Home() {
                         {loading ? (
                             <Skeleton.List count={6} />
                         ) : (
-                            <div className="space-y-5">
-                                {displayAuctions.map((auc, index) => (
-                                    <AuctionListItem key={auc.id} auc={auc} index={index} />
-                                ))}
-                            </div>
+                            auctions.length ? (
+                                <div className="space-y-5">
+                                    {auctions.map((auc, index) => (
+                                        <AuctionListItem key={auc.id} auc={auc} index={index} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-2xl border border-[#1c1815]/10 bg-white/45 px-6 py-16 text-center">
+                                    <Gavel className="mx-auto h-8 w-8 text-[#9A6A2F]/50" />
+                                    <p className="mt-4 text-sm font-semibold text-[#1c1815]">Chưa có phiên đấu giá phù hợp.</p>
+                                    <p className="mt-2 text-xs text-[#746b62]">Thử chọn trạng thái hoặc danh mục khác.</p>
+                                </div>
+                            )
                         )}
                     </div>
                 </div>
