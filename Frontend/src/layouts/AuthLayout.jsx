@@ -2,21 +2,23 @@
 // src/layouts/AuthLayout.jsx
 // Layout tối giản cho trang đăng nhập / đăng ký
 // ============================================================
-import { Outlet, Link } from 'react-router-dom';
-import { Gavel } from 'lucide-react';
+import { Outlet, Link, useLocation } from 'react-router-dom';
 
 const AuthLayout = () => {
+  const { pathname } = useLocation();
+
+  if (pathname === '/login') return <Outlet />;
+
   return (
     <div className="min-h-screen bg-[#F8F1E6] flex flex-col">
       {/* Minimal Header */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-[#9A6A2F]/20 bg-[#F8F1E6]/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 border border-[#9A6A2F]/50 bg-[#FFF8ED] flex items-center justify-center">
-              <Gavel className="w-4 h-4 text-[#9A6A2F]" />
-            </div>
-            <span className="font-serif text-lg tracking-[0.16em] text-[#2F2418] uppercase">
-              The Curator
+          <Link to="/" className="group flex items-center gap-2.5">
+            <img src="/brand/curator-mark.svg" alt="" className="h-9 w-9 transition-transform duration-300 group-hover:scale-105" />
+            <span className="flex flex-col items-start leading-none">
+              <span className="font-serif text-base font-semibold uppercase tracking-[0.14em] text-[#2F2418]">The Curator</span>
+              <span className="mt-1 text-[7px] font-semibold uppercase tracking-[0.25em] text-[#9A6A2F]">Antique Auction House</span>
             </span>
           </Link>
         </div>

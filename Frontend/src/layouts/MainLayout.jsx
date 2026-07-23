@@ -137,13 +137,11 @@ const MainLayout = () => {
       <header className="site-header fixed top-0 left-0 right-0 z-50 border-b bg-[#F8F1E6] border-[#9A6A2F]/30 shadow-[0_18px_60px_rgba(47,36,24,0.12)]">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-[76px] flex items-center justify-between">
           {/* Logo */}
-          <button type="button" onClick={handleGoHome} className="site-logo flex items-center gap-2.5 shrink-0 group cursor-pointer bg-transparent border-none p-0">
-            <div className="site-logo-mark w-10 h-10 border border-[#9A6A2F]/55 bg-[#FFF8ED] flex items-center justify-center shadow-[0_0_30px_rgba(154,106,47,0.12)] group-hover:border-[#9A6A2F] transition-all">
-              <Gavel className="w-5 h-5 text-[#9A6A2F]" />
-            </div>
-            <span className="hidden sm:flex flex-col items-start leading-none">
-              <span className="font-serif text-[1.35rem] tracking-[0.16em] text-[#2F2418] uppercase">The Curator</span>
-              <span className="mt-1 text-[9px] tracking-[0.34em] uppercase text-[#9A6A2F]/80">Antique Auction House</span>
+          <button type="button" onClick={handleGoHome} className="site-logo group flex shrink-0 cursor-pointer items-center gap-2.5 border-none bg-transparent p-0">
+            <img src="/brand/curator-mark.svg" alt="" className="h-9 w-9 transition-transform duration-300 group-hover:scale-105" />
+            <span className="hidden flex-col items-start leading-none sm:flex">
+              <span className="font-serif text-[1.2rem] font-semibold uppercase tracking-[0.14em] text-[#2F2418]">The Curator</span>
+              <span className="mt-1 text-[8px] font-semibold uppercase tracking-[0.28em] text-[#9A6A2F]">Antique Auction House</span>
             </span>
           </button>
 
@@ -400,13 +398,11 @@ const MainLayout = () => {
         <div className="relative max-w-[90rem] mx-auto px-6 md:px-12 py-16 md:py-24">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-y-12 gap-x-8 xl:gap-x-16">
             <div className="md:col-span-2 xl:col-span-4 xl:pr-6">
-              <div className="flex items-center gap-3.5 mb-6">
-                <div className="w-12 h-12 border-2 border-[#9A6A2F]/70 bg-[#FFF8ED] flex items-center justify-center">
-                  <Gavel className="w-6 h-6 text-[#9A6A2F]" />
-                </div>
+              <div className="mb-6 inline-flex items-center gap-3.5">
+                <img src="/brand/curator-mark.svg" alt="" className="h-14 w-14" />
                 <div>
-                  <p className="font-serif text-2xl tracking-[0.18em] uppercase text-[#2F2418] leading-none">The Curator</p>
-                  <p className="text-[9px] tracking-[0.36em] uppercase text-[#9A6A2F] mt-1.5 font-semibold">Luxury Antique Auction House</p>
+                  <p className="font-serif text-xl font-semibold uppercase leading-none tracking-[0.16em] text-[#2F2418]">The Curator</p>
+                  <p className="mt-1.5 text-[8px] font-semibold uppercase tracking-[0.28em] text-[#9A6A2F]">Antique Auction House</p>
                 </div>
               </div>
               <p className="text-[15px] text-[#2F2418]/70 leading-[1.8] max-w-sm mb-8">

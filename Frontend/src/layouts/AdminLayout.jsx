@@ -130,9 +130,12 @@ export default function AdminLayout() {
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar */}
             <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-                <div className="h-16 flex items-center px-6 border-b border-gray-200">
-                    <img className="w-10 h-10 mr-2" src="/favicon.svg" alt="Logo" />
-                    <span className="text-xl font-black tracking-tighter text-[#111111]">AUCTION</span>
+                <div className="flex h-20 items-center gap-2.5 border-b border-gray-200 px-5">
+                    <img className="h-10 w-10" src="/brand/curator-mark.svg" alt="" />
+                    <span className="flex flex-col items-start leading-none">
+                        <span className="font-serif text-sm font-semibold uppercase tracking-[0.12em] text-[#2F2418]">The Curator</span>
+                        <span className="mt-1 text-[6px] font-semibold uppercase tracking-[0.2em] text-[#9A6A2F]">Antique Auction House</span>
+                    </span>
                 </div>
                 <nav className="flex-1 overflow-y-auto py-4">
                     <ul className="space-y-1 px-3">

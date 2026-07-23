@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { adminApi } from '@/features/admin/api';
 import { Send, Users, User, Shield } from 'lucide-react';
-import { toast } from 'react-toastify';
+import toast from 'react-hot-toast';
 
 export default function AdminNotificationsPage() {
     const [form, setForm] = useState({

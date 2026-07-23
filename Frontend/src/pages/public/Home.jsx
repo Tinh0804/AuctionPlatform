@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import gsap from 'gsap';
 import { useSearchParams, Link } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 import AuctionCard from '@/components/Auction/AuctionCard';
@@ -33,36 +34,14 @@ const getStatusText = (status) => {
     return map[status] || status;
 };
 
-// Hero showcase items - placeholder images
-const heroShowcaseItems = [
-    {
-        id: 1,
-        name: 'Bình gốm Bát Tràng thế kỷ XVIII',
-        image: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=600&h=750&fit=crop&q=80',
-        estimate: '15.000.000 - 25.000.000đ',
-    },
-    {
-        id: 2,
-        name: 'Đồng hồ để bàn Pháp cổ',
-        image: 'https://images.unsplash.com/photo-1509048191080-d2984bad6ae5?w=600&h=750&fit=crop&q=80',
-        estimate: '8.000.000 - 12.000.000đ',
-    },
-    {
-        id: 3,
-        name: 'Tranh sơn mài nghệ thuật',
-        image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=750&fit=crop&q=80',
-        estimate: '20.000.000 - 35.000.000đ',
-    },
-];
-
 export default function Home() {
     const [auctions, setAuctions] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchParams, setSearchParams] = useSearchParams();
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-    const [heroIdx, setHeroIdx] = useState(0);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+    const heroRef = useRef(null);
     
     const currentStatus = searchParams.get('status') || '';
     const currentCategory = searchParams.get('category_id') || '';
@@ -73,12 +52,26 @@ export default function Home() {
     const ripple = useRipple('rgba(255, 255, 255, 0.5)');
     const magneticProps = useMagnetic(0.2);
 
-    // Hero carousel auto-rotate
     useEffect(() => {
-        const interval = setInterval(() => {
-            setHeroIdx(prev => (prev + 1) % heroShowcaseItems.length);
-        }, 5000);
-        return () => clearInterval(interval);
+        const media = gsap.matchMedia();
+        media.add('(prefers-reduced-motion: no-preference)', () => {
+            const ctx = gsap.context(() => {
+                gsap.fromTo('.hero-text-stagger',
+                { opacity: 0, y: 40 },
+                    { opacity: 1, y: 0, duration: 1.05, ease: 'power3.out', stagger: 0.12, delay: 0.15 }
+                );
+                gsap.to('.hero-bg-zoom', {
+                    scale: 1.06,
+                    xPercent: -0.8,
+                    duration: 18,
+                    ease: 'sine.inOut',
+                    yoyo: true,
+                    repeat: -1
+                });
+            }, heroRef);
+            return () => ctx.revert();
+        });
+        return () => media.revert();
     }, []);
 
     useEffect(() => {
@@ -127,8 +120,6 @@ export default function Home() {
     };
 
     const activeFilterCount = [currentStatus, currentCategory].filter(Boolean).length;
-    const currentItem = heroShowcaseItems[heroIdx];
-
     // Format currency
     const formatCurrency = value => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 
@@ -299,113 +290,72 @@ export default function Home() {
     return (
         <div>
             {/* ══════════ HERO ══════════ */}
-            <section className="relative bg-slate-950 overflow-hidden">
-                {/* Background image with overlay */}
-                <div className="absolute inset-0">
-                    {heroShowcaseItems.map((item, i) => (
-                        <div
-                            key={item.id}
-                            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
-                            style={{ opacity: i === heroIdx ? 1 : 0 }}
-                        >
-                            <img 
-                                src={item.image} 
-                                alt="" 
-                                className={`w-full h-full object-cover ${i === heroIdx ? 'cinematic-hero-image' : ''}`}
-                            />
+            <section ref={heroRef} className="relative flex min-h-[calc(100svh-4rem)] overflow-hidden bg-[#120d09] md:min-h-[calc(100svh-4.75rem)]">
+                <img
+                    src="/images/home/auction-hero-v2.jpg"
+                    alt="Không gian trưng bày cổ vật Việt Nam của The Curator"
+                    className="hero-bg-zoom absolute inset-0 h-full w-full origin-center object-cover object-[66%_50%]"
+                    fetchPriority="high"
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,8,5,0.97)_0%,rgba(12,8,5,0.88)_34%,rgba(12,8,5,0.36)_66%,rgba(12,8,5,0.08)_100%)]" />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,5,3,0.08)_45%,rgba(8,5,3,0.72)_100%)]" />
+                <div className="absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(255,248,237,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(255,248,237,0.12)_1px,transparent_1px)] [background-size:88px_88px] [mask-image:linear-gradient(to_right,black,transparent_72%)]" />
+
+                <div className="relative z-10 mx-auto grid w-full max-w-[92rem] grid-cols-1 px-6 pb-28 pt-20 md:px-12 md:pb-32 md:pt-24 lg:grid-cols-12 lg:px-16 xl:px-20">
+                    <div className="flex flex-col justify-center lg:col-span-7 xl:col-span-6">
+                        <div className="hero-text-stagger mb-6 flex items-center gap-4">
+                            <span className="h-px w-10 bg-[#c79a5b]" aria-hidden="true" />
+                            <span className="text-[10px] font-bold uppercase tracking-[0.34em] text-[#e8c58f] sm:text-xs">
+                                Nhà đấu giá tuyển chọn · Est. 2026
+                            </span>
                         </div>
-                    ))}
-                    <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-slate-950/40" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/30" />
+
+                        <h1 className="hero-text-stagger max-w-[760px] font-serif text-[clamp(3.6rem,8vw,7.4rem)] font-medium leading-[0.82] tracking-[-0.055em] text-[#fff8ed] drop-shadow-[0_12px_35px_rgba(0,0,0,0.28)]">
+                            Di sản<br />
+                            <span className="ml-[0.32em] italic text-[#d8b27c]">được tiếp nối.</span>
+                        </h1>
+
+                        <p className="hero-text-stagger mt-7 max-w-lg text-sm font-light leading-7 text-[#fff8ed]/70 sm:text-base sm:leading-8">
+                            Những cổ vật mang dấu ấn thời gian, được thẩm định kỹ lưỡng và đưa đến đúng người trân trọng giá trị của chúng.
+                        </p>
+
+                        <div className="hero-text-stagger mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <a href="#auction-floor" className="group inline-flex items-center justify-center gap-4 border border-[#c79a5b] bg-[#b17b3d] px-7 py-4 text-[11px] font-bold uppercase tracking-[0.2em] text-white shadow-[0_18px_45px_rgba(125,78,29,0.24)] transition-all duration-500 ease-out hover:-translate-y-1 hover:bg-[#c18b4b] hover:shadow-[0_24px_60px_rgba(125,78,29,0.34)]">
+                                Khám phá phiên đấu
+                                <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" aria-hidden="true" />
+                            </a>
+                            <Link to="/auctions/create" className="inline-flex items-center justify-center px-7 py-4 text-[11px] font-bold uppercase tracking-[0.2em] text-[#fff8ed]/80 transition-colors duration-300 hover:text-[#e8c58f]">
+                                Ký gửi vật phẩm
+                            </Link>
+                        </div>
+                    </div>
+
+                    <aside className="hero-text-stagger mt-14 self-end lg:col-span-4 lg:col-start-9 lg:mt-0 lg:mb-4" aria-label="Cam kết của The Curator">
+                        <div className="border border-white/20 bg-[#15100c]/55 p-5 shadow-[0_28px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-6">
+                            <div className="flex items-center justify-between border-b border-white/15 pb-4">
+                                <span className="text-[9px] font-bold uppercase tracking-[0.28em] text-[#e8c58f]">The Curator Standard</span>
+                                <ShieldCheck className="h-5 w-5 text-[#e8c58f]" aria-hidden="true" />
+                            </div>
+                            <p className="mt-5 font-serif text-2xl font-medium leading-tight text-[#fff8ed] sm:text-3xl">
+                                Giá trị thật,<br />niềm tin thật.
+                            </p>
+                            <p className="mt-3 text-xs leading-6 text-[#fff8ed]/60">
+                                Xác thực chuyên gia · Thanh toán Escrow · Đấu giá thời gian thực
+                            </p>
+                        </div>
+                    </aside>
                 </div>
-                
-                <div className="relative max-w-7xl mx-auto px-4 md:px-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center min-h-[520px] md:min-h-[600px] py-16 md:py-20">
-                        {/* Left - Text */}
-                        <div>
-                            <p className="hero-line-reveal text-amber-400 text-sm font-semibold tracking-[0.2em] uppercase mb-5">
-                                Sàn đấu giá đồ cổ trực tuyến
-                            </p>
-                            
-                            <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold text-white leading-[1.15] mb-6">
-                                <span className="hero-line-reveal delay-1">Khám phá vẻ đẹp</span><br />
-                                <span className="hero-line-reveal delay-2 text-amber-400">vượt thời gian</span>
-                            </h1>
-                            
-                            <p className="hero-copy-reveal text-slate-300 text-lg leading-relaxed mb-8 max-w-lg">
-                                Sưu tầm những vật phẩm cổ quý hiếm từ khắp nơi. Đấu giá minh bạch, thanh toán an toàn qua Escrow.
-                            </p>
-                            
-                            <div className="hero-copy-reveal flex flex-wrap gap-4 mb-12">
-                                <a 
-                                    href="#auction-floor" 
-                                    className="magnetic-button inline-flex items-center gap-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-7 py-3.5 rounded-lg transition-all duration-300 text-sm shadow-lg hover:shadow-xl hover:scale-105"
-                                    onClick={ripple}
-                                    {...magneticProps}
-                                >
-                                    <Gavel className="w-4.5 h-4.5" /> Xem đấu giá
-                                </a>
-                                <Link 
-                                    to="/auctions/create" 
-                                    className="magnetic-button inline-flex items-center gap-2.5 border border-white/20 text-white hover:bg-white/10 px-7 py-3.5 rounded-lg font-semibold transition-all duration-300 text-sm hover:scale-105"
-                                    onClick={ripple}
-                                    {...magneticProps}
-                                >
-                                    Đăng bán <ArrowRight className="w-4 h-4" />
-                                </Link>
-                            </div>
 
-                            {/* Trust signals */}
-                            <div className="hero-copy-reveal flex flex-wrap gap-6 text-sm text-slate-400">
-                                <span className="flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-emerald-400" /> Escrow bảo mật
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Truck className="w-4 h-4 text-blue-400" /> Vận chuyển cẩn thận
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Lock className="w-4 h-4 text-amber-400" /> eKYC xác thực
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Right - Featured item card */}
-                        <div className="hidden lg:block">
-                            <div className="relative ml-auto max-w-sm">
-                                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
-                                    <div className="aspect-[4/5] overflow-hidden relative">
-                                        {heroShowcaseItems.map((item, i) => (
-                                            <img 
-                                                key={item.id}
-                                                src={item.image} 
-                                                alt={item.name}
-                                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === heroIdx ? 'cinematic-hero-image' : ''}`}
-                                                style={{ opacity: i === heroIdx ? 1 : 0 }}
-                                            />
-                                        ))}
-                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                                            <p className="text-white font-semibold text-lg leading-snug mb-1">{currentItem.name}</p>
-                                            <p className="text-amber-300 text-sm">Ước tính: {currentItem.estimate}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Carousel indicators */}
-                                <div className="flex justify-center gap-2 mt-4">
-                                    {heroShowcaseItems.map((_, i) => (
-                                        <button 
-                                            key={i}
-                                            onClick={() => setHeroIdx(i)}
-                                            className={`h-1 rounded-full transition-all duration-300 ${i === heroIdx ? 'w-8 bg-amber-400' : 'w-4 bg-white/20 hover:bg-white/40'}`}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                <div className="absolute bottom-0 left-0 right-0 z-10 border-t border-white/15 bg-black/15 backdrop-blur-md">
+                    <div className="mx-auto flex max-w-[92rem] items-center justify-between px-6 py-4 text-[9px] font-bold uppercase tracking-[0.24em] text-[#fff8ed]/50 md:px-12 lg:px-16 xl:px-20">
+                        <span>Curated in Vietnam</span>
+                        <a href="#auction-floor" className="group flex items-center gap-3 transition-colors duration-300 hover:text-[#e8c58f]">
+                            Cuộn để khám phá
+                            <span className="h-px w-10 bg-current transition-[width] duration-500 group-hover:w-16" aria-hidden="true" />
+                        </a>
                     </div>
                 </div>
             </section>
-
             {/* ══════════ FEATURES BAR ══════════ */}
             <section className="border-y border-[#9A6A2F]/15 bg-[#F8F1E6]">
                 <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
