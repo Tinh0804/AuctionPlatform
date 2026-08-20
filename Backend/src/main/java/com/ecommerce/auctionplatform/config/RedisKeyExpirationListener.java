@@ -1,8 +1,8 @@
 package com.ecommerce.auctionplatform.config;
 
-import com.ecommerce.auctionplatform.entity.AuctionRecord;
-import com.ecommerce.auctionplatform.entity.enums.AuctionRecordStatus;
-import com.ecommerce.auctionplatform.service.AuctionService;
+import com.ecommerce.auctionplatform.auction.domain.model.AuctionRecord;
+import com.ecommerce.auctionplatform.auction.domain.enums.AuctionRecordStatus;
+import com.ecommerce.auctionplatform.auction.application.service.AuctionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

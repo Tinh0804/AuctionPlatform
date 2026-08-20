@@ -1,16 +1,16 @@
 package com.ecommerce.auctionplatform.config;
 
-import com.ecommerce.auctionplatform.entity.Account;
-import com.ecommerce.auctionplatform.entity.Role;
-import com.ecommerce.auctionplatform.entity.User;
-import com.ecommerce.auctionplatform.entity.enums.PredefinedRole;
-import com.ecommerce.auctionplatform.entity.enums.ProviderType;
-import com.ecommerce.auctionplatform.entity.enums.VerificationStatus;
-import com.ecommerce.auctionplatform.exception.AppException;
-import com.ecommerce.auctionplatform.exception.ErrorCode;
-import com.ecommerce.auctionplatform.repository.AccountRepository;
-import com.ecommerce.auctionplatform.repository.RoleRepository;
-import com.ecommerce.auctionplatform.repository.UserRepository;
+import com.ecommerce.auctionplatform.user.domain.model.Account;
+import com.ecommerce.auctionplatform.user.domain.model.Role;
+import com.ecommerce.auctionplatform.user.domain.model.User;
+import com.ecommerce.auctionplatform.user.domain.enums.PredefinedRole;
+import com.ecommerce.auctionplatform.user.domain.enums.ProviderType;
+import com.ecommerce.auctionplatform.user.domain.enums.VerificationStatus;
+import com.ecommerce.auctionplatform.shared.presentation.advice.AppException;
+import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.AccountRepository;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.RoleRepository;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;

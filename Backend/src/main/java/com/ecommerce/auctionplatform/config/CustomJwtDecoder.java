@@ -1,7 +1,7 @@
 package com.ecommerce.auctionplatform.config;
 
-import com.ecommerce.auctionplatform.exception.ErrorCode;
-import com.ecommerce.auctionplatform.service.AuthenticationService;
+import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
+import com.ecommerce.auctionplatform.auth.application.service.AuthenticationService;
 import com.nimbusds.jose.JOSEException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

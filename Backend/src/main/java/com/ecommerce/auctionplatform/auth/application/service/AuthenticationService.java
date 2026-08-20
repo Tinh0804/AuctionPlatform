@@ -1,0 +1,124 @@
+package com.ecommerce.auctionplatform.auth.application.service;
+
+import com.ecommerce.auctionplatform.auth.presentation.dto.request.LoginRequest;
+import com.ecommerce.auctionplatform.auth.application.dto.AuthenticationResponse;
+import com.ecommerce.auctionplatform.user.application.dto.response.UserResponse;
+import com.ecommerce.auctionplatform.user.domain.model.Account;
+import com.ecommerce.auctionplatform.shared.presentation.advice.AppException;
+import com.ecommerce.auctionplatform.auth.infrastructure.external.JwtTokenProvider;
+import com.ecommerce.auctionplatform.auth.infrastructure.persistence.repository.BlackListService;import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
+import com.ecommerce.auctionplatform.user.application.mapper.AccountMapper;
+import com.ecommerce.auctionplatform.user.application.mapper.UserMapper;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.AccountRepository;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
+import com.ecommerce.auctionplatform.shared.infrastructure.utils.SecurityUtils;
+import com.ecommerce.auctionplatform.auth.presentation.dto.request.RegisterRequest;
+import com.ecommerce.auctionplatform.user.domain.model.Role;
+import com.ecommerce.auctionplatform.user.domain.model.User;
+import com.ecommerce.auctionplatform.user.domain.enums.PredefinedRole;
+import com.ecommerce.auctionplatform.user.domain.enums.ProviderType;
+import com.ecommerce.auctionplatform.user.domain.enums.VerificationStatus;
+import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.RoleRepository;
+import org.springframework.transaction.annotation.Transactional;
+import com.ecommerce.auctionplatform.auth.presentation.dto.request.RefreshRequest;
+import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jose.JOSEException;
+import lombok.AccessLevel;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.text.ParseException;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE,makeFinal = true)
+public class AuthenticationService {
+    AccountRepository accountRepository;
+    UserRepository userRepository;
+    RoleRepository roleRepository;
+    BlackListService blackListService;
+
+    PasswordEncoder encoder;
+    JwtTokenProvider jwtService;
+    UserMapper userMapper;
+
+    AccountMapper accountMapper;
+
+    @Transactional
+    public UserResponse register(RegisterRequest request) {
+        if (accountRepository.existsByUsername(request.getUserName())) {
+            throw new AppException(ErrorCode.USERNAME_EXISTED);
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new AppException(ErrorCode.EMAIL_EXISTED);
+        }
+        if (userRepository.existsByPhone(request.getPhone())) {
+            throw new AppException(ErrorCode.PHONE_EXISTED);
+        }
+
+        Role customerRole = roleRepository.findByName(PredefinedRole.RoleName.USER)
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        Account account = Account.builder()
+                .username(request.getUserName())
+                .password(encoder.encode(request.getPassWord()))
+                .role(customerRole)
+                .isActive(true)
+                .provider(ProviderType.LOCAL)
+                .build();
+
+        User user = User.builder()
+                .name(request.getFullName())
+                .phone(request.getPhone())
+                .email(request.getEmail())
+                .verificationStatus(VerificationStatus.UNVERIFIED)
+                .gender(null)
+                .account(account)
+                .build();
+
+        return userMapper.toUserResponse(userRepository.save(user));
+    }
+
+    public AuthenticationResponse login(LoginRequest request) {
+        Account account = accountRepository.findByUsername(request.getUserName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_OR_PASSWORD_INCORRECT));
+
+        if(!encoder.matches(request.getPassWord(), account.getPassword()))
+            throw new AppException(ErrorCode.UNAUTHENTACATED);
+
+        if(!account.getIsActive())
+            throw new AppException(ErrorCode.ACCOUNT_INACTIVE);
+
+        String token = jwtService.generateAccessToken(account);
+        String refreshToken = jwtService.generateRefreshToken(account);
+
+        return AuthenticationResponse.builder()
+                .token(token)
+                .refreshToken(refreshToken)
+                .account(accountMapper.toAccountResponse(account))
+                .build();
+
+    }
+    public AuthenticationResponse refreshToken(RefreshRequest request) throws JOSEException, ParseException {
+        return jwtService.refreshToken(request);
+    }
+
+    public void logout(String refreshToken) {
+        String token = SecurityUtils.getCurrentToken().orElseThrow(()->new AppException(ErrorCode.TOKEN_NOT_FOUND));
+        blackListService.addToBlackList(refreshToken,99999999L);
+        blackListService.addToBlackList(token,99999999L);
+    }
+
+    public boolean introspect(String token) throws JOSEException, ParseException {
+        try {
+            jwtService.verifyToken(token, false);
+            return true;
+        } catch (AppException e) {
+            return false;
+        }
+    }
+}

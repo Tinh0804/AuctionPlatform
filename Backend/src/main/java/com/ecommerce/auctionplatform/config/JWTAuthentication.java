@@ -1,9 +1,9 @@
 package com.ecommerce.auctionplatform.config;
 
-import com.ecommerce.auctionplatform.dto.respose.APIResponse;
-import com.ecommerce.auctionplatform.exception.ErrorCode;
-import com.ecommerce.auctionplatform.service.BlackListService;
-import com.ecommerce.auctionplatform.service.JwtService;
+import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
+import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
+import com.ecommerce.auctionplatform.auth.infrastructure.persistence.repository.BlackListService;
+import com.ecommerce.auctionplatform.auth.infrastructure.external.JwtTokenProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,7 +31,7 @@ import java.util.List;
 public class JWTAuthentication extends OncePerRequestFilter implements AuthenticationEntryPoint {
 
    @Autowired
-   private JwtService jwtService;
+   private JwtTokenProvider jwtService;
 
    @Autowired
    private BlackListService tokenBlacklistService;
