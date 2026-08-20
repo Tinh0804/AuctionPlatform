@@ -101,7 +101,586 @@ Backend/src/main/java/com/ecommerce/auctionplatform/
 
 ---
 
-## 3. Shared Module
+## 2.2 Chi Tiết Từng Subfolder – Mục Đích & Quy Tắc
+
+### `domain/model/` – JPA Entities
+
+**Mục đích:** Trung tâm hệ thống. Chứa JPA entities đại diện cho các đối tượng nghiệp vụ.  
+**Chứa gì:** `Auction.java`, `Bid.java`, `AuctionRecord.java`,...  
+**Quy tắc:**
+- CHỈ import: Java stdlib, Lombok, Jakarta Persistence (`@Entity`, `@Table`, `@Column`, `@ManyToOne`)
+- KHÔNG import: Spring beans, ApplicationService, Repository
+- Có thể chứa **behavior methods** (business rule thuần túy, không gọi DB)
+
+```java
+// auction/domain/model/Auction.java
+@Entity @Table(name = "auctions")
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class Auction {
+    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    UUID id;
+
+    @ManyToOne @JoinColumn(name = "user_id")
+    User user;          // import: user.domain.model.User ✅
+
+    BigDecimal currentPrice;
+    AuctionStatus status;   // import: auction.domain.enums.AuctionStatus ✅
+
+    // Behavior method – business rule, không gọi repo, không gọi Spring
+    public boolean canAcceptBid(BigDecimal bidAmount) {
+        return status == AuctionStatus.ACTIVE && bidAmount.compareTo(currentPrice) > 0;
+    }
+    public boolean isExpired() { return LocalDateTime.now().isAfter(endTime); }
+}
+```
+
+---
+
+### `domain/enums/` – Domain Enumerations
+
+**Mục đích:** Định nghĩa các trạng thái, loại thuộc domain logic.  
+**Chứa gì:** `AuctionStatus.java`, `AuctionRecordStatus.java`, `RegistrationStatus.java`,...  
+**Quy tắc:**
+- Enum thuần Java – KHÔNG có Spring annotation
+- Đặt tên theo khái niệm nghiệp vụ (không phải implementation)
+- Module khác import qua `{module}.domain.enums.{Name}`
+
+```java
+// auction/domain/enums/AuctionStatus.java
+public enum AuctionStatus {
+    PENDING,    // Chờ admin duyệt
+    APPROVED,   // Đã duyệt, chờ giờ mở
+    ACTIVE,     // Đang diễn ra
+    EXTENDED,   // Đang gia hạn
+    CLOSED,     // Kết thúc bình thường
+    CANCELLED,  // Bị hủy
+    FAILED      // Không có người thắng
+}
+```
+
+---
+
+### `domain/event/` – Domain Events
+
+**Mục đích:** Ghi lại "điều gì đó đã xảy ra" trong domain để các module khác phản ứng mà không cần biết nhau.  
+**Chứa gì:** `AuctionEndedEvent.java`, `BidPlacedEvent.java`,...  
+**Quy tắc:**
+- Implement `DomainEvent` từ `shared/domain/event/`
+- Immutable: dùng Java `record` hoặc Lombok `@Value`
+- KHÔNG chứa logic – chỉ chứa data
+- ApplicationService `publish()`, module khác `@EventListener`
+
+```java
+// auction/domain/event/AuctionEndedEvent.java
+public record AuctionEndedEvent(
+    UUID auctionId, UUID winnerId, BigDecimal finalPrice, LocalDateTime occurredOn
+) implements DomainEvent {
+    public AuctionEndedEvent(UUID auctionId, UUID winnerId, BigDecimal finalPrice) {
+        this(auctionId, winnerId, finalPrice, LocalDateTime.now());
+    }
+}
+// Cách dùng trong service:
+// domainEventPublisher.publish(new AuctionEndedEvent(id, winnerId, price));
+// Cách nhận trong notification module:
+// @EventListener public void onAuctionEnded(AuctionEndedEvent event) { ... }
+```
+
+---
+
+### `domain/exception/` – Domain Exceptions
+
+**Mục đích:** Exception đặc thù của module khi cần mang thêm context data.  
+**Quy tắc:**
+- Hầu hết dùng `AppException(ErrorCode.XXX)` từ `shared/` là đủ
+- Chỉ tạo exception riêng khi cần embed thêm data (e.g., conflicting entity id)
+
+```java
+// Thông thường – đủ dùng:
+throw new AppException(ErrorCode.AUCTION_NOT_FOUND);
+
+// Trường hợp đặc biệt cần thêm data:
+// auction/domain/exception/AuctionConflictException.java
+public class AuctionConflictException extends RuntimeException {
+    private final UUID conflictingAuctionId;
+    public AuctionConflictException(UUID id) { this.conflictingAuctionId = id; }
+}
+```
+
+---
+
+### `domain/repository/` – Repository Port Interfaces
+
+**Mục đích:** Domain định nghĩa **contract**, không biết cách implement (JPA, MongoDB...).  
+**Chứa gì:** Interface chỉ có method signatures, không extends JpaRepository  
+**Dự án hiện tại:** Đang dùng JPA Repository trực tiếp trong Service (acceptable). Thêm interface ở đây khi cần strict hexagonal hoặc đổi database.
+
+```java
+// auction/domain/repository/AuctionDomainRepository.java  (pattern đầy đủ)
+public interface AuctionDomainRepository {
+    Optional<Auction> findById(UUID id);
+    Auction save(Auction auction);
+    List<Auction> findActiveAuctions();
+    List<Auction> findExpiredAuctions(LocalDateTime before);
+}
+// Implementation: AuctionJpaRepository extends JpaRepository + implements AuctionDomainRepository
+```
+
+---
+
+### `domain/service/` – Domain Services
+
+**Mục đích:** Business logic phức tạp liên quan đến **nhiều entity**, không thuộc về entity đơn nào.  
+**Quy tắc:**
+- KHÔNG inject Spring beans, KHÔNG gọi repository
+- Nhận entity/value object làm input, trả về result thuần
+- Chỉ tạo khi logic không tự nhiên thuộc về một entity method
+
+```java
+// auction/domain/service/BidValidationService.java
+public class BidValidationService {  // KHÔNG có @Service
+    // Logic liên quan đến cả Auction lẫn AuctionRegistration
+    public void validate(Auction auction, AuctionRegistration reg, BigDecimal amount) {
+        if (!auction.canAcceptBid(amount)) throw new AppException(ErrorCode.BID_TOO_LOW);
+        if (reg.getStatus() != RegistrationStatus.APPROVED)
+            throw new AppException(ErrorCode.NOT_REGISTERED);
+    }
+}
+```
+
+---
+
+### `domain/valueobject/` – Value Objects
+
+**Mục đích:** Object bất biến (immutable) đại diện một khái niệm domain.  
+**Quy tắc:**
+- Immutable: `final` fields hoặc `record`
+- Equality dựa trên **giá trị** (không phải id)
+- Ví dụ: `Money`, `DateRange`, `PhoneNumber`
+
+```java
+// shared hoặc auction/domain/valueobject/Money.java
+public record Money(BigDecimal amount, String currency) {
+    public static Money ofVND(BigDecimal amount) { return new Money(amount, "VND"); }
+    public Money add(Money other) { return new Money(this.amount.add(other.amount), currency); }
+    public boolean isGreaterThan(Money other) { return amount.compareTo(other.amount) > 0; }
+}
+```
+
+---
+
+### `application/service/` – Application Services (Use Cases)
+
+**Mục đích:** Orchestrate use cases: load entities, call domain logic, save, publish events.  
+**Chứa gì:** `AuctionService.java`, `AdminStatsService.java`,...  
+**Quy tắc:**
+- `@Service`, `@Transactional` ở đây – KHÔNG ở Controller
+- KHÔNG chứa business rule (rule ở Domain)
+- KHÔNG gọi ApplicationService của module khác → dùng DomainEvent
+- Inject: JPA Repository, DomainEventPublisher, external adapters
+
+```java
+// auction/application/service/AuctionService.java
+@Service @RequiredArgsConstructor @Slf4j
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class AuctionService {
+    AuctionRepository auctionRepository;
+    DomainEventPublisher domainEventPublisher;
+
+    @Transactional
+    public BidResponse placeBid(UUID auctionId, BidRequest request) {
+        // 1. Load entity
+        Auction auction = auctionRepository.findById(auctionId)
+            .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+        // 2. Delegate business logic to domain behavior
+        if (!auction.canAcceptBid(request.getAmount()))
+            throw new AppException(ErrorCode.BID_TOO_LOW);
+        // 3. Persist
+        auction.setCurrentPrice(request.getAmount());
+        auctionRepository.save(auction);
+        // 4. Notify other modules via DomainEvent (không import NotificationService)
+        domainEventPublisher.publish(new BidPlacedEvent(auctionId, request.getAmount()));
+        // 5. Return response DTO
+        return BidResponse.builder().auctionId(auctionId).amount(request.getAmount()).build();
+    }
+}
+```
+
+---
+
+### `application/scheduler/` – Scheduled Tasks
+
+**Mục đích:** Tác vụ chạy định kỳ hoặc khi ứng dụng khởi động.  
+**Chứa gì:** `AuctionScheduler.java`  
+**Quy tắc:**
+- `@Component`, inject ApplicationService
+- KHÔNG viết business logic trực tiếp – gọi qua Service
+
+```java
+// auction/application/scheduler/AuctionScheduler.java
+@Component @RequiredArgsConstructor @Slf4j
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class AuctionScheduler {
+    AuctionService auctionService;
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void onStartup() { auctionService.checkAndStartPendingAuctions(); }
+
+    @Scheduled(fixedDelay = 60_000)
+    public void checkExpiredAuctions() { auctionService.closeExpiredAuctions(); }
+}
+```
+
+---
+
+### `application/dto/response/` – Response DTOs (**FROZEN CONTRACT**)
+
+**Mục đích:** Dữ liệu trả về cho Frontend.  
+**Chứa gì:** `AuctionResponse.java`, `BidResponse.java`, `AuctionDetailResponse.java`,...  
+**Quy tắc:**
+- `@Data @Builder @NoArgsConstructor @AllArgsConstructor`
+- Field names **KHÔNG ĐỔI** sau deploy (FE hardcode field name)
+- Thêm field mới: OK (backward compatible)
+- Xóa / đổi tên field: **FORBIDDEN**
+
+```java
+// auction/application/dto/response/AuctionResponse.java
+@Data @Builder @NoArgsConstructor @AllArgsConstructor
+public class AuctionResponse {
+    UUID id;              // FROZEN – không đổi thành "auctionId"
+    String name;          // FROZEN – không đổi thành "title"
+    BigDecimal startPrice;   // FROZEN
+    BigDecimal currentPrice; // FROZEN
+    String status;           // FROZEN
+    LocalDateTime endTime;   // FROZEN
+    // Thêm field mới ở đây là OK ↓
+    // Integer totalBids;    ← backward compatible addition
+}
+```
+
+---
+
+### `application/dto/command/` và `application/dto/query/`
+
+**Mục đích:** CQRS pattern – tách write (Command) và read (Query) operations.  
+**Dự án hiện tại:** Dùng trực tiếp Request DTO (đủ đơn giản). Tạo Command khi Service cần nhận input từ nhiều nguồn (HTTP, Scheduler, Event).
+
+```java
+// auction/application/dto/command/PlaceBidCommand.java
+@Value  // Lombok – immutable
+public class PlaceBidCommand {
+    UUID auctionId;
+    UUID bidderId;
+    BigDecimal amount;
+}
+// auction/application/dto/query/AuctionFilterQuery.java
+@Data
+public class AuctionFilterQuery {
+    String status;
+    String categoryId;
+    Pageable pageable;
+}
+```
+
+---
+
+### `application/mapper/` – MapStruct Mappers
+
+**Mục đích:** Ánh xạ tự động Entity ↔ DTO tại compile time.  
+**Quy tắc:**
+- `@Mapper(componentModel = "spring")`
+- `@Mapping(target = "field", ignore = true)` cho lazy-loaded hoặc computed fields
+- Tránh viết mapping thủ công nếu MapStruct đủ
+
+```java
+// user/application/mapper/UserMapper.java
+@Mapper(componentModel = "spring")
+public interface UserMapper {
+    @Mapping(target = "wallet", ignore = true)   // lazy load → skip
+    UserResponse toUserResponse(User user);
+}
+// user/application/mapper/AccountMapper.java
+@Mapper(componentModel = "spring")
+public interface AccountMapper {
+    @Mapping(target = "roleNo", expression = "java(mapRole(account.getRoles()))")
+    AccountResponse toAccountResponse(Account account);
+    default String mapRole(Set<Role> roles) {
+        return roles.stream().findFirst().map(r -> r.getName()).orElse("USER");
+    }
+}
+```
+
+---
+
+### `application/port/in/` – Input Ports (Use Case Interfaces)
+
+**Mục đích:** Định nghĩa "những gì hệ thống có thể làm". Controller gọi qua interface.  
+**Dự án hiện tại:** Controller inject Service trực tiếp (đủ cho scale hiện tại). Thêm khi cần testability cao hơn.
+
+```java
+// auction/application/port/in/PlaceBidUseCase.java
+public interface PlaceBidUseCase {
+    BidResponse placeBid(UUID auctionId, BidRequest request);
+}
+// AuctionService implements PlaceBidUseCase { ... }
+// AuctionController inject PlaceBidUseCase (không phải AuctionService)
+```
+
+---
+
+### `application/port/out/` – Output Ports (Infra Contracts)
+
+**Mục đích:** Định nghĩa "những gì Application cần từ Infrastructure". Cho phép swap adapter.  
+**Dự án hiện tại:** Chưa implement đầy đủ. Áp dụng khi cần chuyển đổi infra provider.
+
+```java
+// product/application/port/out/UploadImagePort.java
+public interface UploadImagePort {
+    String upload(MultipartFile file);
+    void delete(String publicId);
+}
+// CloudinaryAdapter implements UploadImagePort { ... }
+// Nếu chuyển sang S3: S3Adapter implements UploadImagePort { ... }
+// ProductService inject UploadImagePort → không cần sửa Service khi đổi provider
+```
+
+---
+
+### `infrastructure/persistence/repository/` – JPA Repositories
+
+**Mục đích:** Triển khai data access với Spring Data JPA.  
+**Chứa gì:** `AuctionRepository.java`, `BidRepository.java`,...  
+**Quy tắc:**
+- Extends `JpaRepository<Entity, UUID>`, thêm `JpaSpecificationExecutor` khi cần dynamic filter
+- Custom query: method naming hoặc `@Query` (JPQL)
+- Dùng `@Lock(PESSIMISTIC_WRITE)` cho race-condition sensitive operations (bid, withdraw)
+
+```java
+// auction/infrastructure/persistence/repository/AuctionRepository.java
+@Repository
+public interface AuctionRepository extends JpaRepository<Auction, UUID>,
+                                           JpaSpecificationExecutor<Auction> {
+    // Method naming query
+    List<Auction> findByStatus(AuctionStatus status);
+
+    // Custom JPQL
+    @Query("SELECT a FROM Auction a WHERE a.endTime < :now AND a.status = :status")
+    List<Auction> findExpiredAuctions(@Param("now") LocalDateTime now,
+                                      @Param("status") AuctionStatus status);
+
+    // Pessimistic lock – tránh race condition khi bid
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Auction a WHERE a.id = :id")
+    Optional<Auction> findByIdWithLock(@Param("id") UUID id);
+}
+// Simple repository không cần custom query:
+@Repository
+public interface AuctionRegistrationRepository extends JpaRepository<AuctionRegistration, UUID> {
+    Optional<AuctionRegistration> findByAuctionIdAndUserId(UUID auctionId, UUID userId);
+    List<AuctionRegistration> findByAuctionId(UUID auctionId);
+}
+```
+
+---
+
+### `infrastructure/external/` – External Service Adapters
+
+**Mục đích:** Tích hợp Cloudinary, Firebase, JWT, VNPay, MoMo,...  
+**Chứa gì:** `CloudinaryAdapter.java`, `JwtTokenProvider.java`, `VNPayGatewayAdapter.java`, `MoMoGatewayAdapter.java`  
+**Quy tắc:**
+- Tên: `{ServiceName}Adapter` hoặc `{ServiceName}Provider`
+- KHÔNG chứa business logic – chỉ wrap external API call
+- Bắt exception từ external và convert sang `AppException`
+- Implement Port/Out interface nếu có
+
+```java
+// product/infrastructure/external/CloudinaryAdapter.java
+@Component @RequiredArgsConstructor
+public class CloudinaryAdapter {  // implements UploadImagePort
+    private final Cloudinary cloudinary;
+    public String uploadImage(MultipartFile file) {
+        try {
+            Map result = cloudinary.uploader().upload(file.getBytes(),
+                ObjectUtils.asMap("resource_type", "auto"));
+            return (String) result.get("secure_url");
+        } catch (IOException e) { throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR); }
+    }
+}
+
+// auth/infrastructure/external/JwtTokenProvider.java
+@Component
+public class JwtTokenProvider {
+    public String generateToken(Account account) { /* HMAC signing */ }
+    public boolean validateToken(String token) { /* verify signature */ }
+    public String extractSubject(String token) { /* parse claims */ }
+}
+
+// payment/infrastructure/external/VNPayGatewayAdapter.java
+@Component
+public class VNPayGatewayAdapter {
+    public String buildPaymentUrl(PaymentRequest req) { /* VNPay API */ }
+    public boolean verifyCallback(Map<String, String> params) { /* HMAC verify */ }
+}
+```
+
+---
+
+### `infrastructure/messaging/` – WebSocket & Event Listeners
+
+**Mục đích:** Real-time messaging và lắng nghe Domain Events từ các module khác.  
+**Chứa gì:** Event listeners (`AuctionEventListener`), WebSocket message handlers  
+**Quy tắc:**
+- `@EventListener` hoặc `@TransactionalEventListener` để listen DomainEvent
+- `SimpMessagingTemplate` để push notification qua WebSocket (STOMP)
+- KHÔNG chứa business logic – delegate sang ApplicationService
+
+```java
+// notification/infrastructure/messaging/AuctionEventListener.java
+@Component @RequiredArgsConstructor
+public class AuctionEventListener {
+    final NotificationService notificationService;
+
+    @EventListener
+    public void onBidPlaced(BidPlacedEvent event) {
+        notificationService.notifyOutbidUsers(event.getAuctionId(), event.getAmount());
+    }
+
+    // AFTER_COMMIT: chỉ publish sau khi transaction commit thành công
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onAuctionEnded(AuctionEndedEvent event) {
+        notificationService.notifyWinner(event.getWinnerId(), event.getAuctionId());
+    }
+}
+```
+
+---
+
+### `infrastructure/config/` – Module-Specific Config
+
+**Mục đích:** Spring Bean config chỉ liên quan đến module đó.  
+**Quy tắc:**
+- Global config (Security, Redis, CORS) → root `config/` package
+- Module config chỉ khai báo bean riêng của module
+
+```java
+// payment/infrastructure/config/VNPayConfig.java
+@Configuration @ConfigurationProperties(prefix = "vnpay") @Data
+public class VNPayConfig {
+    private String tmnCode;
+    private String hashSecret;
+    private String payUrl;
+    private String returnUrl;
+}
+```
+
+---
+
+### `presentation/rest/` – REST Controllers
+
+**Mục đích:** HTTP entry point – nhận request, validate, gọi Service, wrap response.  
+**Chứa gì:** `AuctionController.java`, `AdminStatsController.java`,...  
+**Quy tắc:**
+- `@RestController` + `@RequestMapping("/api/{resource}")`
+- Chỉ inject ApplicationService – KHÔNG inject Repository
+- KHÔNG chứa business logic
+- Mọi response PHẢI wrap trong `APIResponse<T>`
+- `@PreAuthorize` cho phân quyền
+
+```java
+// auction/presentation/rest/AuctionController.java
+@RestController @RequestMapping("/api/auctions") @RequiredArgsConstructor
+public class AuctionController {
+    final AuctionService auctionService;
+
+    @GetMapping
+    public APIResponse<Page<AuctionResponse>> getAll(
+            @RequestParam(required = false) String status,
+            @PageableDefault(size = 12) Pageable pageable) {
+        return APIResponse.<Page<AuctionResponse>>builder()
+            .status(HttpStatus.OK.value())
+            .message("Auctions fetched successfully")
+            .result(auctionService.getAllAuctions(status, null, pageable))
+            .build();
+    }
+
+    @PostMapping("/create-auction")
+    @PreAuthorize("hasRole('USER')")
+    public APIResponse<AuctionCreationResponse> create(
+            @ModelAttribute AuctionCreationRequest request) throws IOException {
+        return APIResponse.<AuctionCreationResponse>builder()
+            .status(HttpStatus.CREATED.value())
+            .message("Auction created")
+            .result(auctionService.createAuction(request))
+            .build();
+    }
+}
+```
+
+---
+
+### `presentation/dto/request/` – Request DTOs (**FROZEN CONTRACT**)
+
+**Mục đích:** Nhận dữ liệu từ client.  
+**Chứa gì:** `AuctionCreationRequest.java`, `BidRequest.java`,...  
+**Quy tắc:**
+- `@Data @FieldDefaults(level = AccessLevel.PRIVATE)`
+- Dùng Jakarta Validation: `@NotNull`, `@NotBlank`, `@Min`, `@Valid`
+- Field names **KHÔNG ĐỔI** sau deploy
+- `MultipartFile[]` cho file upload
+
+```java
+// auction/presentation/dto/request/AuctionCreationRequest.java
+@Data @FieldDefaults(level = AccessLevel.PRIVATE)
+public class AuctionCreationRequest {
+    String name;               // FROZEN
+    String description;        // FROZEN
+    String categoryId;         // FROZEN
+    String condition;          // FROZEN
+    BigDecimal startPrice;     // FROZEN
+    BigDecimal stepPrice;      // FROZEN
+    LocalDateTime startTime;   // FROZEN
+    LocalDateTime endTime;     // FROZEN
+    MultipartFile[] files;     // FROZEN
+}
+```
+
+---
+
+### `presentation/advice/` – Exception Handlers
+
+**Mục đích:** `@ControllerAdvice` riêng của module (nếu cần).  
+**Quy tắc:**
+- Global handler: `shared/presentation/advice/GlobalExceptionHandle.java` – xử lý `AppException`
+- Chỉ tạo module advice khi cần override hoặc xử lý exception đặc thù của module
+
+```java
+// Thông thường KHÔNG cần tạo riêng per module.
+// GlobalExceptionHandle đã xử lý AppException + validation errors.
+// Dùng:
+throw new AppException(ErrorCode.AUCTION_NOT_FOUND);
+```
+
+---
+
+### Root `config/` – Global Configuration
+
+| File | Mục đích |
+|------|---------|
+| `SecurityConfig.java` | Spring Security, JWT filter chain, CORS, endpoint permissions |
+| `CustomJwtDecoder.java` | Decode & validate JWT token (tích hợp với Spring Security OAuth2) |
+| `JWTAuthentication.java` | Custom JWT authentication filter |
+| `RedisConfig.java` | Redis connection factory, cache manager |
+| `RedisKeyExpirationListener.java` | Lắng nghe Redis key TTL expired (dùng cho auction scheduling) |
+| `FirebaseConfig.java` | Firebase Admin SDK initialization |
+| `CloudinaryConfig.java` | Cloudinary SDK bean |
+| `ApplicationInitial.java` | Seed data khi startup: tạo roles, admin account |
+| `SwaggerConfig.java` | OpenAPI / Swagger UI documentation |
+| `WebSocketConfig.java` | STOMP WebSocket endpoint, message broker config |
+| `WebSocketEventListener.java` | WebSocket connect/disconnect session tracking |
+
+---
+
+
 
 ```
 shared/
