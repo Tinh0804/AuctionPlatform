@@ -1,0 +1,9 @@
+.env
+.git
+.idea
+.mvn/wrapper/maven-wrapper.jar
+target
+*.iml
+*.log
+src/main/resources/firebase-admin.json
+src/main/resources/*service-account*.json
