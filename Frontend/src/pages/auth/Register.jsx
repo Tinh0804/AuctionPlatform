@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Gavel, Eye, EyeOff, User, Mail, Phone, Lock, UserPlus, ArrowLeft, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { register } from '@/features/auth/api';
-import { registerSchema } from '@/schemas/dto';
-import { useToast } from '@/components/Elements/Toast';
+import { registerSchema } from '@/shared/schemas/dto';
+import { useToast } from '@/shared/ui/Toast';
 
 export default function Register() {
     const navigate = useNavigate();

@@ -1,0 +1,27 @@
+package com.ecommerce.auctionplatform.identity.application.dto.command;
+
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class RegisterCommand {
+
+    String userName;
+
+    String passWord;
+
+    String fullName;
+
+    String phone;
+
+    String email;
+
+}

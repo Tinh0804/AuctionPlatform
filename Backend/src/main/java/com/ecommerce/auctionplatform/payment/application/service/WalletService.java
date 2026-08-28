@@ -1,85 +1,106 @@
 package com.ecommerce.auctionplatform.payment.application.service;
 
-import com.ecommerce.auctionplatform.payment.presentation.dto.request.PinSetupRequest;
-import com.ecommerce.auctionplatform.user.domain.model.User;
+import com.ecommerce.auctionplatform.payment.application.dto.command.SetupPinCommand;
+import com.ecommerce.auctionplatform.payment.application.dto.command.RequestWithdrawalCommand;
+import com.ecommerce.auctionplatform.payment.domain.enums.TransactionStatus;
+import com.ecommerce.auctionplatform.payment.domain.enums.TransactionType;
 import com.ecommerce.auctionplatform.payment.domain.model.Wallet;
-import com.ecommerce.auctionplatform.shared.presentation.advice.AppException;
-import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
-import com.ecommerce.auctionplatform.user.domain.enums.PredefinedRole;
+import com.ecommerce.auctionplatform.shared.application.exception.AppException;
+import com.ecommerce.auctionplatform.shared.application.exception.ErrorCode;
 import com.ecommerce.auctionplatform.payment.domain.enums.WalletStatus;
-import com.ecommerce.auctionplatform.payment.infrastructure.persistence.repository.TransactionRepository;
-import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
-import com.ecommerce.auctionplatform.payment.infrastructure.persistence.repository.WalletRepository;
-import com.ecommerce.auctionplatform.shared.infrastructure.utils.SecurityUtils;
+import com.ecommerce.auctionplatform.payment.domain.repository.TransactionRepository;
+import com.ecommerce.auctionplatform.payment.application.port.out.UserPort;
+import com.ecommerce.auctionplatform.payment.application.port.out.UserView;
+import com.ecommerce.auctionplatform.payment.domain.repository.WalletRepository;
+import com.ecommerce.auctionplatform.shared.application.port.out.CurrentUserProvider;
+import com.ecommerce.auctionplatform.shared.application.port.out.PasswordCodec;
+import com.ecommerce.auctionplatform.shared.application.port.out.PhoneVerificationPort;
 import com.ecommerce.auctionplatform.payment.application.dto.response.TransactionResponse;
 import com.ecommerce.auctionplatform.payment.domain.model.Transaction;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseToken;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.UUID;
+import com.ecommerce.auctionplatform.payment.application.port.in.WalletUseCase;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class WalletService {
+public class WalletService implements WalletUseCase {
     WalletRepository walletRepository;
-    UserRepository userRepository;
-    PasswordEncoder passwordEncoder;
+    UserPort userPort;
+    PasswordCodec passwordCodec;
     TransactionRepository transactionRepository;
+    CurrentUserProvider currentUserProvider;
+    PhoneVerificationPort phoneVerificationPort;
 
     @Transactional
-    public void setupPin(PinSetupRequest request) {
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId()
-                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED)));
+    public void setupPin(SetupPinCommand request) {
+        UUID userProfileId = currentUserProvider.currentProfileId()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED));
 
-        User user = userRepository.findById(userProfileId)
+        UserView user = userPort.findById(userProfileId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        String firebasePhone = verifyFirebaseTokenAndGetPhone(request.getFirebaseIdToken());
+        String firebasePhone = phoneVerificationPort.verifiedPhoneNumber(request.getFirebaseIdToken())
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        if (firebasePhone == null || firebasePhone.trim().isEmpty()) {
-            log.error("Firebase token does not contain a verified phone number");
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-
-        String userPhone = user.getPhone();
+        String userPhone = user.phone();
         if (!normalizePhone(firebasePhone).equals(normalizePhone(userPhone))) {
             log.error("Phone number mismatch: Firebase phone = {}, Registered user phone = {}", firebasePhone, userPhone);
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
-        Wallet wallet = walletRepository.findByUser(user).orElseGet(() -> {
+        Wallet wallet = walletRepository.findByUserId(user.id()).orElseGet(() -> {
             Wallet newWallet = Wallet.builder()
-                    .user(user)
-                    .availableBalance(java.math.BigDecimal.ZERO)
-                    .frozenBalance(java.math.BigDecimal.ZERO)
-                    .status(com.ecommerce.auctionplatform.payment.domain.enums.WalletStatus.ACTIVE)
+                    .userId(user.id())
+                    .availableBalance(BigDecimal.ZERO)
+                    .frozenBalance(BigDecimal.ZERO)
+                    .status(WalletStatus.ACTIVE)
                     .build();
             return walletRepository.save(newWallet);
         });
 
-        wallet.setPinCode(passwordEncoder.encode(request.getNewPin()));
-        wallet.setUpdatedAt(LocalDateTime.now());
+        wallet.setupPin(passwordCodec.encode(request.getNewPin()));
         walletRepository.save(wallet);
 
         log.info("Wallet PIN successfully configured for user {}", userProfileId);
     }
 
+    @Override
+    @Transactional
+    public void requestWithdrawal(RequestWithdrawalCommand request) {
+        if (request == null || request.amount() == null || request.amount().signum() <= 0
+                || request.bank() == null || request.bank().isBlank()
+                || request.accountNumber() == null || request.accountNumber().isBlank()) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        UserView user = getCurrentUser();
+        Wallet wallet = walletRepository.findByUserIdForUpdate(user.id())
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        wallet.freezeBalance(request.amount());
+        walletRepository.save(wallet);
+        transactionRepository.save(Transaction.builder()
+                .walletId(wallet.getId())
+                .type(TransactionType.WITHDRAWAL)
+                .amount(request.amount())
+                .status(TransactionStatus.PENDING)
+                .referenceType("WITHDRAWAL")
+                .note("Rút tiền về " + request.bank() + " - " + maskAccount(request.accountNumber()))
+                .build());
+    }
+
     public List<TransactionResponse> getMyWalletHistory() {
-        User user = getCurrentUser();
-        Wallet wallet = walletRepository.findByUser(user)
+        UserView user = getCurrentUser();
+        Wallet wallet = walletRepository.findByUserId(user.id())
                 .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         return transactionRepository.findByWalletIdOrderByCreatedAtDesc(wallet.getId())
@@ -99,37 +120,11 @@ public class WalletService {
                 .build();
     }
 
-    private User getCurrentUser() {
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
-                new AppException(ErrorCode.UNAUTHORIZED)));
-        return userRepository.findById(userProfileId).orElseThrow(
+    private UserView getCurrentUser() {
+        UUID userProfileId = currentUserProvider.currentProfileId().orElseThrow(() ->
+                new AppException(ErrorCode.UNAUTHORIZED));
+        return userPort.findById(userProfileId).orElseThrow(
                 () -> new AppException(ErrorCode.USER_NOT_FOUND));
-    }
-
-    public Wallet getAdminWallet() {
-        User adminUser = userRepository.findFirstByAccount_Role_Name(PredefinedRole.ADMIN.name())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        return walletRepository.findByUser(adminUser)
-                .orElse(walletRepository.save(
-                    Wallet.builder()
-                    .user(adminUser)
-                    .availableBalance(BigDecimal.ZERO)
-                    .frozenBalance(BigDecimal.ZERO)
-                    .status(WalletStatus.ACTIVE)
-                    .createdAt(LocalDateTime.now())
-                    .notes("Wallet for admin")
-                    .build()
-                ));
-    }
-
-    private String verifyFirebaseTokenAndGetPhone(String idToken) {
-        try {
-            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
-            return (String) decodedToken.getClaims().get("phone_number");
-        } catch (Exception e) {
-            log.error("Firebase token verification failed via Admin SDK: {}", e.getMessage());
-            throw new AppException(ErrorCode.UNAUTHORIZED);
-        }
     }
 
     private String normalizePhone(String phone) {
@@ -139,5 +134,13 @@ public class WalletService {
             return digits.substring(digits.length() - 9);
         }
         return digits;
+    }
+
+    private String maskAccount(String accountNumber) {
+        String normalized = accountNumber.replaceAll("\\s", "");
+        if (normalized.length() <= 4) {
+            return normalized;
+        }
+        return "*".repeat(normalized.length() - 4) + normalized.substring(normalized.length() - 4);
     }
 }

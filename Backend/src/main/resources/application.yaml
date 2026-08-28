@@ -20,19 +20,18 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/auctiondb}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:@Tinh0804}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   jpa:
+    open-in-view: false
     hibernate:
+      ddl-auto: validate
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:false}
     format-sql: true
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   security:
-    user:
-      name: ${SECURITY_USER_NAME:admin}
-      password: ${SECURITY_USER_PASSWORD:12345}
     oauth2:
       client:
         registration:
@@ -64,7 +63,7 @@ spring:
             user-info-uri: https://graph.facebook.com/me?fields=id,name,email,picture
             user-name-attribute: id
 jwt:
-  signerKey: ${JWT_SIGNER_KEY:default-jwt-signer-key-that-is-at-least-256-bits-long!}
+  signerKey: ${JWT_SIGNER_KEY}
   valid-duration : 3600
   refreshable-duration : 36000
 
@@ -84,7 +83,8 @@ app:
   fptai:
     key: ${FPTAI_KEY:}
   firebase:
-    config-path: "classpath:firebase-admin.json"
+    enabled: ${FIREBASE_ENABLED:false}
+    config-path: ${FIREBASE_CONFIG_PATH:}
   deduct-score: 20
   days-to-expire: 7
 
@@ -111,4 +111,3 @@ momo:
   return-url: ${MOMO_RETURN_URL}
   notify-url: ${MOMO_NOTIFY_URL}
   request-type: "captureWallet"
-

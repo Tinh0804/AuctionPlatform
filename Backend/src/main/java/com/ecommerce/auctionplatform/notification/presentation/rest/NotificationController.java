@@ -1,8 +1,9 @@
 package com.ecommerce.auctionplatform.notification.presentation.rest;
 
 import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
-import com.ecommerce.auctionplatform.notification.application.dto.response.NotificationResponse;
-import com.ecommerce.auctionplatform.notification.application.service.NotificationService;
+import com.ecommerce.auctionplatform.notification.application.port.in.NotificationUseCase;
+import com.ecommerce.auctionplatform.notification.presentation.dto.response.NotificationResponse;
+import com.ecommerce.auctionplatform.notification.presentation.mapper.NotificationResponseMapper;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -17,13 +18,14 @@ import java.util.UUID;
 @RequestMapping("/notifications")
 public class NotificationController {
 
-    NotificationService notificationService;
+    NotificationUseCase notificationService;
+    NotificationResponseMapper responseMapper;
 
     @GetMapping("/my")
     public APIResponse<List<NotificationResponse>> getMyNotifications() {
         return APIResponse.<List<NotificationResponse>>builder()
                 .message("Notifications retrieved successfully")
-                .result(notificationService.getMyNotifications())
+                .result(responseMapper.toResponses(notificationService.getMyNotifications()))
                 .build();
     }
 

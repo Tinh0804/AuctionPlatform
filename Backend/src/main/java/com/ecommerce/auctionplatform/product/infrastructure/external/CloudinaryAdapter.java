@@ -2,6 +2,9 @@ package com.ecommerce.auctionplatform.product.infrastructure.external;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.ecommerce.auctionplatform.shared.application.model.FileContent;
+import com.ecommerce.auctionplatform.shared.application.port.out.FileStoragePort;
+import com.ecommerce.auctionplatform.shared.application.exception.FileStorageException;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +13,6 @@ import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Map;
@@ -20,7 +22,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class CloudinaryAdapter {
+public class CloudinaryAdapter implements FileStoragePort {
 
     Cloudinary cloudinary;
 
@@ -28,11 +30,13 @@ public class CloudinaryAdapter {
     @Value("${spring.application.name}")
     protected String applicationName;
 
-    public String uploadFile(MultipartFile file, String folderName) throws IOException {
+    @Override
+    public String uploadFile(FileContent file, String folderName) {
         return uploadFile(file, folderName, null);
     }
 
-    public String uploadFile(MultipartFile file, String folderName, Map<String, Object> extraOptions) throws IOException {
+    @Override
+    public String uploadFile(FileContent file, String folderName, Map<String, Object> extraOptions) {
         try {
             String targetFolder = folderName.startsWith(applicationName) ? folderName : applicationName + "/" + folderName;
             java.util.Map<String, Object> options = new java.util.HashMap<>();
@@ -41,11 +45,11 @@ public class CloudinaryAdapter {
             if (extraOptions != null) {
                 options.putAll(extraOptions);
             }
-            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), options);
+            Map uploadResult = cloudinary.uploader().upload(file.bytes(), options);
             return uploadResult.get("secure_url").toString();
         } catch (IOException e) {
             log.error("Error uploading file to Cloudinary", e);
-            throw new IOException("Failed to upload file to Cloudinary", e);
+            throw new FileStorageException("Failed to upload file to Cloudinary", e);
         }
     }
 }

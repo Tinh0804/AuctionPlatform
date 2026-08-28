@@ -1,5 +1,4 @@
 package com.ecommerce.auctionplatform.auction.application.dto.response;
-import com.ecommerce.auctionplatform.payment.application.dto.response.RevenueChartData;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

@@ -103,12 +103,6 @@ CREATE TYPE provider_type as  ENUM(
     'FACEBOOK'      -- Đăng nhập bằng Facebook
 );
 
-CREATE TYPE image_reference_type AS ENUM (
-    'PRODUCT',
-    'DISPUTE',
-    'USER'
-);
-
 -- ==========================================
 -- 1. PHÂN QUYỀN & TÀI KHOẢN
 -- ==========================================
@@ -129,7 +123,7 @@ CREATE TABLE accounts (
     role_id    UUID NOT NULL REFERENCES roles(id), -- FK thẳng vào roles
     is_active  BOOLEAN   DEFAULT TRUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    provider provider_type  NOT null default "LOCAL",
+    provider provider_type  NOT NULL DEFAULT 'LOCAL',
     provider_id  VARCHAR(255)
 );
 
@@ -140,7 +134,7 @@ CREATE TABLE accounts (
 CREATE TABLE users (
     id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id           UUID UNIQUE NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    full_name            VARCHAR(100) NOT NULL,
+    name                 VARCHAR(100) NOT NULL,
     phone_number         VARCHAR(20)  NOT NULL,
     email                VARCHAR(100) NOT NULL UNIQUE,
     identity_card        VARCHAR(20)  UNIQUE,
@@ -150,6 +144,7 @@ CREATE TABLE users (
     verification_status  verification_status DEFAULT 'UNVERIFIED',
     identity_front_image VARCHAR(500),
     identity_back_image  VARCHAR(500),
+    avatar_image         VARCHAR(500),
     created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at           TIMESTAMP
 );
@@ -192,17 +187,16 @@ CREATE TABLE products (
     updated_at          TIMESTAMP
 );
 
-CREATE TABLE images (
-    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    reference_type image_reference_type  NOT NULL,          -- 'PRODUCT', 'DISPUTE', 'USER', ...
-    reference_id   UUID         NOT NULL,           -- polymorphic FK (no hard constraint)
-    file_url       VARCHAR(500) NOT NULL,
-    is_cover       BOOLEAN      DEFAULT FALSE,      -- dùng cho PRODUCT: ảnh đại diện
-    sort_order     INT          DEFAULT 0,          -- thứ tự hiển thị
-    description    VARCHAR(255),                    -- dùng cho DISPUTE: mô tả bằng chứng
-    created_at     TIMESTAMP    DEFAULT NOW()
+CREATE TABLE product_images (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id  UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    file_url    VARCHAR(500) NOT NULL,
+    is_cover    BOOLEAN DEFAULT FALSE,
+    sort_order  INT DEFAULT 0,
+    description VARCHAR(255),
+    created_at  TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX idx_images_reference ON images(reference_type, reference_id);
+CREATE INDEX idx_product_images_product ON product_images(product_id);
 
 -- ==========================================
 -- 4. VÍ & GIAO DỊCH
@@ -320,6 +314,8 @@ CREATE TABLE orders (
     rating_score      INTEGER CHECK (rating_score BETWEEN 1 AND 5),
     review_content    VARCHAR(1000),
     review_date       TIMESTAMP,
+    tracking_code     VARCHAR(100),
+    shipping_provider VARCHAR(100),
     created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMP
 );
@@ -330,13 +326,22 @@ CREATE TABLE disputes (
     claimant_id  UUID NOT NULL REFERENCES users(id),  -- người tạo khiếu nại
     reason       VARCHAR(255) NOT NULL,
     description  VARCHAR(2000),
-    evidence_url VARCHAR(500),
     status       dispute_status DEFAULT 'OPEN',
     resolved_by  UUID REFERENCES users(id),           -- admin xử lý
     resolution   VARCHAR(1000),
     created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
     resolved_at  TIMESTAMP
 );
+
+CREATE TABLE dispute_evidences (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dispute_id  UUID NOT NULL REFERENCES disputes(id) ON DELETE CASCADE,
+    file_url    VARCHAR(1000) NOT NULL,
+    sort_order  INT NOT NULL DEFAULT 0,
+    description VARCHAR(500),
+    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_dispute_evidences_dispute ON dispute_evidences(dispute_id, sort_order);
 
 -- ==========================================
 -- 7. UY TÍN
@@ -427,4 +432,3 @@ CREATE INDEX idx_reputation_dispute_id    ON reputation_histories(dispute_id);
 -- Notifications
 CREATE INDEX idx_notifications_user_id    ON notifications(user_id);
 CREATE INDEX idx_notifications_unread     ON notifications(user_id, is_read);
-

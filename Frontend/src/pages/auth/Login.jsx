@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Gavel, Eye, EyeOff, User, Lock, LogIn } from 'lucide-react';
 import { login, getMyInfo } from '@/features/auth/api';
-import useAuthStore from '@/store/useAuthStore';
+import useAuthStore from '@/shared/store/useAuthStore';
 
 export default function Login() {
     const navigate = useNavigate();

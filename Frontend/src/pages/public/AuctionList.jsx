@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, ArrowUpRight, ChevronRight, Clock3, Filter, Gavel, Search, SlidersHorizontal, Users, X, Grid, List } from 'lucide-react';
-import apiClient from '@/services/apiClient';
-import EmptyState from '@/components/Elements/EmptyState';
+import apiClient from '@/shared/api/apiClient';
+import EmptyState from '@/shared/ui/EmptyState';
+import { useStaggerEntrance } from '@/shared/animations/useStaggerEntrance';
 
 const statusOptions = [
     { value: '', label: 'Tất cả phiên' },
@@ -50,6 +51,8 @@ function AuctionList() {
     const [showMobileFilter, setShowMobileFilter] = useState(false);
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
     const pageRef = useRef(null);
+    const gridRef = useStaggerEntrance({ selector: '.bento-item' });
+    const listRef = useStaggerEntrance({ selector: '.list-item' });
 
     const currentStatus = searchParams.get('status') || '';
     const currentCategory = searchParams.get('category_id') || '';
@@ -180,14 +183,14 @@ function AuctionList() {
     );
 
     // Lot Card Component
-    const LotCard = ({ auc }) => {
+    const LotCard = ({ auc, className = '' }) => {
         const coverImageUrl = (auc.images && auc.images.length > 0) 
             ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
             : (auc.coverImage || auc.cover_image);
 
         return (
-        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#9A6A2F]/5">
-            <div className="relative aspect-[16/10] overflow-hidden bg-[#0E0A07]">
+        <Link to={`/auctions/${auc.id}`} className={`group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300 hover:shadow-xl hover:shadow-[#9A6A2F]/5 h-full flex flex-col ${className}`}>
+            <div className="relative flex-grow min-h-[160px] aspect-[16/10] overflow-hidden bg-[#0E0A07]">
                 {coverImageUrl ? (
                     <img 
                         src={coverImageUrl} 
@@ -250,13 +253,13 @@ function AuctionList() {
     };
 
     // List View Card
-    const LotListItem = ({ auc }) => {
+    const LotListItem = ({ auc, className = '' }) => {
         const coverImageUrl = (auc.images && auc.images.length > 0) 
             ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
             : (auc.coverImage || auc.cover_image);
 
         return (
-        <Link to={`/auctions/${auc.id}`} className="group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300">
+        <Link to={`/auctions/${auc.id}`} className={`group block bg-[#1A140F] rounded-xl overflow-hidden border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/40 transition-all duration-300 ${className}`}>
             <div className="flex flex-col sm:flex-row">
                 <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 overflow-hidden bg-[#0E0A07]">
                     {coverImageUrl ? (
@@ -414,15 +417,27 @@ function AuctionList() {
                         {/* Results */}
                         {auctions.length > 0 ? (
                             viewMode === 'grid' ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 xl:gap-6">
-                                    {auctions.map(auc => (
-                                        <LotCard key={auc.id} auc={auc} />
-                                    ))}
+                                <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 xl:gap-6 auto-rows-[minmax(0,1fr)]">
+                                    {auctions.map((auc, index) => {
+                                        // Bento Grid Pattern
+                                        let bentoClass = "bento-item";
+                                        if (index === 0) {
+                                            bentoClass += " sm:col-span-2 sm:row-span-2";
+                                        } else if (index === 3 || index === 7) {
+                                            bentoClass += " lg:col-span-2";
+                                        } else if (index === 6) {
+                                            bentoClass += " sm:col-span-2 lg:col-span-1 lg:row-span-2";
+                                        }
+                                        
+                                        return (
+                                            <LotCard key={auc.id} auc={auc} className={bentoClass} />
+                                        );
+                                    })}
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div ref={listRef} className="space-y-4">
                                     {auctions.map(auc => (
-                                        <LotListItem key={auc.id} auc={auc} />
+                                        <LotListItem key={auc.id} auc={auc} className="list-item" />
                                     ))}
                                 </div>
                             )

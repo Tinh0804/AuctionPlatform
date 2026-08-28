@@ -1,67 +1,48 @@
 package com.ecommerce.auctionplatform.payment.application.mapper;
 
 import com.ecommerce.auctionplatform.payment.application.dto.response.OrderResponse;
-import com.ecommerce.auctionplatform.product.domain.model.Image;
 import com.ecommerce.auctionplatform.payment.domain.model.Order;
-import com.ecommerce.auctionplatform.product.domain.model.Product;
-import com.ecommerce.auctionplatform.product.infrastructure.persistence.repository.ImageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import com.ecommerce.auctionplatform.payment.application.port.out.AuctionQueryPort;
+import com.ecommerce.auctionplatform.payment.application.port.out.AuctionRecordView;
+import com.ecommerce.auctionplatform.payment.application.port.out.UserPort;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class OrderMapper {
-
-    private final ImageRepository imageRepository;
+    private final AuctionQueryPort auctionQueryPort;
+    private final UserPort userPort;
 
     public OrderResponse toOrderResponse(Order order) {
-        String productName = null;
-        String productImageUrl = null;
-        UUID auctionId = null;
-        BigDecimal depositAmount = null;
-        LocalDateTime paymentDeadline = null;
-
-        if (order.getAuctionRecord() != null && order.getAuctionRecord().getAuction() != null) {
-            var auction = order.getAuctionRecord().getAuction();
-            auctionId = auction.getId();
-            depositAmount = auction.getDepositAmount();
-            if (auction.getProduct() != null) {
-                Product product = auction.getProduct();
-                productName = product.getName();
-                // Fetch cover image
-                List<Image> images = imageRepository.findByProductIdOrderByIsCoverDesc(product.getId());
-                if (!images.isEmpty()) {
-                    productImageUrl = images.get(0).getFileUrl();
-                }
-            }
-            if (order.getAuctionRecord().getExpiryTime() != null) {
-                paymentDeadline = order.getAuctionRecord().getExpiryTime();
-            }
-        }
+        AuctionRecordView record = order.getAuctionRecordId() == null
+                ? null
+                : auctionQueryPort.findRecord(order.getAuctionRecordId()).orElse(null);
 
         return OrderResponse.builder()
                 .id(order.getId())
-                .auctionId(auctionId)
-                .productName(productName)
-                .productImageUrl(productImageUrl)
-                .sellerName(order.getSeller() != null ? order.getSeller().getName() : null)
-                .buyerName(order.getBuyer() != null ? order.getBuyer().getName() : null)
+                .auctionId(record == null ? null : record.auctionId())
+                .productName(record == null ? null : record.productName())
+                .productImageUrl(record == null ? null : record.productImageUrl())
+                .sellerName(userName(order.getSellerId()))
+                .buyerName(userName(order.getBuyerId()))
                 .totalAmount(order.getTotalAmount())
-                .depositAmount(depositAmount)
+                .depositAmount(record == null ? null : record.depositAmount())
                 .status(order.getStatus())
                 .trackingCode(order.getTrackingCode())
                 .shippingProvider(order.getShippingProvider())
                 .ratingScore(order.getRatingScore())
                 .reviewContent(order.getReviewContent())
                 .reviewDate(order.getReviewDate())
-                .paymentDeadline(paymentDeadline)
+                .paymentDeadline(record == null ? null : record.paymentDeadline())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
+    }
+
+    private String userName(UUID userId) {
+        return userId == null ? null : userPort.findById(userId).map(user -> user.name()).orElse(null);
     }
 }

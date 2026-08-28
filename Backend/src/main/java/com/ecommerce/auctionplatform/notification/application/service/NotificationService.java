@@ -2,33 +2,31 @@ package com.ecommerce.auctionplatform.notification.application.service;
 
 import com.ecommerce.auctionplatform.notification.application.dto.response.NotificationResponse;
 import com.ecommerce.auctionplatform.notification.domain.model.Notification;
-import com.ecommerce.auctionplatform.user.domain.model.User;
-import com.ecommerce.auctionplatform.shared.presentation.advice.AppException;
-import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
-import com.ecommerce.auctionplatform.notification.infrastructure.persistence.repository.NotificationRepository;
-import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
-import com.ecommerce.auctionplatform.shared.infrastructure.utils.SecurityUtils;
+import com.ecommerce.auctionplatform.shared.application.exception.AppException;
+import com.ecommerce.auctionplatform.shared.application.exception.ErrorCode;
+import com.ecommerce.auctionplatform.notification.domain.repository.NotificationRepository;
+import com.ecommerce.auctionplatform.notification.application.port.out.NotificationSenderPort;
+import com.ecommerce.auctionplatform.shared.application.port.out.CurrentUserProvider;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.ecommerce.auctionplatform.notification.application.port.in.NotificationUseCase;
 
 @Service
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
-public class NotificationService {
+public class NotificationService implements NotificationUseCase {
 
     NotificationRepository notificationRepository;
-    UserRepository userRepository;
-    SimpMessagingTemplate messagingTemplate;
+    NotificationSenderPort notificationSender;
+    CurrentUserProvider currentUserProvider;
 
     public List<NotificationResponse> getMyNotifications() {
         UUID userId = getCurrentUserId();
@@ -42,21 +40,20 @@ public class NotificationService {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOTIFICATION_NOT_FOUND));
 
-        if (!notification.getUser().getId().equals(userId)) {
+        if (!notification.getUserId().equals(userId)) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        notification.setIsRead(true);
-        notification.setReadAt(LocalDateTime.now());
+        notification.markAsRead();
         notificationRepository.save(notification);
     }
 
 
     @Transactional
-    public void sendNotification(User user, String type, String title, String content,
+    public void sendNotification(UUID userId, String type, String title, String content,
                                   String referenceType, UUID referenceId) {
         Notification notification = Notification.builder()
-                .user(user)
+                .userId(userId)
                 .type(type)
                 .title(title)
                 .content(content)
@@ -67,17 +64,11 @@ public class NotificationService {
 
 
         NotificationResponse response = toResponse(notification);
-        try {
-            messagingTemplate.convertAndSend(
-                    "/topic/notification/" + user.getId(), response);
-        } catch (Exception e) {
-            log.warn("Failed to push WebSocket notification to user {}: {}", user.getId(), e.getMessage());
-        }
+        notificationSender.send(userId, response);
     }
     private UUID getCurrentUserId(){
-       return UUID.fromString(
-                SecurityUtils.getCurrentProfileId()
-                        .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTACATED)));
+       return currentUserProvider.currentProfileId()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTACATED));
         
     }
 

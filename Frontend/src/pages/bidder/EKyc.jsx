@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 import { ShieldCheck, Upload, AlertCircle, CheckCircle2, CreditCard, Lock, Eye, ArrowLeft, ImagePlus } from 'lucide-react';
 
 export default function EKyc() {

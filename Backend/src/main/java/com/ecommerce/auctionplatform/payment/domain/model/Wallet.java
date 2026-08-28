@@ -1,56 +1,99 @@
 package com.ecommerce.auctionplatform.payment.domain.model;
-import com.ecommerce.auctionplatform.user.domain.model.User;
-
 import com.ecommerce.auctionplatform.payment.domain.enums.WalletStatus;
-import jakarta.persistence.*;
+import com.ecommerce.auctionplatform.payment.domain.exception.InsufficientBalanceException;
+import com.ecommerce.auctionplatform.payment.domain.exception.InvalidAmountException;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "wallets")
-@Data
+@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Wallet {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
-
-    @OneToOne(optional = false)
-    @JoinColumn(name = "user_id", unique = true, nullable = false)
-    User user;
+    UUID userId;
 
     @Builder.Default
-    @Column(name = "available_balance", precision = 18, scale = 2)
     BigDecimal availableBalance = BigDecimal.ZERO;
 
     @Builder.Default
-    @Column(name = "frozen_balance", precision = 18, scale = 2)
     BigDecimal frozenBalance = BigDecimal.ZERO;
 
-    @Column(name = "pin_code", length = 255)
     String pinCode;
 
     @Builder.Default
-    @Column(name = "status", nullable = false, columnDefinition = "wallet_status")
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     WalletStatus status = WalletStatus.ACTIVE;
 
     String notes;
 
     @Builder.Default
-    @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
 
-    @Column(name = "updated_at")
     LocalDateTime updatedAt;
+
+    public void setupPin(String encodedPin) {
+        this.pinCode = encodedPin;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void freezeBalance(BigDecimal amount) {
+        requirePositive(amount);
+        if (this.availableBalance.compareTo(amount) < 0) {
+            throw new InsufficientBalanceException();
+        }
+        this.availableBalance = this.availableBalance.subtract(amount);
+        this.frozenBalance = this.frozenBalance.add(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void unfreezeBalance(BigDecimal amount) {
+        requirePositive(amount);
+        if (this.frozenBalance.compareTo(amount) < 0) {
+            throw new InsufficientBalanceException();
+        }
+        this.frozenBalance = this.frozenBalance.subtract(amount);
+        this.availableBalance = this.availableBalance.add(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void addBalance(BigDecimal amount) {
+        requirePositive(amount);
+        this.availableBalance = this.availableBalance.add(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void deductBalance(BigDecimal amount) {
+        requirePositive(amount);
+        if (this.availableBalance.compareTo(amount) < 0) {
+            throw new InsufficientBalanceException();
+        }
+        this.availableBalance = this.availableBalance.subtract(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void deductFrozenBalance(BigDecimal amount) {
+        requirePositive(amount);
+        if (this.frozenBalance.compareTo(amount) < 0) {
+            throw new InsufficientBalanceException();
+        }
+        this.frozenBalance = this.frozenBalance.subtract(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void addFrozenBalance(BigDecimal amount) {
+        requirePositive(amount);
+        this.frozenBalance = this.frozenBalance.add(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    private void requirePositive(BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) {
+            throw new InvalidAmountException();
+        }
+    }
 }

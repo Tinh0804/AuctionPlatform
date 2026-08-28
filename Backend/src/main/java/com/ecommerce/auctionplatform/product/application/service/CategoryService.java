@@ -1,7 +1,8 @@
 package com.ecommerce.auctionplatform.product.application.service;
 
 import com.ecommerce.auctionplatform.product.application.dto.response.CategoryResponse;
-import com.ecommerce.auctionplatform.product.infrastructure.persistence.repository.CategoryRepository;
+import com.ecommerce.auctionplatform.product.domain.repository.CategoryRepository;
+import com.ecommerce.auctionplatform.product.application.port.in.CategoryUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -10,7 +11,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class CategoryService {
+public class CategoryService implements CategoryUseCase {
     private final CategoryRepository categoryRepository;
 
     public List<CategoryResponse> getAllCategories() {

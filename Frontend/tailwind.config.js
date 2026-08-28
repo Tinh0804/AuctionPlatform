@@ -46,6 +46,23 @@ export default {
           300: "#64748b",
         },
         
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
         // Legacy aliases for compatibility
         parchment: "#f8fafc",
         mahogany: {
@@ -59,7 +76,8 @@ export default {
           light: "#fef3c7"
         },
         charcoal: "#1e293b",
-        muted: "#64748b",
+        muted: "hsl(var(--muted))",
+        "muted-foreground": "hsl(var(--muted-foreground))",
         borderline: "#e2e8f0",
         "surface-alt": "#f1f5f9",
       },
@@ -240,5 +258,7 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    require("tailwindcss-animate")
+  ],
 }

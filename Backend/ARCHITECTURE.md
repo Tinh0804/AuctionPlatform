@@ -1,7 +1,22 @@
 # ARCHITECTURE.md – Auction Platform Backend
 
-> **Mục đích:** Tài liệu bắt buộc đọc trước khi viết bất kỳ dòng code nào.  
+> **Mục đích:** Tài liệu bắt buộc đọc trước khi viết bất kỳ dòng code nào.
 > AI code generator và developer đều PHẢI tuân thủ 100% các quy tắc trong file này.
+>
+> **v2.0 – Đã sửa để tuân thủ đúng DDD + Hexagonal (Ports & Adapters).**
+> So với v1.0, 3 thay đổi cốt lõi:
+> 1. Domain Model tách hoàn toàn khỏi JPA Entity (không còn Active Record).
+> 2. Application Service PHẢI phụ thuộc `domain/repository` (port), không phụ thuộc JPA Repository trực tiếp.
+> 3. Aggregate không tham chiếu object của Aggregate module khác — chỉ giữ ID. Đã loại bỏ circular dependency `auction ↔ payment`.
+
+
+---
+
+## 1.1. Coding Style & Conventions
+
+- **Clean Imports:** BẮT BUỘC sử dụng lệnh `import` ở đầu file thay vì viết chuỗi tên đầy đủ (Fully Qualified Class Name - FQCN) dài dòng trong mã nguồn.
+  - ❌ **Sai:** `org.springframework.data.domain.Page<com.ecommerce.auctionplatform.auction.domain.model.Auction> findAll(...)`
+  - ✅ **Đúng:** Thêm `import org.springframework.data.domain.Page; import com.ecommerce.auctionplatform.auction.domain.model.Auction;` ở đầu file và viết `Page<Auction> findAll(...)`.
 
 ---
 
@@ -15,46 +30,58 @@ Dự án áp dụng **Domain-Driven Design (DDD)** kết hợp **Hexagonal Archi
 │         REST Controllers · Request DTOs · Response Mappers   │
 ├─────────────────────────────────────────────────────────────┤
 │                   APPLICATION LAYER                          │
-│         Use Cases / Services · Response DTOs · Mappers       │
+│         Use Cases / Services · Output Models · Mappers       │
 │         Port/In (driven) · Port/Out (driving)                │
 ├─────────────────────────────────────────────────────────────┤
 │                    DOMAIN LAYER ← TRUNG TÂM                 │
-│         Entities · Value Objects · Domain Events             │
-│         Domain Services · Domain Exceptions                  │
+│         POJO Model (KHÔNG JPA) · Value Objects · Events      │
+│         Domain Services · Domain Exceptions · Repo PORTS     │
 ├─────────────────────────────────────────────────────────────┤
 │                 INFRASTRUCTURE LAYER                         │
-│         JPA Repositories · External APIs · Config            │
-│         Messaging Adapters · Payment Gateways                │
+│         JPA Entity · Repository Impl (adapter of port)       │
+│         External APIs · Messaging Adapters · Payment GW      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Quy tắc cốt lõi:** Dependencies chỉ đi từ ngoài vào trong:
+**Quy tắc cốt lõi — Dependency Rule (BẤT BIẾN):**
 
 ```
 Presentation → Application → Domain ← Infrastructure
 ```
 
-Domain layer KHÔNG được import bất kỳ class nào từ Spring. JPA annotations (`@Entity`, `@Table`, `@Column`) là ngoại lệ duy nhất vì entity cần mapping.
+Mọi mũi tên đều **trỏ vào Domain**. Domain KHÔNG được biết sự tồn tại của Presentation lẫn Infrastructure.
+
+**Hệ quả bắt buộc (đây là phần v1.0 làm sai):**
+- Domain layer là **Java thuần (POJO)** — KHÔNG import bất kỳ thứ gì từ `org.springframework.*` hay `jakarta.persistence.*`. Không có ngoại lệ cho JPA annotation nữa.
+- Domain định nghĩa **interface** (`domain/repository/*Repository`), Infrastructure **implement** interface đó. Application Service chỉ được inject interface này — KHÔNG BAO GIỜ inject `JpaRepository` trực tiếp.
+- JPA Entity là chi tiết kỹ thuật của Infrastructure, sống ở `infrastructure/persistence/entity/`, có mapper hai chiều với Domain Model.
 
 ---
 
 ## 2. Cấu Trúc Module
 
-Dự án được tổ chức thành **8 modules nghiệp vụ** + **1 shared module**:
+Dự án được tổ chức thành **6 bounded contexts nghiệp vụ**, một `shared` kernel và một outer integration layer. Authentication là một capability của `user`, không phải bounded context độc lập:
 
 ```
 Backend/src/main/java/com/ecommerce/auctionplatform/
 │
 ├── shared/              # Dùng chung, không thuộc module nào
-├── auth/                # Authentication & Authorization
-├── user/                # User profile, KYC, Reputation
+├── user/                # Account, Authentication, User profile, KYC, Reputation
+│   └── infrastructure/security/  # JWT, token blacklist adapters
 ├── product/             # Product, Category, Image
 ├── notification/        # Push notifications, WebSocket
 ├── auction/             # Auction lifecycle, Bidding, Scheduling
 ├── payment/             # Wallet, Order, Transaction, VNPay, MoMo
 ├── dispute/             # Dispute resolution
-└── config/              # Spring Security, Redis, WebSocket config
+├── integration/         # Cross-context adapters; chỉ nối application ports
+└── config/              # Chỉ khai báo technical configuration và bean wiring
 ```
+
+`integration/` không phải bounded context và không chứa business rule. Đây là outermost composition
+boundary dành cho trường hợp đặt adapter vào một context sẽ tạo dependency cycle. Mỗi adapter tại đây
+phải implement `port/out` của context tiêu thụ và chỉ gọi public `port/in` của context cung cấp.
+Nó không được truy cập domain repository, JPA repository, entity, service implementation hoặc presentation
+của bất kỳ context nào.
 
 ### 2.1 Cấu Trúc Bên Trong Mỗi Module
 
@@ -62,76 +89,106 @@ Backend/src/main/java/com/ecommerce/auctionplatform/
 {module}/
 │
 ├── domain/
-│   ├── model/              # JPA Entities – Pure domain objects
-│   ├── enums/              # Domain enumerations
-│   ├── event/              # Domain Events (implements DomainEvent)
-│   ├── exception/          # Domain-specific exceptions
-│   ├── repository/         # Repository INTERFACES (ports out)
-│   ├── service/            # Domain Services (business invariants)
-│   └── valueobject/        # Value Objects (immutable)
+│   ├── model/              # Domain Model – POJO THUẦN, KHÔNG @Entity, KHÔNG Spring
+│   ├── enums/               # Domain enumerations
+│   ├── event/                # Domain Events (implements DomainEvent)
+│   ├── exception/            # Domain-specific exceptions
+│   ├── repository/           # Repository INTERFACES (ports out) – BẮT BUỘC dùng, không optional
+│   ├── service/               # Domain Services (business invariants)
+│   └── valueobject/           # Value Objects (immutable)
 │
 ├── application/
-│   ├── service/            # Application Services (use case orchestration)
+│   ├── service/             # Application Services (use case orchestration)
+│   ├── event/               # Published integration events for other contexts
 │   ├── dto/
-│   │   ├── response/       # Response DTOs (API output – FROZEN CONTRACT)
-│   │   ├── command/        # Command objects (write operations)
-│   │   └── query/          # Query objects (read operations)
-│   ├── mapper/             # MapStruct mappers (Entity <-> DTO)
+│   │   ├── response/        # Use-case output models – transport/framework agnostic
+│   │   ├── command/          # Command objects (write operations)
+│   │   └── query/             # Query objects (read operations)
+│   ├── mapper/               # MapStruct mappers (Domain Model <-> DTO)
 │   └── port/
-│       ├── in/             # Input ports (use case interfaces)
-│       └── out/            # Output ports (infra contracts)
+│       ├── in/                # Input ports (use case interfaces) – Controller phụ thuộc vào đây
+│       └── out/               # Output ports (infra contracts khác ngoài persistence: upload, gateway...)
 │
 ├── infrastructure/
 │   ├── persistence/
-│   │   ├── repository/     # Spring Data JPA implementations
-│   │   ├── entity/         # JPA-specific entities (if separate from domain)
-│   │   └── mapper/         # DB entity <-> Domain model mappers
-│   ├── external/           # External API adapters (Cloudinary, JWT, Payment)
-│   ├── messaging/          # WebSocket, Event listeners
-│   └── config/             # Module-specific configuration
+│   │   ├── entity/          # JPA Entity – @Entity/@Table, KHÔNG chứa business logic
+│   │   ├── repository/       # Spring Data JpaRepository<Entity, UUID> (package-private, chỉ dùng nội bộ)
+│   │   ├── mapper/            # Entity <-> Domain Model mapper (MapStruct hoặc thủ công)
+│   │   └── {Aggregate}RepositoryImpl.java   # implements domain/repository/{Aggregate}Repository
+│   ├── external/              # External API adapters (Cloudinary, JWT, Payment)
+│   ├── messaging/              # WebSocket, Event listeners
+│   └── config/                  # Module-specific configuration
 │
 └── presentation/
-    ├── rest/               # @RestController classes
+    ├── rest/                # @RestController classes
     ├── dto/
-    │   ├── request/        # Request DTOs (API input – FROZEN CONTRACT)
-    │   └── response/       # Presentation-layer response wrappers
-    ├── mapper/             # Request DTO <-> Command/Domain mapper
-    └── advice/             # Module-specific exception handlers
+    │   ├── request/          # Request DTOs (API input – FROZEN CONTRACT)
+    │   └── response/          # HTTP response DTOs – API contract (FROZEN)
+    ├── mapper/                 # Request → Command và application output → HTTP response
+    └── advice/                  # Module-specific exception handlers
 ```
+
+### 2.1.1 `domain/model` hay `domain/aggregate`?
+
+Không đổi toàn bộ `domain/model` thành `domain/aggregate` (và tên đúng là `aggregate`, không phải `aggragate`).
+`model` đang chứa cả Aggregate Root lẫn entity con; đổi tên hàng loạt sẽ gắn nhãn sai cho `Bid`,
+`AuctionRegistration`, `Image`, `Address`, v.v. Chỉ tạo `domain/aggregate/` khi ranh giới aggregate
+đã được xác định rõ và chỉ chuyển các root vào đó. Cho đến khi hoàn tất việc thiết kế invariant/transaction
+boundary này, dự án giữ `domain/model/` và thể hiện Aggregate Root bằng repository port cùng behavior nghiệp vụ.
+
+**Điểm khác biệt quan trọng so với v1.0:** `domain/model/` không còn là nơi đặt JPA Entity. JPA Entity chuyển xuống `infrastructure/persistence/entity/`. `infrastructure/persistence/repository/` là `JpaRepository` thô, chỉ được truy cập bởi `RepositoryImpl` trong cùng package — **không ai khác được inject nó**.
 
 ---
 
 ## 2.2 Chi Tiết Từng Subfolder – Mục Đích & Quy Tắc
 
-### `domain/model/` – JPA Entities
+### `domain/model/` – Domain Model (POJO thuần)
 
-**Mục đích:** Trung tâm hệ thống. Chứa JPA entities đại diện cho các đối tượng nghiệp vụ.  
-**Chứa gì:** `Auction.java`, `Bid.java`, `AuctionRecord.java`,...  
+**Mục đích:** Trung tâm hệ thống. Đại diện cho Aggregate/Entity nghiệp vụ, tự bảo vệ invariant của chính nó.
+**Chứa gì:** `Auction.java`, `Bid.java`, `AuctionRecord.java`,...
 **Quy tắc:**
-- CHỈ import: Java stdlib, Lombok, Jakarta Persistence (`@Entity`, `@Table`, `@Column`, `@ManyToOne`)
-- KHÔNG import: Spring beans, ApplicationService, Repository
-- Có thể chứa **behavior methods** (business rule thuần túy, không gọi DB)
+- CHỈ import runtime dependency từ Java stdlib, class trong cùng `domain/`, hoặc `shared/domain`.
+- Lombok được phép dùng như annotation processor để sinh boilerplate; domain vẫn phải chạy như POJO và không được phụ thuộc runtime vào Lombok.
+- **TUYỆT ĐỐI KHÔNG** import: `jakarta.persistence.*`, bất kỳ package `org.springframework.*`, JPA annotation, Lombok `@Data`/`@Builder` không bắt buộc (khuyến khích constructor/factory method để enforce invariant thay vì builder mở toang mọi field).
+- Field nên `private final` khi có thể; thay đổi state phải qua method có tên nghiệp vụ (`placeBid()`, `close()`) chứ không phải setter trần trụi.
+- Tham chiếu tới Aggregate của module khác: **chỉ giữ ID (`UUID`), không giữ object reference** (xem mục 2.2.7 và mục 6).
 
 ```java
-// auction/domain/model/Auction.java
-@Entity @Table(name = "auctions")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
+// auction/domain/model/Auction.java  – POJO thuần, không JPA, không Spring
 public class Auction {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
-    UUID id;
+    private final UUID id;
+    private final UUID sellerId;       // ← chỉ giữ ID của User, KHÔNG giữ object User
+    private BigDecimal currentPrice;
+    private AuctionStatus status;
+    private final LocalDateTime endTime;
 
-    @ManyToOne @JoinColumn(name = "user_id")
-    User user;          // import: user.domain.model.User ✅
-
-    BigDecimal currentPrice;
-    AuctionStatus status;   // import: auction.domain.enums.AuctionStatus ✅
-
-    // Behavior method – business rule, không gọi repo, không gọi Spring
-    public boolean canAcceptBid(BigDecimal bidAmount) {
-        return status == AuctionStatus.ACTIVE && bidAmount.compareTo(currentPrice) > 0;
+    public Auction(UUID id, UUID sellerId, BigDecimal startPrice,
+                    LocalDateTime endTime) {
+        this.id = id;
+        this.sellerId = sellerId;
+        this.currentPrice = startPrice;
+        this.status = AuctionStatus.PENDING;
+        this.endTime = endTime;
     }
+
+    // Business behavior – method nghiệp vụ, tự enforce invariant
+    public void acceptBid(BigDecimal bidAmount) {
+        if (status != AuctionStatus.ACTIVE) {
+            throw new AppException(ErrorCode.AUCTION_NOT_ACTIVE);
+        }
+        if (bidAmount.compareTo(currentPrice) <= 0) {
+            throw new AppException(ErrorCode.BID_TOO_LOW);
+        }
+        this.currentPrice = bidAmount;
+    }
+
     public boolean isExpired() { return LocalDateTime.now().isAfter(endTime); }
+
+    // Getter thuần, không setter công khai cho các field cần bảo vệ invariant
+    public UUID getId() { return id; }
+    public UUID getSellerId() { return sellerId; }
+    public BigDecimal getCurrentPrice() { return currentPrice; }
+    public AuctionStatus getStatus() { return status; }
 }
 ```
 
@@ -139,40 +196,26 @@ public class Auction {
 
 ### `domain/enums/` – Domain Enumerations
 
-**Mục đích:** Định nghĩa các trạng thái, loại thuộc domain logic.  
-**Chứa gì:** `AuctionStatus.java`, `AuctionRecordStatus.java`, `RegistrationStatus.java`,...  
-**Quy tắc:**
-- Enum thuần Java – KHÔNG có Spring annotation
-- Đặt tên theo khái niệm nghiệp vụ (không phải implementation)
-- Module khác import qua `{module}.domain.enums.{Name}`
+Không thay đổi so với v1.0 — đây là phần đã đúng chuẩn.
 
 ```java
 // auction/domain/enums/AuctionStatus.java
 public enum AuctionStatus {
-    PENDING,    // Chờ admin duyệt
-    APPROVED,   // Đã duyệt, chờ giờ mở
-    ACTIVE,     // Đang diễn ra
-    EXTENDED,   // Đang gia hạn
-    CLOSED,     // Kết thúc bình thường
-    CANCELLED,  // Bị hủy
-    FAILED      // Không có người thắng
+    PENDING, APPROVED, ACTIVE, EXTENDED, CLOSED, CANCELLED, FAILED
 }
 ```
 
 ---
 
-### `domain/event/` – Domain Events
+### `domain/event/` và `application/event/`
 
-**Mục đích:** Ghi lại "điều gì đó đã xảy ra" trong domain để các module khác phản ứng mà không cần biết nhau.  
-**Chứa gì:** `AuctionEndedEvent.java`, `BidPlacedEvent.java`,...  
-**Quy tắc:**
-- Implement `DomainEvent` từ `shared/domain/event/`
-- Immutable: dùng Java `record` hoặc Lombok `@Value`
-- KHÔNG chứa logic – chỉ chứa data
-- ApplicationService `publish()`, module khác `@EventListener`
+`domain/event/` chỉ chứa sự kiện nội bộ do Aggregate phát sinh. Sự kiện trở thành hợp đồng cho bounded
+context khác phải được chuyển thành published event tại `application/event/`. Consumer chỉ import
+published event này, không import `domain/event` của provider. Cả hai loại sự kiện chỉ chứa
+`UUID`/primitive, không chứa Domain Model hay Entity.
 
 ```java
-// auction/domain/event/AuctionEndedEvent.java
+// auction/application/event/AuctionEndedEvent.java – published contract
 public record AuctionEndedEvent(
     UUID auctionId, UUID winnerId, BigDecimal finalPrice, LocalDateTime occurredOn
 ) implements DomainEvent {
@@ -180,66 +223,42 @@ public record AuctionEndedEvent(
         this(auctionId, winnerId, finalPrice, LocalDateTime.now());
     }
 }
-// Cách dùng trong service:
-// domainEventPublisher.publish(new AuctionEndedEvent(id, winnerId, price));
-// Cách nhận trong notification module:
-// @EventListener public void onAuctionEnded(AuctionEndedEvent event) { ... }
 ```
 
 ---
 
-### `domain/exception/` – Domain Exceptions
+### `domain/exception/`, `domain/valueobject/`
 
-**Mục đích:** Exception đặc thù của module khi cần mang thêm context data.  
-**Quy tắc:**
-- Hầu hết dùng `AppException(ErrorCode.XXX)` từ `shared/` là đủ
-- Chỉ tạo exception riêng khi cần embed thêm data (e.g., conflicting entity id)
-
-```java
-// Thông thường – đủ dùng:
-throw new AppException(ErrorCode.AUCTION_NOT_FOUND);
-
-// Trường hợp đặc biệt cần thêm data:
-// auction/domain/exception/AuctionConflictException.java
-public class AuctionConflictException extends RuntimeException {
-    private final UUID conflictingAuctionId;
-    public AuctionConflictException(UUID id) { this.conflictingAuctionId = id; }
-}
-```
+Không đổi so với v1.0 — đã đúng chuẩn (Value Object immutable, exception thuần Java).
 
 ---
 
-### `domain/repository/` – Repository Port Interfaces
+### `domain/repository/` – Repository Port Interfaces (BẮT BUỘC, không còn optional)
 
-**Mục đích:** Domain định nghĩa **contract**, không biết cách implement (JPA, MongoDB...).  
-**Chứa gì:** Interface chỉ có method signatures, không extends JpaRepository  
-**Dự án hiện tại:** Đang dùng JPA Repository trực tiếp trong Service (acceptable). Thêm interface ở đây khi cần strict hexagonal hoặc đổi database.
+**Thay đổi quan trọng:** v1.0 ghi "đang dùng JPA Repository trực tiếp trong Service (acceptable)" — đây chính là điểm phá vỡ Dependency Inversion. **Từ v2.0, mọi Aggregate PHẢI có một port ở `domain/repository/`, và Application Service chỉ được phụ thuộc vào interface này.**
 
 ```java
-// auction/domain/repository/AuctionDomainRepository.java  (pattern đầy đủ)
-public interface AuctionDomainRepository {
+// auction/domain/repository/AuctionRepository.java
+// Đây là INTERFACE THUẦN — không extends JpaRepository, không import Spring Data
+public interface AuctionRepository {
     Optional<Auction> findById(UUID id);
     Auction save(Auction auction);
     List<Auction> findActiveAuctions();
     List<Auction> findExpiredAuctions(LocalDateTime before);
 }
-// Implementation: AuctionJpaRepository extends JpaRepository + implements AuctionDomainRepository
 ```
+
+Việc implement nằm hoàn toàn ở Infrastructure (xem mục `infrastructure/persistence/`).
 
 ---
 
 ### `domain/service/` – Domain Services
 
-**Mục đích:** Business logic phức tạp liên quan đến **nhiều entity**, không thuộc về entity đơn nào.  
-**Quy tắc:**
-- KHÔNG inject Spring beans, KHÔNG gọi repository
-- Nhận entity/value object làm input, trả về result thuần
-- Chỉ tạo khi logic không tự nhiên thuộc về một entity method
+Không đổi quy tắc so với v1.0 (đã đúng): không inject Spring bean, không gọi repository, nhận Domain Model làm input.
 
 ```java
 // auction/domain/service/BidValidationService.java
-public class BidValidationService {  // KHÔNG có @Service
-    // Logic liên quan đến cả Auction lẫn AuctionRegistration
+public class BidValidationService {   // KHÔNG có @Service
     public void validate(Auction auction, AuctionRegistration reg, BigDecimal amount) {
         if (!auction.canAcceptBid(amount)) throw new AppException(ErrorCode.BID_TOO_LOW);
         if (reg.getStatus() != RegistrationStatus.APPROVED)
@@ -250,367 +269,161 @@ public class BidValidationService {  // KHÔNG có @Service
 
 ---
 
-### `domain/valueobject/` – Value Objects
-
-**Mục đích:** Object bất biến (immutable) đại diện một khái niệm domain.  
-**Quy tắc:**
-- Immutable: `final` fields hoặc `record`
-- Equality dựa trên **giá trị** (không phải id)
-- Ví dụ: `Money`, `DateRange`, `PhoneNumber`
-
-```java
-// shared hoặc auction/domain/valueobject/Money.java
-public record Money(BigDecimal amount, String currency) {
-    public static Money ofVND(BigDecimal amount) { return new Money(amount, "VND"); }
-    public Money add(Money other) { return new Money(this.amount.add(other.amount), currency); }
-    public boolean isGreaterThan(Money other) { return amount.compareTo(other.amount) > 0; }
-}
-```
-
----
-
 ### `application/service/` – Application Services (Use Cases)
 
-**Mục đích:** Orchestrate use cases: load entities, call domain logic, save, publish events.  
-**Chứa gì:** `AuctionService.java`, `AdminStatsService.java`,...  
-**Quy tắc:**
-- `@Service`, `@Transactional` ở đây – KHÔNG ở Controller
-- KHÔNG chứa business rule (rule ở Domain)
-- KHÔNG gọi ApplicationService của module khác → dùng DomainEvent
-- Inject: JPA Repository, DomainEventPublisher, external adapters
+**Thay đổi quan trọng:** Service giờ inject **domain port interface**, không inject `JpaRepository`.
 
 ```java
 // auction/application/service/AuctionService.java
 @Service @RequiredArgsConstructor @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuctionService {
-    AuctionRepository auctionRepository;
+public class AuctionService implements PlaceBidUseCase {
+    AuctionRepository auctionRepository;         // ← domain/repository PORT, không phải JpaRepository
     DomainEventPublisher domainEventPublisher;
 
+    @Override
     @Transactional
     public BidResponse placeBid(UUID auctionId, BidRequest request) {
-        // 1. Load entity
         Auction auction = auctionRepository.findById(auctionId)
             .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
-        // 2. Delegate business logic to domain behavior
-        if (!auction.canAcceptBid(request.getAmount()))
-            throw new AppException(ErrorCode.BID_TOO_LOW);
-        // 3. Persist
-        auction.setCurrentPrice(request.getAmount());
+
+        auction.acceptBid(request.getAmount());     // business rule nằm trong domain model
+
         auctionRepository.save(auction);
-        // 4. Notify other modules via DomainEvent (không import NotificationService)
         domainEventPublisher.publish(new BidPlacedEvent(auctionId, request.getAmount()));
-        // 5. Return response DTO
+
         return BidResponse.builder().auctionId(auctionId).amount(request.getAmount()).build();
     }
 }
 ```
 
----
-
-### `application/scheduler/` – Scheduled Tasks
-
-**Mục đích:** Tác vụ chạy định kỳ hoặc khi ứng dụng khởi động.  
-**Chứa gì:** `AuctionScheduler.java`  
-**Quy tắc:**
-- `@Component`, inject ApplicationService
-- KHÔNG viết business logic trực tiếp – gọi qua Service
-
-```java
-// auction/application/scheduler/AuctionScheduler.java
-@Component @RequiredArgsConstructor @Slf4j
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuctionScheduler {
-    AuctionService auctionService;
-
-    @EventListener(ApplicationReadyEvent.class)
-    public void onStartup() { auctionService.checkAndStartPendingAuctions(); }
-
-    @Scheduled(fixedDelay = 60_000)
-    public void checkExpiredAuctions() { auctionService.closeExpiredAuctions(); }
-}
-```
+`application/scheduler/`, `application/dto/*`, `application/mapper/`, `application/port/in/`, `application/port/out/` giữ nguyên quy tắc như v1.0 (các phần này đã hợp lý), ngoại trừ:
+- `application/port/in/` giờ **bắt buộc** dùng, không còn optional — Controller inject Use Case interface, không inject trực tiếp `{X}Service`.
+- `application/mapper/` map **Domain Model → application output model** (trước kia là Entity → DTO).
+- `presentation/mapper/` map **application output model → presentation response DTO**. Controller không được trả trực tiếp application output model.
 
 ---
 
-### `application/dto/response/` – Response DTOs (**FROZEN CONTRACT**)
+### `infrastructure/persistence/entity/` – JPA Entity (MỚI, tách khỏi domain/model)
 
-**Mục đích:** Dữ liệu trả về cho Frontend.  
-**Chứa gì:** `AuctionResponse.java`, `BidResponse.java`, `AuctionDetailResponse.java`,...  
+**Mục đích:** Chi tiết kỹ thuật lưu trữ. Đây là nơi duy nhất được phép có `@Entity`, `@Table`, `@Column`, `@ManyToOne`.
 **Quy tắc:**
-- `@Data @Builder @NoArgsConstructor @AllArgsConstructor`
-- Field names **KHÔNG ĐỔI** sau deploy (FE hardcode field name)
-- Thêm field mới: OK (backward compatible)
-- Xóa / đổi tên field: **FORBIDDEN**
+- Có thể giữ quan hệ object thật (`@ManyToOne User`) vì đây là Infrastructure, không phải Domain — nhưng chỉ dùng nội bộ để build câu SQL, không leak ra khỏi lớp Infrastructure.
+- KHÔNG chứa business logic/behavior method — entity này "ngu", chỉ để ORM mapping.
 
 ```java
-// auction/application/dto/response/AuctionResponse.java
+// auction/infrastructure/persistence/entity/AuctionEntity.java
+@Entity @Table(name = "auctions")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
-public class AuctionResponse {
-    UUID id;              // FROZEN – không đổi thành "auctionId"
-    String name;          // FROZEN – không đổi thành "title"
-    BigDecimal startPrice;   // FROZEN
-    BigDecimal currentPrice; // FROZEN
-    String status;           // FROZEN
-    LocalDateTime endTime;   // FROZEN
-    // Thêm field mới ở đây là OK ↓
-    // Integer totalBids;    ← backward compatible addition
+@FieldDefaults(level = AccessLevel.PRIVATE)
+public class AuctionEntity {
+    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    UUID id;
+
+    @Column(name = "seller_id")
+    UUID sellerId;             // ← lưu ID, KHÔNG @ManyToOne sang UserEntity của module khác
+
+    BigDecimal currentPrice;
+
+    @Enumerated(EnumType.STRING)
+    AuctionStatus status;
+
+    LocalDateTime endTime;
 }
 ```
 
----
-
-### `application/dto/command/` và `application/dto/query/`
-
-**Mục đích:** CQRS pattern – tách write (Command) và read (Query) operations.  
-**Dự án hiện tại:** Dùng trực tiếp Request DTO (đủ đơn giản). Tạo Command khi Service cần nhận input từ nhiều nguồn (HTTP, Scheduler, Event).
+### `infrastructure/persistence/mapper/` – Entity ↔ Domain Model Mapper
 
 ```java
-// auction/application/dto/command/PlaceBidCommand.java
-@Value  // Lombok – immutable
-public class PlaceBidCommand {
-    UUID auctionId;
-    UUID bidderId;
-    BigDecimal amount;
-}
-// auction/application/dto/query/AuctionFilterQuery.java
-@Data
-public class AuctionFilterQuery {
-    String status;
-    String categoryId;
-    Pageable pageable;
-}
-```
-
----
-
-### `application/mapper/` – MapStruct Mappers
-
-**Mục đích:** Ánh xạ tự động Entity ↔ DTO tại compile time.  
-**Quy tắc:**
-- `@Mapper(componentModel = "spring")`
-- `@Mapping(target = "field", ignore = true)` cho lazy-loaded hoặc computed fields
-- Tránh viết mapping thủ công nếu MapStruct đủ
-
-```java
-// user/application/mapper/UserMapper.java
-@Mapper(componentModel = "spring")
-public interface UserMapper {
-    @Mapping(target = "wallet", ignore = true)   // lazy load → skip
-    UserResponse toUserResponse(User user);
-}
-// user/application/mapper/AccountMapper.java
-@Mapper(componentModel = "spring")
-public interface AccountMapper {
-    @Mapping(target = "roleNo", expression = "java(mapRole(account.getRoles()))")
-    AccountResponse toAccountResponse(Account account);
-    default String mapRole(Set<Role> roles) {
-        return roles.stream().findFirst().map(r -> r.getName()).orElse("USER");
+// auction/infrastructure/persistence/mapper/AuctionEntityMapper.java
+@Component
+public class AuctionEntityMapper {
+    public Auction toDomain(AuctionEntity e) {
+        Auction auction = new Auction(e.getId(), e.getSellerId(), e.getCurrentPrice(), e.getEndTime());
+        // set lại status nếu constructor không cover hết field (dùng package-private setter nếu cần)
+        return auction;
+    }
+    public AuctionEntity toEntity(Auction a) {
+        return AuctionEntity.builder()
+            .id(a.getId()).sellerId(a.getSellerId())
+            .currentPrice(a.getCurrentPrice()).status(a.getStatus())
+            .build();
     }
 }
 ```
 
----
-
-### `application/port/in/` – Input Ports (Use Case Interfaces)
-
-**Mục đích:** Định nghĩa "những gì hệ thống có thể làm". Controller gọi qua interface.  
-**Dự án hiện tại:** Controller inject Service trực tiếp (đủ cho scale hiện tại). Thêm khi cần testability cao hơn.
+### `infrastructure/persistence/repository/` – Spring Data JPA (chỉ dùng nội bộ)
 
 ```java
-// auction/application/port/in/PlaceBidUseCase.java
-public interface PlaceBidUseCase {
-    BidResponse placeBid(UUID auctionId, BidRequest request);
-}
-// AuctionService implements PlaceBidUseCase { ... }
-// AuctionController inject PlaceBidUseCase (không phải AuctionService)
-```
-
----
-
-### `application/port/out/` – Output Ports (Infra Contracts)
-
-**Mục đích:** Định nghĩa "những gì Application cần từ Infrastructure". Cho phép swap adapter.  
-**Dự án hiện tại:** Chưa implement đầy đủ. Áp dụng khi cần chuyển đổi infra provider.
-
-```java
-// product/application/port/out/UploadImagePort.java
-public interface UploadImagePort {
-    String upload(MultipartFile file);
-    void delete(String publicId);
-}
-// CloudinaryAdapter implements UploadImagePort { ... }
-// Nếu chuyển sang S3: S3Adapter implements UploadImagePort { ... }
-// ProductService inject UploadImagePort → không cần sửa Service khi đổi provider
-```
-
----
-
-### `infrastructure/persistence/repository/` – JPA Repositories
-
-**Mục đích:** Triển khai data access với Spring Data JPA.  
-**Chứa gì:** `AuctionRepository.java`, `BidRepository.java`,...  
-**Quy tắc:**
-- Extends `JpaRepository<Entity, UUID>`, thêm `JpaSpecificationExecutor` khi cần dynamic filter
-- Custom query: method naming hoặc `@Query` (JPQL)
-- Dùng `@Lock(PESSIMISTIC_WRITE)` cho race-condition sensitive operations (bid, withdraw)
-
-```java
-// auction/infrastructure/persistence/repository/AuctionRepository.java
+// auction/infrastructure/persistence/repository/AuctionJpaRepository.java
+// package-private — KHÔNG public, để ngăn Application Service inject nhầm
 @Repository
-public interface AuctionRepository extends JpaRepository<Auction, UUID>,
-                                           JpaSpecificationExecutor<Auction> {
-    // Method naming query
-    List<Auction> findByStatus(AuctionStatus status);
+interface AuctionJpaRepository extends JpaRepository<AuctionEntity, UUID>,
+                                        JpaSpecificationExecutor<AuctionEntity> {
+    List<AuctionEntity> findByStatus(AuctionStatus status);
 
-    // Custom JPQL
-    @Query("SELECT a FROM Auction a WHERE a.endTime < :now AND a.status = :status")
-    List<Auction> findExpiredAuctions(@Param("now") LocalDateTime now,
-                                      @Param("status") AuctionStatus status);
-
-    // Pessimistic lock – tránh race condition khi bid
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT a FROM Auction a WHERE a.id = :id")
-    Optional<Auction> findByIdWithLock(@Param("id") UUID id);
-}
-// Simple repository không cần custom query:
-@Repository
-public interface AuctionRegistrationRepository extends JpaRepository<AuctionRegistration, UUID> {
-    Optional<AuctionRegistration> findByAuctionIdAndUserId(UUID auctionId, UUID userId);
-    List<AuctionRegistration> findByAuctionId(UUID auctionId);
+    @Query("SELECT a FROM AuctionEntity a WHERE a.id = :id")
+    Optional<AuctionEntity> findByIdWithLock(@Param("id") UUID id);
 }
 ```
 
----
-
-### `infrastructure/external/` – External Service Adapters
-
-**Mục đích:** Tích hợp Cloudinary, Firebase, JWT, VNPay, MoMo,...  
-**Chứa gì:** `CloudinaryAdapter.java`, `JwtTokenProvider.java`, `VNPayGatewayAdapter.java`, `MoMoGatewayAdapter.java`  
-**Quy tắc:**
-- Tên: `{ServiceName}Adapter` hoặc `{ServiceName}Provider`
-- KHÔNG chứa business logic – chỉ wrap external API call
-- Bắt exception từ external và convert sang `AppException`
-- Implement Port/Out interface nếu có
+### `{Aggregate}RepositoryImpl` – Adapter implement Domain Port
 
 ```java
-// product/infrastructure/external/CloudinaryAdapter.java
-@Component @RequiredArgsConstructor
-public class CloudinaryAdapter {  // implements UploadImagePort
-    private final Cloudinary cloudinary;
-    public String uploadImage(MultipartFile file) {
-        try {
-            Map result = cloudinary.uploader().upload(file.getBytes(),
-                ObjectUtils.asMap("resource_type", "auto"));
-            return (String) result.get("secure_url");
-        } catch (IOException e) { throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR); }
-    }
-}
+// auction/infrastructure/persistence/AuctionRepositoryImpl.java
+@Repository @RequiredArgsConstructor
+class AuctionRepositoryImpl implements AuctionRepository {   // domain/repository/AuctionRepository
+    private final AuctionJpaRepository jpaRepository;
+    private final AuctionEntityMapper mapper;
 
-// auth/infrastructure/external/JwtTokenProvider.java
-@Component
-public class JwtTokenProvider {
-    public String generateToken(Account account) { /* HMAC signing */ }
-    public boolean validateToken(String token) { /* verify signature */ }
-    public String extractSubject(String token) { /* parse claims */ }
-}
-
-// payment/infrastructure/external/VNPayGatewayAdapter.java
-@Component
-public class VNPayGatewayAdapter {
-    public String buildPaymentUrl(PaymentRequest req) { /* VNPay API */ }
-    public boolean verifyCallback(Map<String, String> params) { /* HMAC verify */ }
-}
-```
-
----
-
-### `infrastructure/messaging/` – WebSocket & Event Listeners
-
-**Mục đích:** Real-time messaging và lắng nghe Domain Events từ các module khác.  
-**Chứa gì:** Event listeners (`AuctionEventListener`), WebSocket message handlers  
-**Quy tắc:**
-- `@EventListener` hoặc `@TransactionalEventListener` để listen DomainEvent
-- `SimpMessagingTemplate` để push notification qua WebSocket (STOMP)
-- KHÔNG chứa business logic – delegate sang ApplicationService
-
-```java
-// notification/infrastructure/messaging/AuctionEventListener.java
-@Component @RequiredArgsConstructor
-public class AuctionEventListener {
-    final NotificationService notificationService;
-
-    @EventListener
-    public void onBidPlaced(BidPlacedEvent event) {
-        notificationService.notifyOutbidUsers(event.getAuctionId(), event.getAmount());
+    @Override
+    public Optional<Auction> findById(UUID id) {
+        return jpaRepository.findById(id).map(mapper::toDomain);
     }
 
-    // AFTER_COMMIT: chỉ publish sau khi transaction commit thành công
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onAuctionEnded(AuctionEndedEvent event) {
-        notificationService.notifyWinner(event.getWinnerId(), event.getAuctionId());
+    @Override
+    public Auction save(Auction auction) {
+        AuctionEntity saved = jpaRepository.save(mapper.toEntity(auction));
+        return mapper.toDomain(saved);
+    }
+
+    @Override
+    public List<Auction> findActiveAuctions() {
+        return jpaRepository.findByStatus(AuctionStatus.ACTIVE)
+            .stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public List<Auction> findExpiredAuctions(LocalDateTime before) {
+        return jpaRepository.findByStatus(AuctionStatus.ACTIVE)
+            .stream().filter(e -> e.getEndTime().isBefore(before))
+            .map(mapper::toDomain).toList();
     }
 }
 ```
 
----
-
-### `infrastructure/config/` – Module-Specific Config
-
-**Mục đích:** Spring Bean config chỉ liên quan đến module đó.  
-**Quy tắc:**
-- Global config (Security, Redis, CORS) → root `config/` package
-- Module config chỉ khai báo bean riêng của module
-
-```java
-// payment/infrastructure/config/VNPayConfig.java
-@Configuration @ConfigurationProperties(prefix = "vnpay") @Data
-public class VNPayConfig {
-    private String tmnCode;
-    private String hashSecret;
-    private String payUrl;
-    private String returnUrl;
-}
-```
+`infrastructure/external/`, `infrastructure/messaging/`, `infrastructure/config/` giữ nguyên quy tắc như v1.0 — các phần này không vi phạm gì.
 
 ---
 
-### `presentation/rest/` – REST Controllers
+### `presentation/rest/`, `presentation/dto/request/`, `presentation/advice/`
 
-**Mục đích:** HTTP entry point – nhận request, validate, gọi Service, wrap response.  
-**Chứa gì:** `AuctionController.java`, `AdminStatsController.java`,...  
-**Quy tắc:**
-- `@RestController` + `@RequestMapping("/api/{resource}")`
-- Chỉ inject ApplicationService – KHÔNG inject Repository
-- KHÔNG chứa business logic
-- Mọi response PHẢI wrap trong `APIResponse<T>`
-- `@PreAuthorize` cho phân quyền
+Không đổi so với v1.0 (đã đúng chuẩn), chỉ thêm một quy tắc: Controller inject **Use Case interface** (`application/port/in`) thay vì `{X}Service` cụ thể, để tách rời khỏi chi tiết implementation.
 
 ```java
 // auction/presentation/rest/AuctionController.java
 @RestController @RequestMapping("/api/auctions") @RequiredArgsConstructor
 public class AuctionController {
-    final AuctionService auctionService;
+    final PlaceBidUseCase placeBidUseCase;   // ← Use Case interface, không phải AuctionService
 
-    @GetMapping
-    public APIResponse<Page<AuctionResponse>> getAll(
-            @RequestParam(required = false) String status,
-            @PageableDefault(size = 12) Pageable pageable) {
-        return APIResponse.<Page<AuctionResponse>>builder()
+    @PostMapping("/{id}/bids")
+    public APIResponse<BidResponse> placeBid(@PathVariable UUID id,
+                                              @RequestBody @Valid BidRequest request) {
+        return APIResponse.<BidResponse>builder()
             .status(HttpStatus.OK.value())
-            .message("Auctions fetched successfully")
-            .result(auctionService.getAllAuctions(status, null, pageable))
-            .build();
-    }
-
-    @PostMapping("/create-auction")
-    @PreAuthorize("hasRole('USER')")
-    public APIResponse<AuctionCreationResponse> create(
-            @ModelAttribute AuctionCreationRequest request) throws IOException {
-        return APIResponse.<AuctionCreationResponse>builder()
-            .status(HttpStatus.CREATED.value())
-            .message("Auction created")
-            .result(auctionService.createAuction(request))
+            .message("Bid placed successfully")
+            .result(placeBidUseCase.placeBid(id, request))
             .build();
     }
 }
@@ -618,86 +431,31 @@ public class AuctionController {
 
 ---
 
-### `presentation/dto/request/` – Request DTOs (**FROZEN CONTRACT**)
-
-**Mục đích:** Nhận dữ liệu từ client.  
-**Chứa gì:** `AuctionCreationRequest.java`, `BidRequest.java`,...  
-**Quy tắc:**
-- `@Data @FieldDefaults(level = AccessLevel.PRIVATE)`
-- Dùng Jakarta Validation: `@NotNull`, `@NotBlank`, `@Min`, `@Valid`
-- Field names **KHÔNG ĐỔI** sau deploy
-- `MultipartFile[]` cho file upload
-
-```java
-// auction/presentation/dto/request/AuctionCreationRequest.java
-@Data @FieldDefaults(level = AccessLevel.PRIVATE)
-public class AuctionCreationRequest {
-    String name;               // FROZEN
-    String description;        // FROZEN
-    String categoryId;         // FROZEN
-    String condition;          // FROZEN
-    BigDecimal startPrice;     // FROZEN
-    BigDecimal stepPrice;      // FROZEN
-    LocalDateTime startTime;   // FROZEN
-    LocalDateTime endTime;     // FROZEN
-    MultipartFile[] files;     // FROZEN
-}
-```
-
----
-
-### `presentation/advice/` – Exception Handlers
-
-**Mục đích:** `@ControllerAdvice` riêng của module (nếu cần).  
-**Quy tắc:**
-- Global handler: `shared/presentation/advice/GlobalExceptionHandle.java` – xử lý `AppException`
-- Chỉ tạo module advice khi cần override hoặc xử lý exception đặc thù của module
-
-```java
-// Thông thường KHÔNG cần tạo riêng per module.
-// GlobalExceptionHandle đã xử lý AppException + validation errors.
-// Dùng:
-throw new AppException(ErrorCode.AUCTION_NOT_FOUND);
-```
-
----
-
-### Root `config/` – Global Configuration
-
-| File | Mục đích |
-|------|---------|
-| `SecurityConfig.java` | Spring Security, JWT filter chain, CORS, endpoint permissions |
-| `CustomJwtDecoder.java` | Decode & validate JWT token (tích hợp với Spring Security OAuth2) |
-| `JWTAuthentication.java` | Custom JWT authentication filter |
-| `RedisConfig.java` | Redis connection factory, cache manager |
-| `RedisKeyExpirationListener.java` | Lắng nghe Redis key TTL expired (dùng cho auction scheduling) |
-| `FirebaseConfig.java` | Firebase Admin SDK initialization |
-| `CloudinaryConfig.java` | Cloudinary SDK bean |
-| `ApplicationInitial.java` | Seed data khi startup: tạo roles, admin account |
-| `SwaggerConfig.java` | OpenAPI / Swagger UI documentation |
-| `WebSocketConfig.java` | STOMP WebSocket endpoint, message broker config |
-| `WebSocketEventListener.java` | WebSocket connect/disconnect session tracking |
-
----
-
-
+## 3. Shared Module
 
 ```
 shared/
 ├── domain/event/           DomainEvent.java          # Marker interface
+├── domain/exception/       DomainException.java      # Pure domain error
+├── domain/model/           PageResult.java           # Pure shared model
 ├── application/event/      DomainEventPublisher.java # Port for publishing events
+├── application/exception/  AppException.java · ErrorCode.java
+├── application/model/      PageQuery.java · FileContent.java
+├── application/port/out/   CurrentUserProvider · FileStoragePort · PasswordCodec
 ├── infrastructure/
 │   ├── event/              SpringDomainEventPublisher.java
-│   └── utils/              SecurityUtils.java · PaymentUtils.java
+│   ├── security/           Spring adapters for security ports
+│   └── utils/              PaymentUtils.java
 └── presentation/
-    ├── advice/             AppException.java · ErrorCode.java · GlobalExceptionHandle.java
+    ├── advice/             GlobalExceptionHandle.java
+    ├── mapper/             MultipartFile → FileContent
     └── response/           APIResponse.java           # Standard API wrapper
 ```
 
-**Quy tắc shared module:**
-- Chỉ chứa code dùng chung THỰC SỰ (≥3 modules cùng dùng)
-- Không chứa business logic của bất kỳ module nào
-- Modules khác có thể import từ `shared/` nhưng `shared/` KHÔNG được import từ module nghiệp vụ
+**Quy tắc shared module (không đổi):**
+- Chỉ chứa code dùng chung THỰC SỰ (≥3 modules cùng dùng).
+- Không chứa business logic của bất kỳ module nào.
+- Modules khác import từ `shared/`, nhưng `shared/` KHÔNG import ngược từ module nghiệp vụ.
 
 ---
 
@@ -707,101 +465,65 @@ shared/
 
 ```
 HTTP GET Request
-    │
     ▼
-[Presentation] @RestController
-    │  Nhận @RequestParam / @PathVariable
-    │  Validate input (@Valid)
-    │
+[Presentation] Controller → validate input
     ▼
-[Application] ApplicationService
-    │  Gọi repository hoặc domain service
-    │  Map domain entity → ResponseDTO
-    │
+[Application] Service gọi domain/repository (PORT)
     ▼
-[Infrastructure] JpaRepository → Database
-    │
+[Infrastructure] RepositoryImpl → JpaRepository → DB → Entity
     ▼
-[Application] Map Entity → ResponseDTO
-    │
+[Infrastructure Mapper] Entity → Domain Model
     ▼
-[Presentation] Wrap vào APIResponse<T>
-    │
+[Application Mapper] Domain Model → ResponseDTO
     ▼
-HTTP Response (JSON)
+[Presentation] Wrap APIResponse<T> → HTTP Response
 ```
 
 ### 4.2 Luồng ghi (Write – POST/PUT/DELETE)
 
 ```
 HTTP Request (RequestDTO)
-    │
     ▼
-[Presentation] Controller
-    │  Validate @Valid
-    │  Gọi ApplicationService với RequestDTO hoặc Command object
-    │
+[Presentation] Controller validate @Valid, gọi Use Case (port/in)
     ▼
-[Application] ApplicationService
-    │  Load domain entities từ repository
-    │  Gọi domain behavior method
-    │  Publish DomainEvent (nếu có side effects)
-    │  Persist qua repository
-    │  Map → ResponseDTO
-    │
+[Application] Service: load Domain Model qua domain/repository (PORT)
     ▼
-[Domain] Entity.behavior() / DomainService
-    │  Thực thi business rule (KHÔNG biết gì về Spring/DB)
-    │
+[Domain] Entity/AggregateRoot.behavior() – business rule thuần Java
     ▼
-[Infrastructure] JpaRepository.save()
-    │
+[Application] Publish DomainEvent nếu có side-effect, save qua domain/repository (PORT)
     ▼
-HTTP Response (ResponseDTO wrapped in APIResponse<T>)
+[Infrastructure] RepositoryImpl map Domain Model → Entity → JpaRepository.save()
+    ▼
+[Application] Map Domain Model → ResponseDTO
+    ▼
+HTTP Response (wrapped APIResponse<T>)
 ```
 
-### 4.3 Luồng Domain Event (Side Effects)
+### 4.3 Luồng Published Event (Side Effects)
 
 ```
 [Application] AuctionService.endAuction()
     │  event = new AuctionEndedEvent(auctionId, winnerId)
     │  domainEventPublisher.publish(event)
-    │
     ▼
-[Infrastructure] SpringDomainEventPublisher
-    │  applicationEventPublisher.publishEvent(event)
-    │
+[Infrastructure] SpringDomainEventPublisher → applicationEventPublisher.publishEvent(event)
     ▼
-[Notification] AuctionEventListener (@EventListener)
-    │  notificationService.sendWinnerNotification(...)
-    │
+[Notification] AuctionEventListener (@EventListener) → notifyWinner(...)
     ▼
-[Payment] WalletEventListener (@EventListener)
-    │  walletService.releaseDeposit(...)
+[Payment] WalletEventListener (@EventListener) → releaseDeposit(...)
 ```
+> `payment` có compile-time dependency có chủ đích vào published contract
+> `auction/application/event`, nhưng không phụ thuộc domain model, repository hoặc implementation của
+> `auction`. Listener chỉ dịch event rồi gọi `payment/application/port/in`; toàn bộ nghiệp vụ nằm trong
+> application service.
 
 ---
 
 ## 5. API Contract – QUY TẮC BẤT BIẾN
 
-> **CRITICAL:** Field names trong Request/Response DTO KHÔNG ĐƯỢC THAY ĐỔI.  
-> Frontend đã map với những field này. Thay đổi = breaking change.
-
-### Request DTOs (input)
-- Vị trí: `{module}/presentation/dto/request/`
-- Package: `com.ecommerce.auctionplatform.{module}.presentation.dto.request`
-- **Không thêm/xóa/đổi tên field** nếu API đang production
-- Thêm field mới: phải có `default value` hoặc `@JsonProperty(required = false)`
-
-### Response DTOs (output)
-- Vị trí: `{module}/application/dto/response/`
-- Package: `com.ecommerce.auctionplatform.{module}.application.dto.response`
-- **Không xóa/đổi tên field** đang được dùng
-- Thêm field mới: OK (backward compatible)
-
-### APIResponse wrapper – BẮT BUỘC
-
-Tất cả API endpoint đều phải trả về `APIResponse<T>`:
+Field names trong `presentation/dto/request` và `presentation/dto/response` không được đổi tên/xóa sau
+khi production; thêm field mới theo hướng backward-compatible. Application output model là contract của use case,
+không phải HTTP contract. Mọi endpoint bắt buộc wrap presentation response bằng `APIResponse<T>`.
 
 ```java
 return APIResponse.<MyResponseDTO>builder()
@@ -813,23 +535,44 @@ return APIResponse.<MyResponseDTO>builder()
 
 ---
 
-## 6. Cross-Module Dependencies
+## 6. Cross-Module Dependencies (DAG bắt buộc)
 
-| Module | Được phép import từ |
-|--------|---------------------|
-| `shared` | Không import từ module nào |
-| `auth` | `shared`, `user` (domain model, repo) |
-| `user` | `shared`, `payment` (Wallet model) |
+**Vấn đề ở v1.0:** bảng cũ cho phép `auction → payment` VÀ `payment → auction` cùng lúc → circular dependency giữa hai module, vi phạm nguyên tắc Bounded Context phải acyclic.
+
+**Quy tắc mới:**
+1. Dependency giữa các module chỉ được đi **một chiều** (xem bảng dưới).
+2. Giao tiếp bất đồng bộ giữa module đi qua published event trong `provider/application/event`; không dùng
+   `provider/domain/event` làm API công khai.
+3. Application của một bounded context không import Domain/Application của context khác. Nó định nghĩa
+   consumer-owned `port/out` và snapshot/view thuần của chính nó; adapter trong Infrastructure thực hiện port.
+4. Một Aggregate KHÔNG được giữ object reference của Aggregate thuộc module khác — chỉ giữ `UUID`.
+
+| Module | Dependency adapter/event được phép |
+|--------|------------------------------------|
+| `shared` | Không import module nghiệp vụ |
+| `user` | `shared` |
 | `product` | `shared` |
-| `notification` | `shared`, `user` (domain model) |
-| `auction` | `shared`, `user`, `product`, `payment`, `notification` |
-| `payment` | `shared`, `user`, `auction` |
-| `dispute` | `shared`, `user`, `payment`, `product`, `notification`, `auction` |
+| `auction` | `shared`, `user`, `product` |
+| `payment` | `shared`, `user`, `product`, `auction` |
+| `notification` | `shared`, `auction`, `payment` |
+| `dispute` | `shared`, `user`, `product`, `payment`, `notification` |
 
-**Quy tắc import cụ thể:**
-- Chỉ import từ: `domain/model/`, `domain/enums/`, `application/dto/response/`, `infrastructure/persistence/repository/`
-- **KHÔNG** import `application/service/` của module khác → dùng Domain Events hoặc Port/Out interface
-- **KHÔNG** import `presentation/` của module khác
+DAG tương ứng: `(user, product) → auction → payment → notification → dispute`.
+Top-level `integration/` là composition boundary duy nhất được phép nối nhiều context khi đặt adapter
+trong infrastructure của context tiêu thụ sẽ tạo dependency cycle. `config/` không chứa adapter hoặc
+logic tích hợp; mọi class trực tiếp trong package này phải là technical `@Configuration`.
+
+**Quy tắc import cụ thể (đã siết chặt):**
+- `application/**` chỉ import domain/application của chính context và `shared`; dữ liệu context khác đi qua port/view do consumer sở hữu.
+- Cross-context import chỉ nằm trong infrastructure adapter/event listener theo DAG, hoặc top-level `integration/`.
+  Adapter chỉ gọi `provider/application/port/in`; listener chỉ nhận `provider/application/event`.
+- Behavioral adapter (`adapter`, `external`, `messaging`) không inject domain repository/JPA repository và
+  không thao tác aggregate. Persistence adapter là nơi duy nhất được implement domain repository.
+- Adapter trong top-level `integration/` chỉ được import application contract (`port/in`, `port/out`, DTO/view) của các context; không được import domain repository hay implementation layer.
+- **KHÔNG** import `application/service/` của module khác → dùng Domain Event hoặc Port/Out interface.
+- **KHÔNG** import `presentation/` của module khác.
+- **KHÔNG** import `infrastructure/` của module khác (kể cả `infrastructure/persistence/entity/`) — đây là chi tiết riêng tư tuyệt đối của module đó.
+- **KHÔNG** giữ object reference (`@ManyToOne`/field kiểu Entity/Domain Model) sang Aggregate của module khác — chỉ giữ `UUID`.
 
 ---
 
@@ -839,9 +582,11 @@ return APIResponse.<MyResponseDTO>builder()
 com.ecommerce.auctionplatform.{module}.{layer}.{sublayer}
 
 Ví dụ:
-  com.ecommerce.auctionplatform.auction.domain.model.Auction
+  com.ecommerce.auctionplatform.auction.domain.model.Auction                              # POJO thuần
+  com.ecommerce.auctionplatform.auction.domain.repository.AuctionRepository                # PORT
   com.ecommerce.auctionplatform.auction.application.service.AuctionService
-  com.ecommerce.auctionplatform.auction.infrastructure.persistence.repository.AuctionRepository
+  com.ecommerce.auctionplatform.auction.infrastructure.persistence.entity.AuctionEntity     # JPA
+  com.ecommerce.auctionplatform.auction.infrastructure.persistence.AuctionRepositoryImpl     # ADAPTER
   com.ecommerce.auctionplatform.auction.presentation.rest.AuctionController
   com.ecommerce.auctionplatform.auction.presentation.dto.request.AuctionCreationRequest
   com.ecommerce.auctionplatform.auction.application.dto.response.AuctionResponse
@@ -853,17 +598,23 @@ Ví dụ:
 
 | Loại class | Convention | Ví dụ |
 |------------|-----------|-------|
-| Entity (JPA) | `PascalCase` | `Auction`, `AuctionRecord` |
-| Repository | `{Entity}Repository` | `AuctionRepository` |
+| Domain Model | `PascalCase` | `Auction`, `AuctionRecord` |
+| Domain Repository (Port) | `{Aggregate}Repository` | `AuctionRepository` (interface, ở `domain/repository`) |
+| JPA Entity | `{Aggregate}Entity` | `AuctionEntity` (ở `infrastructure/persistence/entity`) |
+| Repository Impl (Adapter) | `{Aggregate}RepositoryImpl` | `AuctionRepositoryImpl` |
+| JPA Data Repository | `{Aggregate}JpaRepository` | `AuctionJpaRepository` (package-private) |
 | Application Service | `{Resource}Service` | `AuctionService`, `WalletService` |
+| Use Case (Port/In) | `{Verb}{Resource}UseCase` | `PlaceBidUseCase` |
 | Domain Service | `{Resource}DomainService` | `AuctionDomainService` |
 | External Adapter | `{Name}Adapter` | `CloudinaryAdapter` |
 | Payment Gateway | `{Provider}GatewayAdapter` | `VNPayGatewayAdapter` |
 | Request DTO | `{Action}{Resource}Request` | `AuctionCreationRequest` |
-| Response DTO | `{Resource}Response` | `AuctionResponse` |
+| Application Output | `{Resource}Response` | `application/dto/response/AuctionResponse` |
+| HTTP Response DTO | `{Resource}Response` | `presentation/dto/response/AuctionResponse` |
+| Presentation Mapper | `{Resource}ResponseMapper` | `AuctionResponseMapper` |
 | Domain Event | `{Resource}{Verb}Event` | `AuctionEndedEvent` |
 | Controller | `{Resource}Controller` | `AuctionController` |
-| Mapper | `{Resource}Mapper` | `UserMapper` |
+| Mapper | `{Resource}Mapper` / `{Resource}EntityMapper` | `UserMapper`, `AuctionEntityMapper` |
 | Enum type | `PascalCase` | `AuctionStatus` |
 | Enum value | `UPPER_SNAKE_CASE` | `IN_PROGRESS` |
 
@@ -871,122 +622,132 @@ Ví dụ:
 
 ## 9. Quy Tắc AI Code Generation – NGHIÊM CẤM
 
-### Danh sách ĐỎ (DDD Violations – AI không được làm)
+### Danh sách ĐỎ (Vi phạm – AI không được làm)
 
 ```java
-// 1. KHÔNG đặt @Service vào domain model
-@Service                     // ← VI PHẠM
+// 1. KHÔNG đặt @Entity/@Table vào domain/model
+// domain/model/Auction.java
+@Entity                       // ← VI PHẠM: domain phải là POJO thuần
 public class Auction { ... }
 
-// 2. KHÔNG để Controller gọi Repository trực tiếp
+// 2. KHÔNG để Application Service inject JpaRepository trực tiếp
+public class AuctionService {
+    @Autowired AuctionJpaRepository jpaRepository;   // ← PHẢI inject domain/repository PORT
+}
+
+// 3. KHÔNG để Controller gọi Repository (port hay JPA) trực tiếp
 @RestController
 public class AuctionController {
-    @Autowired AuctionRepository repo; // ← PHẢI qua ApplicationService
+    @Autowired AuctionRepository repo;   // ← PHẢI qua Application Service / Use Case
 }
 
-// 3. KHÔNG để Domain entity gọi infra/Spring
+// 4. KHÔNG để Domain Model gọi infra/Spring
 public class Auction {
-    public void save() {
-        jpaRepository.save(this); // ← Domain không biết JPA save
-    }
+    public void save() { jpaRepository.save(this); }   // ← Domain không biết JPA
 }
 
-// 4. KHÔNG đặt Response DTO trong domain/model/
-// domain/model/AuctionResponse.java ← VI PHẠM
-
-// 5. KHÔNG import Spring từ domain layer
-// Trong domain/model/Auction.java:
-import org.springframework.data.jpa.repository.JpaRepository; // ← VI PHẠM
+// 5. KHÔNG import Spring/JPA từ domain layer
+import org.springframework.data.jpa.repository.JpaRepository;   // trong domain/** ← VI PHẠM
+import jakarta.persistence.Entity;                                // trong domain/** ← VI PHẠM
 
 // 6. KHÔNG đổi tên field DTO đang production
 public class AuctionResponse {
-    String auctionTitle; // ← nếu field cũ là "name" phải giữ "name"
+    String auctionTitle;   // ← nếu field cũ là "name" phải giữ "name"
 }
 
-// 7. KHÔNG import ApplicationService của module khác
-// Trong AuctionService.java:
-import com.ecommerce.auctionplatform.payment.application.service.OrderService; // ← Dùng DomainEvent
+// 7. KHÔNG import ApplicationService/Repository/Entity của module khác
+import com.ecommerce.auctionplatform.payment.application.service.OrderService;             // ← dùng DomainEvent
+import com.ecommerce.auctionplatform.identity.infrastructure.persistence.entity.UserEntity;  // ← TUYỆT ĐỐI CẤM
 
-// 8. KHÔNG đặt business logic trong Controller
+// 8. KHÔNG giữ object reference sang Aggregate của module khác trong Domain Model
+public class Auction {
+    private User seller;   // ← VI PHẠM, phải là: private UUID sellerId;
+}
+
+// 9. KHÔNG đặt business logic trong Controller
 @PostMapping("/bid")
 public APIResponse<BidResponse> bid(@RequestBody BidRequest req) {
-    if (req.getAmount().compareTo(BigDecimal.ZERO) <= 0) { // ← Thuộc Service/Domain
+    if (req.getAmount().compareTo(BigDecimal.ZERO) <= 0) {   // ← thuộc Domain
         throw new AppException(ErrorCode.INVALID_AMOUNT);
     }
 }
+
+// 10. KHÔNG tạo dependency hai chiều compile-time giữa 2 module
+// payment module import auction.application.service.AuctionService
+// VÀ auction module import payment.application.service.PaymentService
+// ← CIRCULAR DEPENDENCY, một trong hai chiều PHẢI đi qua Domain Event
 ```
 
 ### Danh sách XANH (Patterns chuẩn)
 
 ```java
-// 1. Domain entity thuần túy – không phụ thuộc Spring
+// 1. Domain Model thuần túy – POJO, tự bảo vệ invariant
 // File: auction/domain/model/Auction.java
-@Entity
-@Table(name = "auctions")
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
 public class Auction {
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
-    UUID id;
+    private final UUID id;
+    private final UUID sellerId;          // chỉ ID, không object User
+    private BigDecimal currentPrice;
+    private AuctionStatus status;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    User user;
-
-    BigDecimal currentPrice;
-    AuctionStatus status;
-
-    // Business behavior – không gọi repo, không gọi Spring
-    public boolean canAcceptBid(BigDecimal bidAmount) {
-        return status == AuctionStatus.ACTIVE
-            && bidAmount.compareTo(currentPrice) > 0;
+    public void acceptBid(BigDecimal bidAmount) {
+        if (status != AuctionStatus.ACTIVE) throw new AppException(ErrorCode.AUCTION_NOT_ACTIVE);
+        if (bidAmount.compareTo(currentPrice) <= 0) throw new AppException(ErrorCode.BID_TOO_LOW);
+        this.currentPrice = bidAmount;
     }
+    // getters, không setter public cho field cần bảo vệ
 }
 
-// 2. Application Service orchestrate
-// File: auction/application/service/AuctionService.java
-@Service
-@RequiredArgsConstructor
-@Slf4j
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuctionService {
-    AuctionRepository auctionRepository;
+// 2. Domain Repository PORT
+// File: auction/domain/repository/AuctionRepository.java
+public interface AuctionRepository {
+    Optional<Auction> findById(UUID id);
+    Auction save(Auction auction);
+}
 
-    @Transactional
+// 3. Application Service phụ thuộc PORT, không phụ thuộc JPA
+// File: auction/application/service/AuctionService.java
+@Service @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+public class AuctionService implements PlaceBidUseCase {
+    AuctionRepository auctionRepository;    // ← PORT interface
+
+    @Override @Transactional
     public BidResponse placeBid(UUID auctionId, BidRequest request) {
         Auction auction = auctionRepository.findById(auctionId)
             .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
-
-        if (!auction.canAcceptBid(request.getAmount())) {   // Gọi domain behavior
-            throw new AppException(ErrorCode.INVALID_BID_AMOUNT);
-        }
-
-        auction.setCurrentPrice(request.getAmount());
+        auction.acceptBid(request.getAmount());
         auctionRepository.save(auction);
-
-        return BidResponse.builder()
-            .auctionId(auctionId)
-            .amount(request.getAmount())
-            .build();
+        return BidResponse.builder().auctionId(auctionId).amount(request.getAmount()).build();
     }
 }
 
-// 3. Controller chỉ delegate, không chứa logic
+// 4. RepositoryImpl – Adapter, sống ở Infrastructure, implement Port
+// File: auction/infrastructure/persistence/AuctionRepositoryImpl.java
+@Repository @RequiredArgsConstructor
+class AuctionRepositoryImpl implements AuctionRepository {
+    private final AuctionJpaRepository jpaRepository;
+    private final AuctionEntityMapper mapper;
+
+    public Optional<Auction> findById(UUID id) {
+        return jpaRepository.findById(id).map(mapper::toDomain);
+    }
+    public Auction save(Auction auction) {
+        return mapper.toDomain(jpaRepository.save(mapper.toEntity(auction)));
+    }
+}
+
+// 5. Controller chỉ delegate qua Use Case, không chứa logic
 // File: auction/presentation/rest/AuctionController.java
-@RestController
-@RequestMapping("/api/auctions")
-@RequiredArgsConstructor
+@RestController @RequestMapping("/api/auctions") @RequiredArgsConstructor
 public class AuctionController {
-    final AuctionService auctionService;
+    final PlaceBidUseCase placeBidUseCase;
 
     @PostMapping("/{id}/bids")
-    public APIResponse<BidResponse> placeBid(
-            @PathVariable UUID id,
-            @RequestBody @Valid BidRequest request) {
+    public APIResponse<BidResponse> placeBid(@PathVariable UUID id, @RequestBody @Valid BidRequest request) {
         return APIResponse.<BidResponse>builder()
             .status(HttpStatus.OK.value())
             .message("Bid placed successfully")
-            .result(auctionService.placeBid(id, request))
+            .result(placeBidUseCase.placeBid(id, request))
             .build();
     }
 }
@@ -996,64 +757,74 @@ public class AuctionController {
 
 ## 10. Thêm API / Tính Năng Mới
 
-### Step-by-step checklist
-
 **Ví dụ:** Thêm `GET /api/auctions/{id}/participants`
 
 ```
-Step 1 – Xác định module
-  → Liên quan đến Auction → module auction/
-
-Step 2 – Xác định cần tạo gì
-  → Query (read-only) → không cần Command object
-
-Step 3 – Tạo Response DTO (nếu chưa có)
-  → auction/application/dto/response/AuctionParticipantResponse.java
-
-Step 4 – Thêm method vào ApplicationService
-  → auction/application/service/AuctionService.java
-  → public List<AuctionParticipantResponse> getParticipants(UUID auctionId)
-
-Step 5 – Thêm query vào Repository (nếu cần)
-  → AuctionRegistrationRepository.java
-  → List<AuctionRegistration> findByAuctionId(UUID auctionId);
-
-Step 6 – Thêm endpoint vào Controller
-  → AuctionController.java
-  → @GetMapping("/{id}/participants")
-
-Step 7 – Verify
-  → mvn compile → BUILD SUCCESS
+Step 1 – Xác định module → auction/
+Step 2 – Query (read-only) → không cần Command object
+Step 3 – Tạo use-case output → auction/application/dto/response/AuctionParticipantResponse.java
+Step 4 – Thêm method vào domain/repository PORT nếu cần query mới
+         → auction/domain/repository/AuctionRegistrationRepository.java
+         → List<AuctionRegistration> findByAuctionId(UUID auctionId);
+Step 5 – Implement query đó ở infrastructure/persistence/{...}RepositoryImpl.java
+         (thêm method tương ứng trong {...}JpaRepository nội bộ)
+Step 6 – Thêm method vào Application Service, implement Use Case interface (port/in) nếu có
+         → auction/application/service/AuctionService.java
+Step 7 – Tạo HTTP response + presentation mapper
+         → auction/presentation/dto/response/AuctionParticipantResponse.java
+         → auction/presentation/mapper/AuctionResponseMapper.java
+Step 8 – Thêm endpoint vào Controller, inject Use Case interface và response mapper
+         → AuctionController.java → @GetMapping("/{id}/participants")
+Step 9 – Verify → mvn compile → BUILD SUCCESS
 ```
 
-### Template Entity mới trong module hiện có
+### Template Aggregate mới trong module hiện có
 
 ```java
-// domain/model/{NewEntity}.java
+// domain/model/{NewAggregate}.java – POJO thuần
 package com.ecommerce.auctionplatform.{module}.domain.model;
+public class {NewAggregate} {
+    private final UUID id;
+    // fields + behavior methods, KHÔNG JPA annotation
+}
 
-@Entity
-@Table(name = "{table_name}")
+// domain/repository/{NewAggregate}Repository.java – PORT
+package com.ecommerce.auctionplatform.{module}.domain.repository;
+public interface {NewAggregate}Repository {
+    Optional<{NewAggregate}> findById(UUID id);
+    {NewAggregate} save({NewAggregate} entity);
+}
+
+// infrastructure/persistence/entity/{NewAggregate}Entity.java – JPA
+package com.ecommerce.auctionplatform.{module}.infrastructure.persistence.entity;
+@Entity @Table(name = "{table_name}")
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class {NewEntity} {
+public class {NewAggregate}Entity {
     @Id @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
     // fields...
 }
 
-// infrastructure/persistence/repository/{NewEntity}Repository.java
-package com.ecommerce.auctionplatform.{module}.infrastructure.persistence.repository;
+// infrastructure/persistence/{NewAggregate}RepositoryImpl.java – ADAPTER
+package com.ecommerce.auctionplatform.{module}.infrastructure.persistence;
+@Repository @RequiredArgsConstructor
+class {NewAggregate}RepositoryImpl implements {NewAggregate}Repository {
+    private final {NewAggregate}JpaRepository jpaRepository;
+    private final {NewAggregate}EntityMapper mapper;
+    // implement methods
+}
 
-@Repository
-public interface {NewEntity}Repository extends JpaRepository<{NewEntity}, UUID> { }
-
-// application/dto/response/{NewEntity}Response.java
+// application/dto/response/{NewAggregate}Response.java – use-case output, không Jackson/Jakarta
 package com.ecommerce.auctionplatform.{module}.application.dto.response;
-
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
-public class {NewEntity}Response {
-    // FROZEN: không thay đổi sau khi API live
+public class {NewAggregate}Response {
+    // transport-agnostic output fields
+}
+
+// presentation/dto/response/{NewAggregate}Response.java – HTTP contract
+package com.ecommerce.auctionplatform.{module}.presentation.dto.response;
+public record {NewAggregate}Response(/* FROZEN API fields */) {
 }
 ```
 
@@ -1061,34 +832,40 @@ public class {NewEntity}Response {
 
 ## 11. Thêm Module Mới
 
-**Tạo cấu trúc thư mục:**
+**Tạo cấu trúc thư mục (đã cập nhật thêm `persistence/entity`):**
 
 ```bash
 BASE=Backend/src/main/java/com/ecommerce/auctionplatform
 MODULE=review   # đổi tên module ở đây
 
-mkdir -p $BASE/$MODULE/{domain/{model,enums,event,exception,repository,service,valueobject},application/{service,dto/{response,command,query},mapper,port/{in,out}},infrastructure/{persistence/{repository,entity,mapper},external,messaging,config},presentation/{rest,dto/{request,response},mapper,advice}}
+mkdir -p $BASE/$MODULE/{domain/{model,enums,event,exception,repository,service,valueobject},application/{service,dto/{response,command,query},mapper,port/{in,out}},infrastructure/{persistence/{entity,repository,mapper},external,messaging,config},presentation/{rest,dto/{request,response},mapper,advice}}
 ```
 
 **Checklist:**
 - [ ] Tạo đầy đủ 4 layer directories
-- [ ] Entity trong `domain/model/` với `@Entity`, `@Table`
-- [ ] Repository trong `infrastructure/persistence/repository/`
-- [ ] Application Service trong `application/service/`
+- [ ] Domain Model trong `domain/model/` — **POJO thuần, không JPA annotation**
+- [ ] Domain Repository PORT trong `domain/repository/`
+- [ ] JPA Entity trong `infrastructure/persistence/entity/`
+- [ ] RepositoryImpl trong `infrastructure/persistence/` implement domain PORT
+- [ ] Application Service trong `application/service/`, implement Use Case (`port/in`) nếu có
 - [ ] Request DTO trong `presentation/dto/request/` – define contract ngay từ đầu
-- [ ] Response DTO trong `application/dto/response/`
-- [ ] Controller trong `presentation/rest/`
-- [ ] Cập nhật bảng Cross-Module Dependencies (Section 6)
+- [ ] Use-case output model trong `application/dto/response/`, không chứa annotation HTTP/Jackson
+- [ ] HTTP Response DTO trong `presentation/dto/response/`
+- [ ] Presentation mapper chuyển application output sang HTTP response
+- [ ] Controller trong `presentation/rest/`, inject Use Case interface và chỉ expose presentation response
+- [ ] Cập nhật bảng Cross-Module Dependencies (Section 6) — kiểm tra không tạo circular dependency
+- [ ] Không có field kiểu Domain Model/Entity của module khác trong Aggregate mới — chỉ `UUID`
 - [ ] `mvn compile` → BUILD SUCCESS
 
 ---
 
 ## 12. Database Migration
 
-### Thêm column vào table hiện có
+Khi field mới được thêm vào **JPA Entity** (`infrastructure/persistence/entity/`), cập nhật Domain Model,
+application mapper/output và presentation response mapper/DTO nếu field đó thực sự thuộc API contract.
 
 ```java
-// 1. Thêm field vào Entity (nullable = true cho migration safe)
+// 1. Thêm field vào JPA Entity (nullable = true cho migration safe)
 @Column(name = "new_column", nullable = true)
 String newColumn;
 ```
@@ -1098,137 +875,81 @@ String newColumn;
 ALTER TABLE {table_name} ADD COLUMN new_column VARCHAR(255);
 ```
 
-- Nếu field xuất hiện trong Response → thêm vào Response DTO (backward compatible)  
-- Nếu field là input → thêm vào Request DTO với default value
+- Nếu field xuất hiện trong HTTP response → cập nhật Domain Model, application output, presentation mapper và presentation response theo hướng backward-compatible.
+- Nếu field là input → thêm vào Request DTO với default value.
 
-### Tạo bảng mới
+### Tạo bảng mới / Đổi tên column
 
-```sql
--- db/migration/V{N}__create_{module}_tables.sql
-CREATE TABLE {table_name} (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-```
-
-### Đổi tên column (Production – 2 phases)
-
-```sql
--- Phase 1: Add new, copy, keep old
-ALTER TABLE auctions ADD COLUMN new_name VARCHAR(255);
-UPDATE auctions SET new_name = old_name;
-
--- Phase 2 (deploy sau, khi FE đã migrate): Drop old
-ALTER TABLE auctions DROP COLUMN old_name;
-```
+Không đổi so với v1.0 (đã đúng chuẩn — 2-phase migration cho production).
 
 ---
 
 ## 13. Nâng Phiên Bản / Chuyển Framework
 
-### Nâng Spring Boot version
-
-```bash
-# 1. Tạo nhánh riêng
-git checkout -b chore/upgrade-spring-boot-{version}
-
-# 2. Sửa pom.xml
-# <version>{new-version}</version>
-
-# 3. Kiểm tra dependency
-mvn dependency:tree | grep -E "WARN|ERROR"
-
-# 4. Fix breaking changes theo Spring Boot Migration Guide
-#    javax.* → jakarta.*  (đã áp dụng trong dự án này)
-#    WebSecurityConfigurerAdapter → SecurityFilterChain (đã áp dụng)
-
-# 5. Verify
-mvn compile && mvn test
-```
-
-### Thay thế thư viện (ví dụ: Cloudinary → S3)
+Không đổi so với v1.0. Lưu ý thêm: vì Domain Model đã tách khỏi JPA Entity, việc chuyển database (mục "Chuyển Database") giờ **thực sự** chỉ cần sửa Infrastructure layer (`entity/`, `repository/`, `RepositoryImpl`) — Domain layer không đổi gì, đúng như lời hứa của Hexagonal Architecture.
 
 ```
-1. Tạo Port interface trong application/port/out/
-   → UploadImagePort.java
-
-2. Adapter cũ implements port
-   → CloudinaryAdapter implements UploadImagePort
-
-3. Adapter mới implements cùng port
-   → S3Adapter implements UploadImagePort
-
-4. ApplicationService inject UploadImagePort (không đổi code service)
-
-5. Config @Primary hoặc application.properties để chọn adapter
-```
-
-### Chuyển Database
-
-```
-1. Domain layer: KHÔNG thay đổi gì
-2. Tạo repository implementations mới trong infrastructure/
+1. Domain layer: KHÔNG thay đổi gì (giờ đã thực sự đúng vì Domain không phụ thuộc JPA)
+2. Tạo Entity + JpaRepository + RepositoryImpl mới trong infrastructure/
 3. Đổi dependency trong pom.xml
 4. Tạo migration scripts tương thích DB mới
 5. Cập nhật application.properties
 ```
 
+Phần "Thay thế thư viện" và "Thêm Payment Gateway Mới" giữ nguyên như v1.0 (đã đúng chuẩn — dùng Port/Out).
+
 ---
 
 ## 14. Thêm Payment Gateway Mới
 
-**Ví dụ:** Thêm ZaloPay
-
-```
-1. payment/infrastructure/external/ZaloPayGatewayAdapter.java
-2. payment/infrastructure/config/ZaloPayConfig.java  (nếu cần)
-3. application.properties:
-   zalopay.app-id=...
-   zalopay.key1=...
-4. Inject vào Controller/Service
-5. KHÔNG sửa Request/Response DTO – chỉ thêm routing logic
-```
+Gateway adapter tại `infrastructure/external/` chỉ được tạo/ký request, gọi API và xác minh/parse callback.
+Nó không được tạo transaction, truy cập ví/order repository, đổi trạng thái aggregate hoặc publish event.
+Các thao tác đó thuộc `payment/application/service` và chạy trong application transaction.
 
 ---
 
 ## 15. Prompt Template Cho AI
 
-Khi yêu cầu AI generate code, LUÔN dùng template sau:
-
 ```
 Thêm chức năng [MÔ TẢ] vào module [MODULE] của Auction Platform.
 
-Kiến trúc: DDD + Hexagonal. Tuân thủ ARCHITECTURE.md.
+Kiến trúc: DDD + Hexagonal (v2.0). Tuân thủ ARCHITECTURE.md.
 
 Module đích: [module name]
 Layer cần tạo/sửa:
-  - domain/model: [Entity mới nếu có]
-  - application/service: [method mới]
-  - infrastructure/persistence/repository: [query mới]
-  - presentation/rest: [endpoint mới]
+  - domain/model: [Aggregate/Domain Model mới nếu có — POJO thuần]
+  - domain/repository: [Port interface mới nếu có]
+  - infrastructure/persistence/entity: [JPA Entity tương ứng]
+  - infrastructure/persistence: [RepositoryImpl implement port]
+  - application/service: [method mới, implement Use Case]
+  - presentation/rest: [endpoint mới, inject Use Case interface]
 
 Request DTO fields (FROZEN – không thay đổi):
   - [field1]: [type]
-  - [field2]: [type]
 
-Response DTO fields (FROZEN):
+Presentation Response DTO fields (FROZEN):
   - [field1]: [type]
-  - [field2]: [type]
 
 Package prefix: com.ecommerce.auctionplatform.[module]
-Giữ nguyên API contract. KHÔNG import ApplicationService của module khác.
+Giữ nguyên API contract.
+KHÔNG import ApplicationService/Entity/Repository của module khác.
+KHÔNG để Domain Model chứa JPA annotation.
+KHÔNG để Application Service inject JpaRepository trực tiếp — chỉ inject domain/repository PORT.
+Aggregate tham chiếu module khác CHỈ bằng UUID, không giữ object.
 ```
 
 ### AI Self-Checklist Trước Khi Output Code
 
 - [ ] Đúng package path?
-- [ ] Domain entity không import Spring?
-- [ ] Controller không gọi Repository trực tiếp?
-- [ ] Request/Response DTO fields không thay đổi?
-- [ ] Cross-module import theo Section 6?
+- [ ] Domain Model không import Spring/JPA?
+- [ ] Application Service inject `domain/repository` PORT, không inject `JpaRepository`?
+- [ ] Controller không gọi Repository (port hay JPA) trực tiếp, chỉ gọi Use Case/Service?
+- [ ] Presentation Request/Response DTO fields không thay đổi?
+- [ ] Cross-module import theo Section 6, không tạo circular dependency?
+- [ ] Aggregate chỉ giữ `UUID` khi tham chiếu module khác, không giữ object?
 - [ ] Tất cả endpoint wrap `APIResponse<T>`?
 - [ ] `@Transactional` ở Application Service?
-- [ ] Business logic ở Service/Domain (không phải Controller)?
+- [ ] Business logic ở Domain Model/Domain Service (không phải Controller, không phải Entity JPA)?
 
 ---
 
@@ -1243,34 +964,40 @@ import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
 import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
 import com.ecommerce.auctionplatform.shared.infrastructure.utils.SecurityUtils;
 
-// User domain
-import com.ecommerce.auctionplatform.user.domain.model.User;
-import com.ecommerce.auctionplatform.user.domain.enums.PredefinedRole;
-import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
+// Identity domain (chỉ những gì được phép theo Section 6)
+import com.ecommerce.auctionplatform.identity.domain.model.User;
+import com.ecommerce.auctionplatform.identity.domain.enums.PredefinedRole;
+// KHÔNG import identity.infrastructure.persistence.entity.UserEntity từ module khác
 
 // Auction domain
 import com.ecommerce.auctionplatform.auction.domain.model.Auction;
+import com.ecommerce.auctionplatform.auction.domain.repository.AuctionRepository;
 import com.ecommerce.auctionplatform.auction.domain.enums.AuctionStatus;
 
 // Payment domain
 import com.ecommerce.auctionplatform.payment.domain.model.Wallet;
-import com.ecommerce.auctionplatform.payment.domain.model.Order;
 import com.ecommerce.auctionplatform.payment.domain.enums.WalletStatus;
 ```
 
 ### Annotation Templates
 
 ```java
-// Entity
+// Domain Model – POJO thuần
+public class {Aggregate} {
+    private final UUID id;
+    // fields, constructor, behavior methods — KHÔNG @Entity, KHÔNG @Data/@Builder bắt buộc
+}
+
+// JPA Entity – Infrastructure
 @Entity @Table(name = "{table}") @Data @Builder
 @NoArgsConstructor @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class {Entity} { ... }
+public class {Aggregate}Entity { ... }
 
 // Application Service
 @Service @RequiredArgsConstructor @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class {Name}Service { ... }
+public class {Name}Service implements {Name}UseCase { ... }
 
 // Controller
 @RestController @RequestMapping("/api/{resource}")
@@ -1280,5 +1007,5 @@ public class {Name}Controller { ... }
 
 ---
 
-*Cập nhật lần cuối: 2026-08-20 | Phiên bản: 1.0*  
+*Cập nhật lần cuối: 2026-08-24 | Phiên bản: 2.0 (đã sửa để tuân thủ đúng DDD + Hexagonal)*
 *Bất kỳ thay đổi kiến trúc nào cũng PHẢI cập nhật file này.*

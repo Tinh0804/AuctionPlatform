@@ -1,57 +1,49 @@
 package com.ecommerce.auctionplatform.auction.domain.model;
-import com.ecommerce.auctionplatform.user.domain.model.User;
 
 import com.ecommerce.auctionplatform.auction.domain.enums.AuctionRecordStatus;
-import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "auction_records")
-@Data
+@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuctionRecord {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    UUID id;
+            UUID id;
 
-    @ManyToOne
-    @JoinColumn(name = "auction_id")
-    Auction auction;
+            Auction auction;
 
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    User user;
+        UUID userId;
 
-    @ManyToOne
-    @JoinColumn(name = "bid_id")
-    Bid bid;
+            Bid bid;
 
-    @Column(name = "winning_rank")
-    Integer winningRank;
+        Integer winningRank;
 
-    @Column(name = "final_price", precision = 18, scale = 2)
-    BigDecimal finalPrice;
+        BigDecimal finalPrice;
 
     @Builder.Default
-    @Column(name = "status", nullable = false, columnDefinition = "auction_record_status")
-    @Enumerated(EnumType.STRING)
-    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    AuctionRecordStatus status = AuctionRecordStatus.PENDING_PAYMENT;
+                AuctionRecordStatus status = AuctionRecordStatus.PENDING_PAYMENT;
 
-    @Column(name = "expiry_time", nullable = false)
-    LocalDateTime expiryTime;
+        LocalDateTime expiryTime;
 
     @Builder.Default
-    @Column(name = "created_at", nullable = false, updatable = false)
-    LocalDateTime createdAt = LocalDateTime.now();
+        LocalDateTime createdAt = LocalDateTime.now();
+
+    public void cancel() {
+        status = AuctionRecordStatus.CANCELLED;
+    }
+
+    public void promote(LocalDateTime paymentDeadline) {
+        status = AuctionRecordStatus.PENDING_PAYMENT;
+        expiryTime = paymentDeadline;
+    }
+
+    public void markWon() {
+        status = AuctionRecordStatus.WIN;
+    }
 }

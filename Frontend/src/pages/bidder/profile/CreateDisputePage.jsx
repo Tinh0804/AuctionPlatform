@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AlertCircle, Upload, X, ArrowLeft } from 'lucide-react';
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 export default function CreateDisputePage() {
     const { orderId } = useParams();

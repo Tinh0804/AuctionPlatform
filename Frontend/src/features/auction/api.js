@@ -2,7 +2,7 @@
 // src/features/auction/api.js
 // Tập trung các hàm gọi HTTP liên quan đến đấu giá
 // ============================================================
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 /**
  * Lấy danh sách phiên đấu giá (có filter)

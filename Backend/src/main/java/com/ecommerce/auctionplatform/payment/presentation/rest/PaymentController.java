@@ -1,11 +1,13 @@
 package com.ecommerce.auctionplatform.payment.presentation.rest;
 
 import com.ecommerce.auctionplatform.payment.presentation.dto.request.PaymentRequest;
+import com.ecommerce.auctionplatform.payment.presentation.dto.response.PaymentCallbackResponse;
+import com.ecommerce.auctionplatform.payment.presentation.dto.response.PaymentResponse;
+import com.ecommerce.auctionplatform.payment.presentation.mapper.PaymentResponseMapper;
 import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
-import com.ecommerce.auctionplatform.payment.application.dto.response.PaymentCallbackResponse;
-import com.ecommerce.auctionplatform.payment.application.dto.response.PaymentResponse;
-import com.ecommerce.auctionplatform.payment.infrastructure.external.MoMoGatewayAdapter;
-import com.ecommerce.auctionplatform.payment.infrastructure.external.VNPayGatewayAdapter;
+import com.ecommerce.auctionplatform.payment.application.dto.command.PaymentCommand;
+import com.ecommerce.auctionplatform.payment.application.port.in.PaymentUseCase;
+import com.ecommerce.auctionplatform.payment.domain.enums.PaymentMethod;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/payments")
@@ -25,12 +28,13 @@ import java.util.Map;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class PaymentController {
 
-    MoMoGatewayAdapter moMoService;
-    VNPayGatewayAdapter vnPayService;
+    PaymentUseCase paymentUseCase;
+    PaymentResponseMapper responseMapper;
 
     @PostMapping("/momo/create")
     public APIResponse<PaymentResponse> createMoMoPayment(@RequestBody PaymentRequest request) {
-        PaymentResponse response = moMoService.createPayment(request);
+        PaymentResponse response = responseMapper.toPaymentResponse(
+                paymentUseCase.createPayment(toCommand(request, PaymentMethod.MOMO)));
         return APIResponse.<PaymentResponse>builder()
                 .status(200)
                 .message("Payment URL created successfully")
@@ -40,17 +44,17 @@ public class PaymentController {
 
     @PostMapping("/momo/callback")
     public ResponseEntity<PaymentCallbackResponse> moMoCallback(@RequestBody Map<String, Object> callbackData) {
-        try {
-            PaymentCallbackResponse response = moMoService.processCallback(callbackData);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
+        Map<String, String> normalized = callbackData.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> String.valueOf(entry.getValue())));
+        PaymentCallbackResponse response = responseMapper.toCallbackResponse(
+                paymentUseCase.processCallback(PaymentMethod.MOMO, normalized));
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/vnpay/create")
     public APIResponse<PaymentResponse> createVNPayPayment(@RequestBody PaymentRequest request) {
-        PaymentResponse response = vnPayService.createPayment(request);
+        PaymentResponse response = responseMapper.toPaymentResponse(
+                paymentUseCase.createPayment(toCommand(request, PaymentMethod.VNPAY)));
         return APIResponse.<PaymentResponse>builder()
                 .status(200)
                 .message("Payment URL created successfully")
@@ -60,11 +64,19 @@ public class PaymentController {
 
     @GetMapping("/vnpay/callback")
     public ResponseEntity<PaymentCallbackResponse> vnPayCallback(@RequestParam Map<String, String> params) {
-        try {
-            PaymentCallbackResponse response = vnPayService.processCallback(params);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
+        PaymentCallbackResponse response = responseMapper.toCallbackResponse(
+                paymentUseCase.processCallback(PaymentMethod.VNPAY, params));
+        return ResponseEntity.ok(response);
+    }
+
+    private PaymentCommand toCommand(PaymentRequest request, PaymentMethod method) {
+        return PaymentCommand.builder()
+                .referenceId(request.getReferenceId())
+                .amount(request.getAmount())
+                .orderInfo(request.getOrderInfo())
+                .method(method)
+                .returnUrl(request.getReturnUrl())
+                .notifyUrl(request.getNotifyUrl())
+                .build();
     }
 }

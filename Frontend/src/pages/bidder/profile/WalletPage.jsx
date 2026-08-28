@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { Wallet as WalletIcon, ArrowDownLeft, ArrowUpRight, Lock, CheckCircle, AlertCircle, Loader } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import { auth } from '@/services/firebase';
+import { auth } from '@/shared/api/firebase';
 import { verifyVnpayReturn } from '@/features/payment/api';
 import { requestDeposit, requestWithdraw, setupPin as setupPinApi, getWalletHistory } from '@/features/wallet/api';
 

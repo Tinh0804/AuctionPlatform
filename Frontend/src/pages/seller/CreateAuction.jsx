@@ -6,8 +6,8 @@ import {
     Timer, TrendingUp, Users, Star
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import apiClient from '@/services/apiClient';
-import { useToast } from '@/components/Elements/Toast';
+import apiClient from '@/shared/api/apiClient';
+import { useToast } from '@/shared/ui/Toast';
 
 const STEPS = [
     { id: 1, label: 'Thông tin sản phẩm', icon: Package },

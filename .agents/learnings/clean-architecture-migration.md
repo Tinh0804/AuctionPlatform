@@ -55,8 +55,16 @@
 - Không đổi endpoint URLs
 
 ## Naming Conventions
+- `user` module → `identity` module (`com.ecommerce.auctionplatform.identity`)
 - `CloudinaryService` → `CloudinaryAdapter` (infrastructure adapter)
 - `JwtService` → `JwtTokenProvider` (infrastructure adapter)
 - `MoMoService` → `MoMoGatewayAdapter`
 - `VNPayService` → `VNPayGatewayAdapter`
-- `BlackListService` → giữ tên, move sang `auth/infrastructure/persistence/repository/`
+- `BlackListService` → `identity/infrastructure/security/BlackListService.java`
+
+## Domain Exception & ErrorCode Handling
+- Domain exceptions kế thừa `DomainException(DomainErrorCode.XXX)` thay vì hardcode string.
+- `DomainErrorCode` nằm trong `shared.domain.enums` (không chứa HTTP code / web framework).
+- `ErrorCode` nằm trong `shared.application.exception` mapping sang HTTP status và user-facing messages.
+- `GlobalExceptionHandle` map `DomainErrorCode` sang `ErrorCode` một cách type-safe qua `ErrorCode.from(...)`.
+

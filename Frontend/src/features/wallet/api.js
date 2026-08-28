@@ -1,5 +1,5 @@
 
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 
 export const requestDeposit = (amount, provider) =>

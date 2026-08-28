@@ -1,48 +1,33 @@
 package com.ecommerce.auctionplatform.auction.domain.model;
-import com.ecommerce.auctionplatform.user.domain.model.User;
 
-import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "bids")
-@Data
+@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Bid {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    UUID id;
+            UUID id;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    User user;
+        UUID userId;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "auction_id", nullable = false)
-    Auction auction;
+            Auction auction;
 
-    @Column(name = "bid_amount", nullable = false, precision = 18, scale = 2)
-    BigDecimal bidAmount;
+        BigDecimal bidAmount;
 
     @Builder.Default
-    @Column(name = "bid_time", nullable = false, updatable = false)
-    LocalDateTime bidTime = LocalDateTime.now();
+        LocalDateTime bidTime = LocalDateTime.now();
 
     @Builder.Default
-    @Column(name = "is_winning")
-    Boolean isWinning = false;
+        Boolean isWinning = false;
 
     @Builder.Default
-    @Column(name = "triggered_extend")
-    Boolean triggeredExtend = false;
+        Boolean triggeredExtend = false;
 
-    @Column(name = "new_end_time")
-    LocalDateTime newEndTime;
+        LocalDateTime newEndTime;
 }

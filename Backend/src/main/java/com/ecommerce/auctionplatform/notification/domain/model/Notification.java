@@ -1,51 +1,41 @@
 package com.ecommerce.auctionplatform.notification.domain.model;
-import com.ecommerce.auctionplatform.user.domain.model.User;
-
-import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "notifications")
-@Data
+@Getter
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Notification {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     UUID id;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    User user;
+    UUID userId;
 
-    @Column(length = 50)
     String type;
 
-    @Column(nullable = false, length = 255)
     String title;
 
-    @Column(length = 1000)
     String content;
 
-    @Column(name = "reference_type", length = 20)
     String referenceType;
 
-    @Column(name = "reference_id")
     UUID referenceId;
 
     @Builder.Default
-    @Column(name = "is_read")
     Boolean isRead = false;
 
-    @Column(name = "read_at")
     LocalDateTime readAt;
 
     @Builder.Default
-    @Column(name = "created_at", updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
+
+    public void markAsRead() {
+        if (!Boolean.TRUE.equals(isRead)) {
+            isRead = true;
+            readAt = LocalDateTime.now();
+        }
+    }
 }

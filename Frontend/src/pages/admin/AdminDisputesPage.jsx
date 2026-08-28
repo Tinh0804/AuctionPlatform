@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ShieldAlert, CheckCircle, XCircle, Search, Eye } from 'lucide-react';
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 export default function AdminDisputesPage() {
     const [disputes, setDisputes] = useState([]);

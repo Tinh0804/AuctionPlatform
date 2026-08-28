@@ -1,6 +1,4 @@
 package com.ecommerce.auctionplatform.dispute.application.dto.response;
-import com.ecommerce.auctionplatform.product.application.dto.response.ImageResponse;
-
 import com.ecommerce.auctionplatform.dispute.domain.enums.DisputeStatus;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -30,7 +28,7 @@ public class DisputeResponse {
     BigDecimal orderAmount;
     String reason;
     String description;
-    List<ImageResponse> evidences;
+    List<EvidenceResponse> evidences;
     DisputeStatus status;
     String resolvedByName;
     String resolution;

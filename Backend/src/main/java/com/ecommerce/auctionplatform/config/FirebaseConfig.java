@@ -7,6 +7,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 
 @Configuration
+@ConditionalOnProperty(name = "app.firebase.enabled", havingValue = "true")
 @Slf4j
 public class FirebaseConfig {
 
@@ -31,9 +33,11 @@ public class FirebaseConfig {
         try {
             if (FirebaseApp.getApps().isEmpty()) {
                 FirebaseOptions options;
-                Resource resource = resourceLoader.getResource(configPath);
+                Resource resource = configPath == null || configPath.isBlank()
+                        ? null
+                        : resourceLoader.getResource(configPath);
                 
-                if (resource.exists()) {
+                if (resource != null && resource.exists()) {
                     try (InputStream serviceAccount = resource.getInputStream()) {
                         options = FirebaseOptions.builder()
                                 .setCredentials(GoogleCredentials.fromStream(serviceAccount))
@@ -42,7 +46,7 @@ public class FirebaseConfig {
                         log.info("Firebase SDK initialized successfully using config file from: {}", configPath);
                     }
                 } else {
-                    log.warn("Firebase config file not found at: {}. Attempting fallback to Application Default Credentials.", configPath);
+                    log.info("Firebase config file is not configured; using Application Default Credentials");
                     try {
                         options = FirebaseOptions.builder()
                                 .setCredentials(GoogleCredentials.getApplicationDefault())

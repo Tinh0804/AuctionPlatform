@@ -1,13 +1,18 @@
 package com.ecommerce.auctionplatform.payment.presentation.rest;
 
+import com.ecommerce.auctionplatform.payment.application.dto.command.PayEscrowCommand;
+import com.ecommerce.auctionplatform.payment.application.dto.command.InitiateOrderPaymentCommand;
+import com.ecommerce.auctionplatform.payment.application.dto.command.CompleteOrderCommand;
+import com.ecommerce.auctionplatform.payment.application.dto.command.UpdateShippingCommand;
+import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
+import com.ecommerce.auctionplatform.payment.application.port.in.OrderUseCase;
 import com.ecommerce.auctionplatform.payment.presentation.dto.request.EscrowPaymentRequest;
 import com.ecommerce.auctionplatform.payment.presentation.dto.request.OrderPaymentRequest;
 import com.ecommerce.auctionplatform.payment.presentation.dto.request.ReviewRequest;
 import com.ecommerce.auctionplatform.payment.presentation.dto.request.ShippingUpdateRequest;
-import com.ecommerce.auctionplatform.shared.presentation.response.APIResponse;
-import com.ecommerce.auctionplatform.payment.application.dto.response.OrderPaymentResponse;
-import com.ecommerce.auctionplatform.payment.application.dto.response.OrderResponse;
-import com.ecommerce.auctionplatform.payment.application.service.OrderService;
+import com.ecommerce.auctionplatform.payment.presentation.dto.response.OrderPaymentResponse;
+import com.ecommerce.auctionplatform.payment.presentation.dto.response.OrderResponse;
+import com.ecommerce.auctionplatform.payment.presentation.mapper.PaymentResponseMapper;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +29,15 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class OrderController {
 
-    OrderService orderService;
+    OrderUseCase orderService;
+    PaymentResponseMapper responseMapper;
 
     @GetMapping("/me/purchases")
     public APIResponse<List<OrderResponse>> getMyPurchases() {
         return APIResponse.<List<OrderResponse>>builder()
                 .status(HttpStatus.OK.value())
                 .message("My purchases fetched successfully")
-                .result(orderService.getMyPurchases())
+                .result(responseMapper.toOrderResponses(orderService.getMyPurchases()))
                 .build();
     }
 
@@ -40,7 +46,7 @@ public class OrderController {
         return APIResponse.<List<OrderResponse>>builder()
                 .status(HttpStatus.OK.value())
                 .message("My sales fetched successfully")
-                .result(orderService.getMySales())
+                .result(responseMapper.toOrderResponses(orderService.getMySales()))
                 .build();
     }
 
@@ -49,7 +55,7 @@ public class OrderController {
         return APIResponse.<OrderResponse>builder()
                 .status(HttpStatus.OK.value())
                 .message("Order detail fetched")
-                .result(orderService.getOrderDetail(orderId))
+                .result(responseMapper.toOrderResponse(orderService.getOrderDetail(orderId)))
                 .build();
     }
 
@@ -60,13 +66,21 @@ public class OrderController {
         return APIResponse.<OrderPaymentResponse>builder()
                 .status(HttpStatus.OK.value())
                 .message("Payment initiated")
-                .result(orderService.initiateOrderPayment(orderId, request))
+                .result(responseMapper.toOrderPaymentResponse(
+                        orderService.initiateOrderPayment(orderId, InitiateOrderPaymentCommand.builder()
+                                .paymentMethod(request.paymentMethod())
+                                .pinCode(request.pinCode())
+                                .returnUrl(request.returnUrl())
+                                .build())))
                 .build();
     }
 
     @PostMapping("/{orderId}/pay")
     public APIResponse<OrderResponse> payOrderWithEscrow(@PathVariable UUID orderId, @RequestBody EscrowPaymentRequest request) {
-        OrderResponse response = orderService.payOrderWithEscrow(orderId, request);
+        OrderResponse response = responseMapper.toOrderResponse(
+                orderService.payOrderWithEscrow(orderId, PayEscrowCommand.builder()
+                        .pinCode(request.pinCode())
+                        .build()));
         return APIResponse.<OrderResponse>builder()
                 .status(200)
                 .message("Payment successful. Amount held in Escrow.")
@@ -76,7 +90,8 @@ public class OrderController {
 
     @PostMapping("/{orderId}/confirm-delivery")
     public APIResponse<OrderResponse> confirmDeliveryAndReleaseEscrow(@PathVariable UUID orderId) {
-        OrderResponse response = orderService.confirmDeliveryAndReleaseEscrow(orderId);
+        OrderResponse response = responseMapper.toOrderResponse(
+                orderService.confirmDeliveryAndReleaseEscrow(orderId));
         return APIResponse.<OrderResponse>builder()
                 .status(200)
                 .message("Delivery confirmed. Escrow released to seller.")
@@ -86,7 +101,11 @@ public class OrderController {
 
     @PostMapping("/{orderId}/shipping")
     public APIResponse<OrderResponse> updateShippingInfo(@PathVariable UUID orderId, @RequestBody ShippingUpdateRequest request) {
-        OrderResponse response = orderService.updateShippingInfo(orderId, request);
+        OrderResponse response = responseMapper.toOrderResponse(
+                orderService.updateShippingInfo(orderId, UpdateShippingCommand.builder()
+                        .trackingCode(request.trackingCode())
+                        .shippingProvider(request.shippingProvider())
+                        .build()));
         return APIResponse.<OrderResponse>builder()
                 .status(200)
                 .message("Shipping info updated successfully.")
@@ -98,7 +117,11 @@ public class OrderController {
     public APIResponse<OrderResponse> completeOrderWithReview(
             @PathVariable UUID orderId,
             @RequestBody @Valid ReviewRequest request) {
-        OrderResponse response = orderService.completeOrderWithReview(orderId, request);
+        OrderResponse response = responseMapper.toOrderResponse(
+                orderService.completeOrderWithReview(orderId, CompleteOrderCommand.builder()
+                        .rating(request.rating())
+                        .comment(request.comment())
+                        .build()));
         return APIResponse.<OrderResponse>builder()
                 .status(200)
                 .message("Order completed and review submitted successfully.")

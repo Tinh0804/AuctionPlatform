@@ -108,15 +108,14 @@ docker run -d -p 6379:6379 redis:7-alpine
 
 ## 🔑 Tài khoản Demo
 
-Hệ thống tự động tạo tài khoản Admin khi khởi chạy lần đầu:
+Hệ thống chỉ bootstrap tài khoản Admin khi bật cấu hình seed (`app.seed.enabled=true`) và
+cung cấp đầy đủ các biến `app.seed.admin.*`. Username/password Admin **không được cố định
+trong mã nguồn**; hãy dùng giá trị bạn cấu hình trong môi trường chạy ứng dụng.
 
-| Vai trò | Username | Password |
-|---------|----------|----------|
-| **Admin** | `admin` | `12345` |
-| **Seller** | `0366900822` | `123456` |
-| **Buyer** | `0366900823` | `123456` |
-
-*Bạn cũng có thể tự đăng ký tài khoản Người mua/Người bán mới trực tiếp trên hệ thống.*
+Người mua và người bán không có tài khoản mặc định trong schema hiện tại. Hãy tạo tài khoản
+mới qua chức năng **Đăng ký** (`POST /auth/register`). Cả hai đều dùng role hệ thống `USER`;
+vai trò mua/bán được xác định theo nghiệp vụ mà người dùng thực hiện, không phải role đăng nhập
+riêng.
 
 ---
 

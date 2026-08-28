@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { updateMyInfo, updateMyPhone, uploadAvatar, addAddress, deleteAddress } from '@/features/auth/api';
 import { X, CheckCircle, AlertCircle, Upload, Trash2, Plus, MapPin } from 'lucide-react';
-import { auth } from '@/services/firebase';
+import { auth } from '@/shared/api/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 const EditProfileModal = ({ profile, onClose, onSuccess }) => {

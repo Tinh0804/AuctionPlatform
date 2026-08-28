@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -15,6 +16,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -25,6 +28,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
         @Value("${app.cors.allowed-origins:http://localhost:5174}")
@@ -34,7 +38,8 @@ public class SecurityConfig {
         private JwtDecoder jwtDecoder;
 
         @Autowired
-        private JWTAuthentication jwtAuthentication;
+        @Qualifier("jwtAuthenticationEntryPoint")
+        private AuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
         private final String[] AUTH_ENDPOINTS = {
                         "/auth/login",
@@ -77,13 +82,13 @@ public class SecurityConfig {
                                                 .anyRequest().authenticated())
                                 .csrf(AbstractHttpConfigurer::disable);
                 http
-                                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthentication))
+                                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                                 .oauth2ResourceServer(oauth2 -> oauth2
                                                 .jwt(
                                                                 jwtConfigurer -> jwtConfigurer.decoder(jwtDecoder)
                                                                                 .jwtAuthenticationConverter(this
                                                                                                 .jwtAuthenticationConverter()))
-                                                .authenticationEntryPoint(jwtAuthentication));
+                                                .authenticationEntryPoint(jwtAuthenticationEntryPoint));
                 return http.build();
         }
 

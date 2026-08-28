@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Package, Truck, Star } from 'lucide-react';
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 export default function OrdersPage() {
     const navigate = useNavigate();

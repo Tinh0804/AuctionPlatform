@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import apiClient from '@/services/apiClient';
-import AuctionCard from '@/components/Auction/AuctionCard';
-import Skeleton from '@/components/Elements/Skeleton';
-import EmptyState from '@/components/Elements/EmptyState';
-import { useScrollAnimation } from '@/hooks/useScrollAnimation';
-import { useRipple, useMagnetic } from '@/hooks/useRipple';
+import apiClient from '@/shared/api/apiClient';
+import AuctionCard from '@/entities/auction/AuctionCard';
+import Skeleton from '@/shared/ui/Skeleton';
+import EmptyState from '@/shared/ui/EmptyState';
+import { useScrollAnimation } from '@/shared/hooks/useScrollAnimation';
+import { useRipple, useMagnetic } from '@/shared/hooks/useRipple';
+import { useStaggerEntrance } from '@/shared/animations/useStaggerEntrance';
 import { Search, SlidersHorizontal, Gavel, ShieldCheck, Truck, ArrowRight, X, ChevronRight, Clock, Award, Lock, Filter, Grid, List, Users } from 'lucide-react';
 
 const statusFilters = [
@@ -69,6 +70,9 @@ export default function Home() {
 
     const [sectionRef, sectionVisible] = useScrollAnimation({ threshold: 0.05 });
     const [ctaRef, ctaVisible] = useScrollAnimation({ threshold: 0.2 });
+    
+    const gridRef = useStaggerEntrance({ selector: '.bento-item' });
+    const listRef = useStaggerEntrance({ selector: '.list-item' });
     
     const ripple = useRipple('rgba(255, 255, 255, 0.5)');
     const magneticProps = useMagnetic(0.2);
@@ -147,7 +151,7 @@ export default function Home() {
     };
 
     // Auction Card Component
-    const AuctionItem = ({ auc, variant = 'medium' }) => {
+    const AuctionItem = ({ auc, variant = 'medium', className = '' }) => {
         const isActive = auc.status === 'ACTIVE';
         const isPending = auc.status === 'PENDING';
         
@@ -156,9 +160,9 @@ export default function Home() {
             : (auc.coverImage || auc.cover_image);
 
         return (
-            <Link to={`/auctions/${auc.id}`} className="group block">
-                <div className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/30 ${variant === 'tall' ? 'row-span-2' : ''} ${variant === 'wide' ? 'col-span-2' : ''}`}>
-                    <div className="relative aspect-[4/3] overflow-hidden bg-[#F8F1E6]">
+            <Link to={`/auctions/${auc.id}`} className={`group block h-full ${className}`}>
+                <div className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/30 h-full flex flex-col`}>
+                    <div className="relative flex-grow min-h-[160px] aspect-[4/3] overflow-hidden bg-[#F8F1E6]">
                         {coverImageUrl ? (
                             <img 
                                 src={coverImageUrl} 
@@ -222,13 +226,13 @@ export default function Home() {
     };
 
     // List View Component
-    const AuctionListItem = ({ auc }) => {
+    const AuctionListItem = ({ auc, className = '' }) => {
         const coverImageUrl = (auc.images && auc.images.length > 0) 
             ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
             : (auc.coverImage || auc.cover_image);
 
         return (
-        <Link to={`/auctions/${auc.id}`} className="group block">
+        <Link to={`/auctions/${auc.id}`} className={`group block ${className}`}>
             <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/30">
                 <div className="flex flex-col sm:flex-row">
                     <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 overflow-hidden bg-[#F8F1E6]">
@@ -640,15 +644,31 @@ export default function Home() {
                                 <Skeleton.List count={6} />
                             ) : auctions.length > 0 ? (
                                 viewMode === 'grid' ? (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {auctions.map((auc) => (
-                                            <AuctionItem key={auc.id} auc={auc} />
-                                        ))}
+                                    <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-[minmax(0,1fr)]">
+                                        {auctions.map((auc, index) => {
+                                            // Bento Grid Pattern
+                                            let bentoClass = "bento-item";
+                                            let variant = "medium";
+                                            if (index === 0) {
+                                                bentoClass += " sm:col-span-2 sm:row-span-2";
+                                                variant = "tall";
+                                            } else if (index === 3 || index === 7) {
+                                                bentoClass += " lg:col-span-2";
+                                                variant = "wide";
+                                            } else if (index === 6) {
+                                                bentoClass += " sm:col-span-2 lg:col-span-1 lg:row-span-2";
+                                                variant = "tall";
+                                            }
+                                            
+                                            return (
+                                                <AuctionItem key={auc.id} auc={auc} variant={variant} className={bentoClass} />
+                                            );
+                                        })}
                                     </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div ref={listRef} className="space-y-4">
                                         {auctions.map((auc) => (
-                                            <AuctionListItem key={auc.id} auc={auc} />
+                                            <AuctionListItem key={auc.id} auc={auc} className="list-item" />
                                         ))}
                                     </div>
                                 )

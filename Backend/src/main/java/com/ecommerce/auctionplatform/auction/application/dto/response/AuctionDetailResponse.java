@@ -1,6 +1,4 @@
 package com.ecommerce.auctionplatform.auction.application.dto.response;
-import com.ecommerce.auctionplatform.product.application.dto.response.ImageResponse;
-
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,6 +31,6 @@ public class AuctionDetailResponse {
     Integer extendMinutes;
     String sellerName;
     UUID sellerId;
-    List<ImageResponse> images;
+    List<AuctionImageResponse> images;
 
 }

@@ -1,278 +1,129 @@
 package com.ecommerce.auctionplatform.payment.infrastructure.external;
 
-import com.ecommerce.auctionplatform.payment.presentation.dto.request.PaymentRequest;
-import com.ecommerce.auctionplatform.payment.application.dto.response.PaymentCallbackResponse;
-import com.ecommerce.auctionplatform.payment.application.dto.response.PaymentResponse;
-import com.ecommerce.auctionplatform.payment.domain.model.Transaction;
-import com.ecommerce.auctionplatform.user.domain.model.User;
-import com.ecommerce.auctionplatform.payment.domain.model.Wallet;
+import com.ecommerce.auctionplatform.payment.application.port.out.PaymentGatewayPort;
 import com.ecommerce.auctionplatform.payment.domain.enums.PaymentMethod;
-import com.ecommerce.auctionplatform.payment.domain.enums.TransactionStatus;
-import com.ecommerce.auctionplatform.payment.domain.enums.TransactionType;
-import com.ecommerce.auctionplatform.shared.presentation.advice.AppException;
-import com.ecommerce.auctionplatform.shared.presentation.advice.ErrorCode;
-import com.ecommerce.auctionplatform.payment.infrastructure.persistence.repository.TransactionRepository;
-import com.ecommerce.auctionplatform.payment.application.service.OrderService;
-import com.ecommerce.auctionplatform.payment.application.service.WalletService;import com.ecommerce.auctionplatform.user.infrastructure.persistence.repository.UserRepository;
-import com.ecommerce.auctionplatform.payment.infrastructure.persistence.repository.WalletRepository;
 import com.ecommerce.auctionplatform.shared.infrastructure.utils.PaymentUtils;
-import com.ecommerce.auctionplatform.shared.infrastructure.utils.SecurityUtils;
 import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
 
-@Service
-@RequiredArgsConstructor
+@Component
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class VNPayGatewayAdapter {
-
-    final WalletRepository walletRepository;
-    final UserRepository userRepository;
-    final TransactionRepository transactionRepository;
-
-    @org.springframework.beans.factory.annotation.Autowired
-    @org.springframework.context.annotation.Lazy
-    OrderService orderService;
-
+public class VNPayGatewayAdapter implements PaymentGatewayPort {
     @Value("${vnpay.tmn-code:}")
     String tmnCode;
-
     @Value("${vnpay.hash-secret:}")
     String hashSecret;
-
     @Value("${vnpay.api-url:}")
     String apiUrl;
-
     @Value("${vnpay.return-url:}")
-    String returnUrl;
-
+    String configuredReturnUrl;
     @Value("${vnpay.version:2.1.0}")
     String version;
-
     @Value("${vnpay.command:pay}")
     String command;
-
     @Value("${vnpay.order-type:other}")
     String orderType;
 
-    public PaymentResponse createPayment(PaymentRequest request) {
-        User currentUser = getCurrentUser();
-        Wallet wallet = walletRepository.findByUser(currentUser)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+    @Override
+    public GatewayPaymentResult createPayment(GatewayPaymentRequest request) {
+        Map<String, String> params = new TreeMap<>();
+        params.put("vnp_Version", version);
+        params.put("vnp_Command", command);
+        params.put("vnp_TmnCode", tmnCode);
+        params.put("vnp_Amount", request.amount().multiply(BigDecimal.valueOf(100)).toBigIntegerExact().toString());
+        params.put("vnp_CurrCode", "VND");
+        params.put("vnp_CreateDate", PaymentUtils.getVNPayTimestamp());
+        params.put("vnp_ExpireDate", PaymentUtils.getVNPayExpireTime(15));
+        params.put("vnp_TxnRef", request.transactionId().toString());
+        params.put("vnp_OrderInfo", textOrDefault(request.orderInfo(), "Nap tien vao vi"));
+        params.put("vnp_OrderType", orderType);
+        params.put("vnp_Locale", "vn");
+        params.put("vnp_ReturnUrl", textOrDefault(request.returnUrl(), configuredReturnUrl));
+        params.put("vnp_IpAddr", "127.0.0.1");
 
-        Transaction transaction = Transaction.builder()
-                .wallet(wallet)
-                .type(TransactionType.DEPOSIT)
-                .amount(BigDecimal.valueOf(request.getAmount()))
-                .status(TransactionStatus.PENDING)
-                .gatewayProvider(PaymentMethod.VNPAY.name())
-                .referenceId(UUID.randomUUID())
-                .note(request.getOrderInfo())
-                .build();
-        
-        transaction = transactionRepository.save(transaction);
-
-        String vnp_TxnRef = transaction.getId().toString();
-        String vnpCreateDate = PaymentUtils.getVNPayTimestamp();
-        String vnp_ExpireDate = PaymentUtils.getVNPayExpireTime(15);
-        
-        // vnp_Amount in VNPay is multiplied by 100
-        long amount = Math.round(request.getAmount().longValue() * 100);
-
-        Map<String, String> vnp_Params = new HashMap<>();
-        vnp_Params.put("vnp_Version", version);
-        vnp_Params.put("vnp_Command", command);
-        vnp_Params.put("vnp_TmnCode", tmnCode);
-        vnp_Params.put("vnp_Amount", String.valueOf(amount));
-        vnp_Params.put("vnp_CurrCode", "VND");
-        vnp_Params.put("vnp_CreateDate",vnpCreateDate);
-        vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
-
-        
-        vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
-        vnp_Params.put("vnp_OrderInfo", request.getOrderInfo() != null ? request.getOrderInfo() : "Nap tien vao vi");
-        vnp_Params.put("vnp_OrderType", orderType);
-        vnp_Params.put("vnp_Locale", "vn");
-        vnp_Params.put("vnp_ReturnUrl", returnUrl);
-        vnp_Params.put("vnp_IpAddr", "127.0.0.1"); // In production, get real IP
-
-
-        StringBuilder hashData = new StringBuilder();
-        for (Map.Entry<String, String> entry : vnp_Params.entrySet()) {
-            if (hashData.length() > 0) {
-                hashData.append("&");
-            }
-            hashData.append(entry.getKey())
-                    .append("=")
-                    .append(entry.getValue());
-        }
-
-        String vnp_SecureHash = PaymentUtils.calculateHmacSHA512(hashData.toString(), hashSecret);
-        vnp_Params.put("vnp_SecureHash", vnp_SecureHash);
-        String paymentUrl = buildUrlWithEncode(apiUrl, vnp_Params);
-
-        return PaymentResponse.builder()
-                .status("SUCCESS")
-                .message("Created payment URL successfully")
-                .paymentUrl(paymentUrl)
-                .orderId(vnp_TxnRef)
-                .transactionId(transaction.getId().toString())
-                .amount(request.getAmount())
-                .paymentMethod(PaymentMethod.VNPAY.name())
-                .build();
+        String hashData = encodedQuery(params);
+        params.put("vnp_SecureHash", PaymentUtils.calculateHmacSHA512(hashData, hashSecret));
+        return new GatewayPaymentResult(
+                apiUrl + "?" + encodedQuery(params),
+                request.transactionId().toString(),
+                "Created payment URL successfully");
     }
 
-    @Transactional
-    public PaymentCallbackResponse processCallback(Map<String, String> params) {
-        log.info("Received VNPay Callback: {}", params);
-        
-        String vnp_SecureHash = params.get("vnp_SecureHash");
-        if (vnp_SecureHash == null) {
-            return PaymentCallbackResponse.builder()
-                    .paymentStatus("FAILED")
-                    .message("Thiếu chữ ký VNPay")
-                    .paymentMethod("VNPAY")
-                    .build();
-        }
-
-        Map<String, String> sortedParams = new TreeMap<>();
-
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (entry.getValue() != null
-                    && !entry.getKey().equals("vnp_SecureHash")
-                    && !entry.getKey().equals("vnp_SecureHashType")) {
-
-                sortedParams.put(entry.getKey(), entry.getValue());
+    @Override
+    public GatewayCallbackResult verifyCallback(Map<String, String> callbackData) {
+        String suppliedHash = callbackData.get("vnp_SecureHash");
+        Map<String, String> signedParams = new TreeMap<>();
+        callbackData.forEach((key, value) -> {
+            if (value != null && !key.equals("vnp_SecureHash") && !key.equals("vnp_SecureHashType")) {
+                signedParams.put(key, value);
             }
+        });
+        boolean valid = suppliedHash != null
+                && PaymentUtils.calculateHmacSHA512(encodedQuery(signedParams), hashSecret).equals(suppliedHash);
+        if (!valid) {
+            log.warn("Rejected VNPay callback with an invalid signature for transaction {}",
+                    callbackData.get("vnp_TxnRef"));
         }
-
-        StringBuilder hashData = new StringBuilder();
-
-        for (Map.Entry<String, String> entry : sortedParams.entrySet()) {
-
-            if (entry.getValue() != null && !entry.getValue().isEmpty()) {
-
-                if (hashData.length() > 0) {
-                    hashData.append("&");
-                }
-
-                hashData.append(entry.getKey())
-                        .append("=")
-                        .append(java.net.URLEncoder.encode(
-                                entry.getValue(),
-                                java.nio.charset.StandardCharsets.US_ASCII
-                        ));
-            }
-        }
-
-        String expectedSignature = PaymentUtils.calculateHmacSHA512(hashData.toString(), hashSecret);
-        
-        String orderId = params.get("vnp_TxnRef");
-        String responseCode = params.get("vnp_ResponseCode");
-        String transactionNo = params.get("vnp_TransactionNo");
-        String amountStr = params.get("vnp_Amount");
-        long actualAmount = amountStr != null ? Long.parseLong(amountStr) / 100 : 0L;
-        String payDate = params.get("vnp_PayDate");
-
-        if (!expectedSignature.equals(vnp_SecureHash)) {
-            log.error("VNPay Callback Signature Validation Failed! Expected: {}, Actual: {}", expectedSignature, vnp_SecureHash);
-            return PaymentCallbackResponse.builder()
-                    .orderId(orderId)
-                    .transactionId(transactionNo)
-                    .amount(actualAmount)
-                    .paymentStatus("FAILED")
-                    .message("Chữ ký không hợp lệ")
-                    .paymentMethod("VNPAY")
-                    .build();
-        }
-
-        Transaction transaction = transactionRepository.findById(UUID.fromString(orderId))
-                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
-
-        if (transaction.getStatus() != TransactionStatus.PENDING) {
-            log.warn("Transaction {} is already processed (Status: {})", orderId, transaction.getStatus());
-            return PaymentCallbackResponse.builder()
-                    .orderId(orderId)
-                    .transactionId(transactionNo)
-                    .amount(actualAmount)
-                    .paymentStatus(transaction.getStatus().name())
-                    .paymentMethod(PaymentMethod.VNPAY.name())
-                    .message("Transaction already processed")
-                    .paymentTime(payDate)
-                    .build();
-        }
-
-        transaction.setGatewayResponse(params.toString());
-        transaction.setGatewayTxId(transactionNo);
-
-        String paymentStatus = "00".equals(responseCode) ? "SUCCESS" : "FAILED";
-
-        String message = "00".equals(responseCode)
-                ? "Thanh toán thành công"
-                : "Thanh toán thất bại - Mã lỗi: " + responseCode;
-
-        if ("SUCCESS".equals(paymentStatus)) {
-            transaction.setStatus(TransactionStatus.SUCCESS);
-
-            if ("ORDER".equals(transaction.getReferenceType()) && transaction.getReferenceId() != null) {
-                transactionRepository.save(transaction);
-                orderService.handleGatewayPaymentSuccess(transaction.getReferenceId(), transaction.getAmount());
-            } else {
-                Wallet wallet = transaction.getWallet();
-                wallet.setAvailableBalance(wallet.getAvailableBalance().add(transaction.getAmount()));
-                walletRepository.save(wallet);
-                transactionRepository.save(transaction);
-                log.info("Successfully added {} to wallet {}", transaction.getAmount(), wallet.getId());
-            }
-        } else {
-            transaction.setStatus(TransactionStatus.FAILED);
-            transactionRepository.save(transaction);
-            log.info("VNPay payment failed for transaction {}. Response code: {}", orderId, responseCode);
-        }
-
-        return PaymentCallbackResponse.builder()
-                .orderId(orderId)
-                .transactionId(transactionNo)
-                .amount(actualAmount)
-                .paymentStatus(paymentStatus)
-                .paymentMethod(PaymentMethod.VNPAY.name())
-                .message(message)
-                .paymentTime(payDate)
-                .build();
+        return new GatewayCallbackResult(
+                parseUuid(callbackData.get("vnp_TxnRef")),
+                callbackData.get("vnp_TransactionNo"),
+                parseAmount(callbackData.get("vnp_Amount")),
+                valid,
+                valid && "00".equals(callbackData.get("vnp_ResponseCode")),
+                valid
+                        ? ("00".equals(callbackData.get("vnp_ResponseCode"))
+                            ? "Thanh toán thành công"
+                            : "Thanh toán thất bại - Mã lỗi: " + callbackData.get("vnp_ResponseCode"))
+                        : "Chữ ký không hợp lệ",
+                callbackData.get("vnp_PayDate"),
+                callbackData.toString());
     }
 
-    private String buildUrlWithEncode(String baseUrl, Map<String, String> params) {
-
-        StringBuilder url = new StringBuilder(baseUrl);
-        url.append("?");
-
-        for (Map.Entry<String, String> entry : params.entrySet()) {
-            url.append(entry.getKey())
-                    .append("=")
-                    .append(java.net.URLEncoder.encode(entry.getValue(), java.nio.charset.StandardCharsets.UTF_8))
-                    .append("&");
-        }
-
-        url.deleteCharAt(url.length() - 1);
-
-        return url.toString();
+    @Override
+    public PaymentMethod gatewayType() {
+        return PaymentMethod.VNPAY;
     }
 
-    private User getCurrentUser() {
-        UUID userProfileId = UUID.fromString(SecurityUtils.getCurrentProfileId().orElseThrow(()->
-                new AppException(ErrorCode.UNAUTHORIZED)));
-        return userRepository.findById(userProfileId).orElseThrow(
-                () -> new AppException(ErrorCode.USER_NOT_FOUND));
+    private String encodedQuery(Map<String, String> params) {
+        return params.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && !entry.getValue().isEmpty())
+                .map(entry -> encode(entry.getKey()) + "=" + encode(entry.getValue()))
+                .reduce((left, right) -> left + "&" + right)
+                .orElse("");
+    }
+
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.US_ASCII);
+    }
+
+    private UUID parseUuid(String value) {
+        try {
+            return UUID.fromString(value);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private BigDecimal parseAmount(String value) {
+        try {
+            return new BigDecimal(value).movePointLeft(2);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private String textOrDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

@@ -2,7 +2,7 @@
 // src/features/payment/api.js
 // Tập trung các hàm gọi HTTP liên quan đến thanh toán
 // ============================================================
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 /**
  * Lấy thông tin invoice để checkout

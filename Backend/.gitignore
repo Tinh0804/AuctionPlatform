@@ -34,3 +34,8 @@ build/
 
 *.yaml
 .env
+
+# Local credentials and service-account keys must never be committed.
+src/main/resources/firebase-admin.json
+src/main/resources/*service-account*.json
+*.pem

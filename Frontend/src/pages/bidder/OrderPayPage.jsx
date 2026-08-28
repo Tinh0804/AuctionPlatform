@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import apiClient from '@/services/apiClient';
-import { useToast } from '@/components/Elements/Toast';
+import apiClient from '@/shared/api/apiClient';
+import { useToast } from '@/shared/ui/Toast';
 import {
     Wallet as WalletIcon, Lock, CheckCircle,
     AlertTriangle, Loader, ArrowLeft, Package, CreditCard, ShieldCheck, Smartphone

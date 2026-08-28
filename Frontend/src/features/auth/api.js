@@ -1,5 +1,5 @@
 
-import apiClient from '@/services/apiClient';
+import apiClient from '@/shared/api/apiClient';
 
 export const login = (credentials) =>
   apiClient.post('/auth/login', credentials).then((r) => r.data);

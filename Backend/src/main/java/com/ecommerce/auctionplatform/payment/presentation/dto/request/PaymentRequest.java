@@ -1,13 +1,10 @@
 package com.ecommerce.auctionplatform.payment.presentation.dto.request;
 
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Data;
-import com.ecommerce.auctionplatform.payment.domain.enums.PaymentMethod;
 
 @Data
 @Builder
@@ -22,8 +19,7 @@ public class PaymentRequest {
     @NotBlank(message = "Mô tả không được để trống")
     String orderInfo;
 
-    @Enumerated(EnumType.STRING)
-    PaymentMethod method;  //VNpay hoặc MoMo
+    String method;
 
     String returnUrl;
 

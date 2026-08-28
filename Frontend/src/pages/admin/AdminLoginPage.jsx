@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, User, Eye, EyeOff, Terminal } from 'lucide-react';
 import { login, getMyInfo } from '@/features/auth/api';
-import useAuthStore from '@/store/useAuthStore';
+import useAuthStore from '@/shared/store/useAuthStore';
 
 export default function AdminLoginPage() {
     const navigate = useNavigate();

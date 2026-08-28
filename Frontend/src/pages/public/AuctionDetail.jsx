@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowUpRight, ChevronLeft, Clock3, Gavel, Info, Minus, Plus, Radio, TrendingUp, Award } from 'lucide-react';
-import apiClient, { WS_URL } from '@/services/apiClient';
-import Skeleton from '@/components/Elements/Skeleton';
-import Confetti from '@/components/Elements/Confetti';
-import { useToast } from '@/components/Elements/Toast';
-import { useStomp } from '@/hooks/useStomp';
+import apiClient, { WS_URL } from '@/shared/api/apiClient';
+import Skeleton from '@/shared/ui/Skeleton';
+import Confetti from '@/shared/ui/Confetti';
+import { useToast } from '@/shared/ui/Toast';
+import { useStomp } from '@/shared/hooks/useStomp';
 
 const money = value => Number(value || 0).toLocaleString('vi-VN');
 const statusLabel = { ACTIVE: 'Đang diễn ra', PENDING: 'Sắp bắt đầu', CLOSED: 'Đã chốt phiên', ENDED: 'Đã kết thúc', FAILED: 'Thất bại', CANCELLED: 'Đã hủy' };
