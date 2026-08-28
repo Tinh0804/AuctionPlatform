@@ -17,6 +17,10 @@ public interface ProductCatalogUseCase {
 
     List<MediaSummary> findProductImages(UUID productId);
 
+    void updateProduct(UUID productId, ProductUpdate update);
+
+    void reviewProduct(UUID productId, boolean approved);
+
     record ProductDraft(
             UUID sellerId,
             UUID categoryId,
@@ -27,9 +31,25 @@ public interface ProductCatalogUseCase {
     ) {
     }
 
-    record ProductSummary(UUID id, String name, String categoryName) {
+    record ProductSummary(
+            UUID id,
+            String name,
+            String categoryName,
+            String origin,
+            String condition,
+            String manufactureYear
+    ) {
     }
 
     record MediaSummary(String fileUrl, boolean cover) {
+    }
+
+    record ProductUpdate(
+            String name,
+            String origin,
+            String condition,
+            String manufactureYear,
+            UUID categoryId
+    ) {
     }
 }

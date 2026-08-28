@@ -8,6 +8,10 @@ import java.util.UUID;
 public record AuctionDetailResponse(
         UUID id,
         String productName,
+        String categoryName,
+        String productOrigin,
+        String productCondition,
+        String productManufactureYear,
         String description,
         String status,
         BigDecimal startPrice,

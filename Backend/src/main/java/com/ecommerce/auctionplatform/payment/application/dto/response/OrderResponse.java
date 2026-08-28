@@ -22,7 +22,9 @@ public class OrderResponse {
     UUID auctionId;
     String productName;
     String productImageUrl;
+    UUID sellerId;
     String sellerName;
+    UUID buyerId;
     String buyerName;
     BigDecimal totalAmount;
     BigDecimal depositAmount;

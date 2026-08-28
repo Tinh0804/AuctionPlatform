@@ -10,4 +10,5 @@ public interface ProductRepository {
     Product save(Product product);
     Optional<Product> findById(UUID id);
     List<Product> findAll();
+    long countByCategoryId(UUID categoryId);
 }

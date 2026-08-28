@@ -4,6 +4,7 @@ import com.ecommerce.auctionplatform.auction.application.port.out.AuctionCatalog
 import com.ecommerce.auctionplatform.auction.application.port.out.AuctionImageView;
 import com.ecommerce.auctionplatform.auction.application.port.out.AuctionProductView;
 import com.ecommerce.auctionplatform.auction.application.port.out.ProductDraft;
+import com.ecommerce.auctionplatform.auction.application.port.out.AuctionProductUpdate;
 import com.ecommerce.auctionplatform.product.application.port.in.ProductCatalogUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -36,7 +37,8 @@ public class AuctionCatalogAdapter implements AuctionCatalogPort {
     @Override
     public Optional<AuctionProductView> findProduct(UUID productId) {
         return productCatalogUseCase.findProduct(productId).map(product -> new AuctionProductView(
-                product.id(), product.name(), product.categoryName()));
+                product.id(), product.name(), product.categoryName(), product.origin(),
+                product.condition(), product.manufactureYear()));
     }
 
     @Override
@@ -44,5 +46,20 @@ public class AuctionCatalogAdapter implements AuctionCatalogPort {
         return productCatalogUseCase.findProductImages(productId).stream()
                 .map(image -> new AuctionImageView(image.fileUrl(), image.cover()))
                 .toList();
+    }
+
+    @Override
+    public void updateProduct(UUID productId, AuctionProductUpdate update) {
+        productCatalogUseCase.updateProduct(productId, new ProductCatalogUseCase.ProductUpdate(
+                update.name(),
+                update.origin(),
+                update.condition(),
+                update.manufactureYear(),
+                update.categoryId()));
+    }
+
+    @Override
+    public void reviewProduct(UUID productId, boolean approved) {
+        productCatalogUseCase.reviewProduct(productId, approved);
     }
 }

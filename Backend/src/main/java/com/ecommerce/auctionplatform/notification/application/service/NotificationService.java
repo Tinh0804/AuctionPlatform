@@ -45,7 +45,7 @@ public class NotificationService implements NotificationUseCase {
         }
 
         notification.markAsRead();
-        notificationRepository.save(notification);
+        notification = notificationRepository.save(notification);
     }
 
 

@@ -30,4 +30,9 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     public List<Category> findAll() {
         return jpaRepository.findAll().stream().map(mapper::toDomain).toList();
     }
+
+    @Override
+    public void deleteById(UUID id) {
+        jpaRepository.deleteById(id);
+    }
 }

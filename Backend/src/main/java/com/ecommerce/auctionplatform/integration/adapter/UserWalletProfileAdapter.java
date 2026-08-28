@@ -2,6 +2,7 @@ package com.ecommerce.auctionplatform.integration.adapter;
 
 import com.ecommerce.auctionplatform.payment.application.dto.response.WalletSnapshot;
 import com.ecommerce.auctionplatform.payment.application.port.in.WalletProvisioningUseCase;
+import com.ecommerce.auctionplatform.payment.application.port.in.AdminWalletUseCase;
 import com.ecommerce.auctionplatform.identity.application.dto.response.WalletResponse;
 import com.ecommerce.auctionplatform.identity.application.port.out.WalletProfilePort;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserWalletProfileAdapter implements WalletProfilePort {
     private final WalletProvisioningUseCase walletProvisioningUseCase;
+    private final AdminWalletUseCase adminWalletUseCase;
 
     @Override
     public WalletResponse getWallet(UUID userId) {
@@ -24,5 +26,10 @@ public class UserWalletProfileAdapter implements WalletProfilePort {
                 .hasPin(wallet.hasPin())
                 .status(wallet.status().name())
                 .build();
+    }
+
+    @Override
+    public void toggleStatus(UUID userId) {
+        adminWalletUseCase.toggleStatus(userId);
     }
 }

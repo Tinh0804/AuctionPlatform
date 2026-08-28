@@ -34,4 +34,7 @@ public class CategoryEntity {
     @ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private CategoryEntity parent;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 }

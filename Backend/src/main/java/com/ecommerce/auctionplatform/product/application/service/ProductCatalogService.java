@@ -8,6 +8,8 @@ import com.ecommerce.auctionplatform.product.domain.model.Product;
 import com.ecommerce.auctionplatform.product.domain.repository.CategoryRepository;
 import com.ecommerce.auctionplatform.product.domain.repository.ImageRepository;
 import com.ecommerce.auctionplatform.product.domain.repository.ProductRepository;
+import com.ecommerce.auctionplatform.shared.application.exception.AppException;
+import com.ecommerce.auctionplatform.shared.application.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,7 +57,10 @@ public class ProductCatalogService implements ProductCatalogUseCase {
         return productRepository.findById(productId).map(product -> new ProductSummary(
                 product.getId(),
                 product.getName(),
-                product.getCategory() == null ? null : product.getCategory().getName()));
+                product.getCategory() == null ? null : product.getCategory().getName(),
+                product.getOrigin(),
+                product.getCondition() == null ? null : product.getCondition().name(),
+                product.getManufactureYear()));
     }
 
     @Override
@@ -64,6 +69,34 @@ public class ProductCatalogService implements ProductCatalogUseCase {
         return imageRepository.findByProductId(productId).stream()
                 .map(this::toSummary)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void updateProduct(UUID productId, ProductUpdate update) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+        product.updateInfo(
+                update.name(),
+                null,
+                update.condition() == null ? null : parseCondition(update.condition()),
+                update.origin(),
+                update.manufactureYear());
+        if (update.categoryId() != null) {
+            product.moveToCategory(categoryRepository.findById(update.categoryId())
+                    .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND)));
+        }
+        productRepository.save(product);
+    }
+
+    @Override
+    @Transactional
+    public void reviewProduct(UUID productId, boolean approved) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+        if (approved) product.approve();
+        else product.reject();
+        productRepository.save(product);
     }
 
     private MediaSummary toSummary(Image image) {

@@ -17,4 +17,13 @@ public class Category {
     String description;
 
     Category parent;
+
+    String imageUrl;
+
+    public void update(String name, String description, Category parent, String imageUrl) {
+        if (name != null && !name.isBlank()) this.name = name;
+        this.description = description;
+        this.parent = parent;
+        if (imageUrl != null) this.imageUrl = imageUrl;
+    }
 }

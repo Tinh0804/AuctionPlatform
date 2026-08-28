@@ -6,4 +6,6 @@ import java.util.UUID;
 
 public interface WalletProfilePort {
     WalletResponse getWallet(UUID userId);
+
+    void toggleStatus(UUID userId);
 }

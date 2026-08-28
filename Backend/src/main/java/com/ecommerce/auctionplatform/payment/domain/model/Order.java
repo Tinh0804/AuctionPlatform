@@ -16,14 +16,15 @@ import java.util.UUID;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Order {
-    public void markAsPaid() { this.status = OrderStatus.PAID; }
-    public void markAsCompleted() { this.status = OrderStatus.COMPLETED; }
-    public void markAsShipping() { this.status = OrderStatus.SHIPPING; }
-    public void cancel() { this.status = OrderStatus.CANCELLED; }
-    public void markAsDisputed() { this.status = OrderStatus.DISPUTED; }
+    public void markAsPaid() { this.status = OrderStatus.PAID; touch(); }
+    public void markAsCompleted() { this.status = OrderStatus.COMPLETED; touch(); }
+    public void markAsShipping() { this.status = OrderStatus.SHIPPING; touch(); }
+    public void cancel() { this.status = OrderStatus.CANCELLED; touch(); }
+    public void markAsDisputed() { this.status = OrderStatus.DISPUTED; touch(); }
     public void updateShippingInfo(String tracking, String provider) {
         this.trackingCode = tracking;
         this.shippingProvider = provider;
+        touch();
     }
     public void addReview(int rating, String review) {
         if (rating < 1 || rating > 5) {
@@ -35,7 +36,10 @@ public class Order {
         this.ratingScore = rating;
         this.reviewContent = review;
         this.reviewDate = LocalDateTime.now();
+        touch();
     }
+
+    private void touch() { this.updatedAt = LocalDateTime.now(); }
 
     UUID id;
 
@@ -71,5 +75,6 @@ public class Order {
     @Builder.Default
     LocalDateTime createdAt = LocalDateTime.now();
 
-    LocalDateTime updatedAt;
+    @Builder.Default
+    LocalDateTime updatedAt = LocalDateTime.now();
 }

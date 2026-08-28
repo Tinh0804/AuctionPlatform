@@ -26,6 +26,9 @@ import com.ecommerce.auctionplatform.shared.application.model.PageQuery;
 import com.ecommerce.auctionplatform.shared.application.port.out.FileStoragePort;
 import com.ecommerce.auctionplatform.auction.application.port.out.AuctionSchedulePort;
 import com.ecommerce.auctionplatform.auction.application.port.in.AuctionUseCase;
+import com.ecommerce.auctionplatform.auction.application.port.in.AdminAuctionUseCase;
+import com.ecommerce.auctionplatform.auction.application.dto.command.AdminUpdateAuctionCommand;
+import com.ecommerce.auctionplatform.auction.application.port.out.AuctionProductUpdate;
 import com.ecommerce.auctionplatform.auction.application.mapper.AuctionMapper;
 import com.ecommerce.auctionplatform.auction.application.event.*;
 import com.ecommerce.auctionplatform.auction.domain.valueobject.AuctionSearchCriteria;
@@ -53,7 +56,7 @@ import java.util.LinkedHashSet;
 @RequiredArgsConstructor
 @Slf4j
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AuctionService implements AuctionUseCase {
+public class AuctionService implements AuctionUseCase, AdminAuctionUseCase {
 
     AuctionRepository auctionRepository;
     AuctionCatalogPort catalogPort;
@@ -193,7 +196,13 @@ public class AuctionService implements AuctionUseCase {
                 .toList();
 
         AuctionDetailResponse res = auctionMapper.toAuctionDetailResponse(auction);
-        if (product != null) res.setProductName(product.name());
+        if (product != null) {
+            res.setProductName(product.name());
+            res.setCategoryName(product.categoryName());
+            res.setProductOrigin(product.origin());
+            res.setProductCondition(product.condition());
+            res.setProductManufactureYear(product.manufactureYear());
+        }
         if (seller != null) res.setSellerName(seller.name());
         res.setImages(imageResponses);
         return res;
@@ -333,6 +342,65 @@ public class AuctionService implements AuctionUseCase {
                 }
             }
         }
+    }
+
+    @Override
+    @Transactional
+    public void updateAuctionStatus(UUID id, String status) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+        AuctionStatus newStatus;
+        try {
+            newStatus = AuctionStatus.valueOf(status.toUpperCase(java.util.Locale.ROOT));
+            auction.review(newStatus);
+        } catch (RuntimeException exception) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        auctionRepository.save(auction);
+        catalogPort.reviewProduct(auction.getProductId(), newStatus == AuctionStatus.APPROVED);
+        if (newStatus == AuctionStatus.APPROVED) {
+            schedulePort.scheduleActivation(auction.getId().toString(), auction.getStartTime());
+            schedulePort.scheduleClosure(auction.getId().toString(), auction.getEndTime());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void updateAuction(UUID id, AdminUpdateAuctionCommand command) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+        try {
+            auction.updateBeforeStart(
+                    command.description(),
+                    command.startPrice(),
+                    command.stepPrice(),
+                    command.depositAmount(),
+                    command.startTime(),
+                    command.endTime());
+        } catch (IllegalStateException exception) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        catalogPort.updateProduct(auction.getProductId(), new AuctionProductUpdate(
+                command.name(),
+                command.origin(),
+                command.condition(),
+                command.manufactureYear(),
+                command.categoryId()));
+        auctionRepository.save(auction);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAuction(UUID id) {
+        Auction auction = auctionRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.AUCTION_NOT_FOUND));
+        try {
+            auction.cancelByAdmin();
+        } catch (IllegalStateException exception) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        auctionRepository.save(auction);
+        catalogPort.reviewProduct(auction.getProductId(), false);
     }
 
     private AuctionUserView getCurrentUser(){

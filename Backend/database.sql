@@ -168,6 +168,7 @@ CREATE TABLE categories (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100) NOT NULL,
     description VARCHAR(255),
+    image_url   VARCHAR(500),
     parent_id   UUID REFERENCES categories(id) -- tự tham chiếu: cha/con
 );
 

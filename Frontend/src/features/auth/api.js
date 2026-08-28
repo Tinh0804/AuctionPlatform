@@ -8,8 +8,8 @@ export const register = (data) =>
   apiClient.post('/auth/register', data).then((r) => r.data);
 
 
-export const refreshToken = (token) =>
-  apiClient.post('/auth/refresh', { token }).then((r) => r.data);
+export const refreshToken = (token, refreshTokenValue) =>
+  apiClient.post('/auth/refresh', { token, refreshToken: refreshTokenValue }).then((r) => r.data);
 
 
 export const getMyInfo = () =>
@@ -46,3 +46,21 @@ export const updateAddress = (id, data) =>
 
 export const deleteAddress = (id) =>
   apiClient.delete(`/users/my-info/addresses/${id}`).then((r) => r.data);
+
+// Object API keeps feature consumers cohesive while named exports remain
+// available for existing clean-architecture screens.
+export const authApi = {
+  login,
+  register,
+  refreshToken,
+  getMyInfo,
+  logout,
+  getNotifications,
+  markNotificationRead,
+  updateMyInfo,
+  uploadAvatar,
+  updateMyPhone,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+};

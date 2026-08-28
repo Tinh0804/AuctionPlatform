@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Lock, User, Eye, EyeOff, Terminal } from 'lucide-react';
 import { login, getMyInfo } from '@/features/auth/api';
 import useAuthStore from '@/shared/store/useAuthStore';
+import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '@/config/constants';
 
 export default function AdminLoginPage() {
     const navigate = useNavigate();
@@ -28,13 +29,14 @@ export default function AdminLoginPage() {
              const account = res.result?.account;
              
              if (token) {
-                 if (account?.role?.name !== 'ADMIN') {
+                 const role = account?.role?.name || account?.role;
+                 if (role !== 'ADMIN') {
                      throw new Error("Tài khoản không có quyền quản trị viên");
                  }
 
-                 localStorage.setItem('token', token);
+                 localStorage.setItem(TOKEN_KEY, token);
                  if (refreshToken) {
-                     localStorage.setItem('refreshToken', refreshToken);
+                     localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
                  }
                  
                  useAuthStore.getState().setToken(token);

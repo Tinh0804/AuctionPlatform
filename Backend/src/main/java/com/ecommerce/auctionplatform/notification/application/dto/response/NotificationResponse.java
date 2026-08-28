@@ -20,4 +20,6 @@ public class NotificationResponse {
     UUID referenceId;
     Boolean isRead;
     LocalDateTime createdAt;
+    UUID recipientId;
+    String recipientName;
 }

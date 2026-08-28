@@ -103,4 +103,46 @@ public class Auction {
             this.status = AuctionStatus.FAILED;
         }
     }
+
+    public void review(AuctionStatus newStatus) {
+        if (this.status != AuctionStatus.PENDING
+                || (newStatus != AuctionStatus.APPROVED && newStatus != AuctionStatus.CANCELLED)) {
+            throw new IllegalStateException("Invalid auction review transition");
+        }
+        this.status = newStatus;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateBeforeStart(
+            String description,
+            BigDecimal startPrice,
+            BigDecimal stepPrice,
+            BigDecimal depositAmount,
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    ) {
+        if (this.status == AuctionStatus.ACTIVE
+                || this.status == AuctionStatus.EXTENDED
+                || this.status == AuctionStatus.CLOSED) {
+            throw new IllegalStateException("Active or closed auction cannot be edited");
+        }
+        if (description != null) this.description = description;
+        if (startPrice != null) {
+            this.startPrice = startPrice;
+            this.currentPrice = startPrice;
+        }
+        if (stepPrice != null) this.stepPrice = stepPrice;
+        if (depositAmount != null) this.depositAmount = depositAmount;
+        if (startTime != null) this.startTime = startTime;
+        if (endTime != null) this.endTime = endTime;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void cancelByAdmin() {
+        if (this.status == AuctionStatus.ACTIVE || this.status == AuctionStatus.EXTENDED) {
+            throw new IllegalStateException("Active auction cannot be cancelled by this operation");
+        }
+        this.status = AuctionStatus.CANCELLED;
+        this.updatedAt = LocalDateTime.now();
+    }
 }

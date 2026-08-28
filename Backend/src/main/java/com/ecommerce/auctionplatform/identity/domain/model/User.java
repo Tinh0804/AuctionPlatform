@@ -58,6 +58,50 @@ public class User {
         this.phone = phone;
     }
 
+    public void updateByAdmin(
+            String name,
+            String phone,
+            String email,
+            String identityCard,
+            Boolean gender,
+            LocalDate dob,
+            Integer reputationScore
+    ) {
+        if (name != null && !name.isBlank()) this.name = name;
+        if (phone != null && !phone.isBlank()) this.phone = phone;
+        if (email != null && !email.isBlank()) this.email = email;
+        if (identityCard != null) {
+            this.identityCard = identityCard.isBlank() ? null : identityCard;
+        }
+        if (gender != null) this.gender = gender;
+        if (dob != null) this.dob = dob;
+        if (reputationScore != null && reputationScore >= 0) this.reputationScore = reputationScore;
+    }
+
+    public void updateVerificationStatus(VerificationStatus status) {
+        this.verificationStatus = status;
+    }
+
+    public void toggleAccountStatus() {
+        if (this.account == null) {
+            throw new IllegalStateException("User account is missing");
+        }
+        this.account.toggleActive();
+    }
+
+    public void anonymizeForDeletion() {
+        if (this.account == null) {
+            throw new IllegalStateException("User account is missing");
+        }
+        this.account.deactivate();
+        String compactId = this.id == null
+                ? UUID.randomUUID().toString().replace("-", "")
+                : this.id.toString().replace("-", "");
+        this.email = "deleted_" + compactId + "@deleted.local";
+        this.phone = "deleted-" + compactId.substring(0, 12);
+        this.identityCard = null;
+    }
+
     public void decreaseReputationScore(Integer penalty) {
         this.reputationScore -= penalty;
         if (this.reputationScore < 0) {

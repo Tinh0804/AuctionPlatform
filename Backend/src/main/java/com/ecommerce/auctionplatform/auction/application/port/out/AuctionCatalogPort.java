@@ -12,4 +12,8 @@ public interface AuctionCatalogPort {
     Optional<AuctionProductView> findProduct(UUID productId);
 
     List<AuctionImageView> findImages(UUID productId);
+
+    void updateProduct(UUID productId, AuctionProductUpdate update);
+
+    void reviewProduct(UUID productId, boolean approved);
 }

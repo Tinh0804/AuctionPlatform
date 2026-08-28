@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useSearchParams, Link } from 'react-router-dom';
 import apiClient from '@/shared/api/apiClient';
-import AuctionCard from '@/entities/auction/AuctionCard';
 import Skeleton from '@/shared/ui/Skeleton';
-import EmptyState from '@/shared/ui/EmptyState';
 import { useScrollAnimation } from '@/shared/hooks/useScrollAnimation';
 import { useRipple, useMagnetic } from '@/shared/hooks/useRipple';
-import { useStaggerEntrance } from '@/shared/animations/useStaggerEntrance';
-import { Search, SlidersHorizontal, Gavel, ShieldCheck, Truck, ArrowRight, X, ChevronRight, Clock, Award, Lock, Filter, Grid, List, Users } from 'lucide-react';
+import { Gavel, ShieldCheck, Truck, ArrowRight, Clock, Award, Users } from 'lucide-react';
+
+gsap.registerPlugin(ScrollTrigger);
 
 const statusFilters = [
     { value: '', label: 'Tất cả phiên' },
@@ -17,10 +18,17 @@ const statusFilters = [
 ];
 
 const statusColors = {
-    ACTIVE: 'bg-green-500/20 text-green-400 border-green-500/30',
-    PENDING: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    CLOSED: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    ACTIVE: 'bg-emerald-900/82 text-white border-white/20',
+    PENDING: 'bg-[#9A6A2F]/90 text-white border-white/20',
+    CLOSED: 'bg-[#1c1815]/76 text-white border-white/20',
 };
+
+const heroWords = ['nghệ thuật', 'thời trang', 'công nghệ', 'xe sưu tầm'];
+const heroSlides = [
+    ['https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=1800&q=85', 'Không gian đấu giá đa dạng từ thời trang đến xe sưu tầm'],
+    ['https://images.unsplash.com/photo-1523779917675-b6ed3a42a561?auto=format&fit=crop&w=1800&q=85', 'Bộ sưu tập đấu giá công nghệ và thời trang'],
+    ['https://images.unsplash.com/photo-1577083552431-6e5fd01988a5?auto=format&fit=crop&w=1800&q=85', 'Bộ sưu tập đấu giá nghệ thuật, thiết kế và xe'],
+];
 
 const getStatusText = (status) => {
     const map = {
@@ -34,55 +42,109 @@ const getStatusText = (status) => {
     return map[status] || status;
 };
 
-// Hero showcase items - placeholder images
-const heroShowcaseItems = [
-    {
-        id: 1,
-        name: 'Bình gốm Bát Tràng thế kỷ XVIII',
-        image: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=600&h=750&fit=crop&q=80',
-        estimate: '15.000.000 - 25.000.000đ',
-    },
-    {
-        id: 2,
-        name: 'Đồng hồ để bàn Pháp cổ',
-        image: 'https://images.unsplash.com/photo-1509048191080-d2984bad6ae5?w=600&h=750&fit=crop&q=80',
-        estimate: '8.000.000 - 12.000.000đ',
-    },
-    {
-        id: 3,
-        name: 'Tranh sơn mài nghệ thuật',
-        image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=600&h=750&fit=crop&q=80',
-        estimate: '20.000.000 - 35.000.000đ',
-    },
-];
-
 export default function Home() {
     const [auctions, setAuctions] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [typedHeroWord, setTypedHeroWord] = useState('');
+    const [heroWordIndex, setHeroWordIndex] = useState(0);
+    const [deletingHeroWord, setDeletingHeroWord] = useState(false);
+    const [heroSlide, setHeroSlide] = useState(0);
+    const [previousHeroSlide, setPreviousHeroSlide] = useState(0);
     const [searchParams, setSearchParams] = useSearchParams();
-    const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-    const [heroIdx, setHeroIdx] = useState(0);
-    const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
+    const heroRef = useRef(null);
+    const exhibitionRef = useRef(null);
     
     const currentStatus = searchParams.get('status') || '';
     const currentCategory = searchParams.get('category_id') || '';
-
-    const [sectionRef, sectionVisible] = useScrollAnimation({ threshold: 0.05 });
+    const [sectionRef] = useScrollAnimation({ threshold: 0.05 });
     const [ctaRef, ctaVisible] = useScrollAnimation({ threshold: 0.2 });
-    
-    const gridRef = useStaggerEntrance({ selector: '.bento-item' });
-    const listRef = useStaggerEntrance({ selector: '.list-item' });
     
     const ripple = useRipple('rgba(255, 255, 255, 0.5)');
     const magneticProps = useMagnetic(0.2);
 
-    // Hero carousel auto-rotate
     useEffect(() => {
-        const interval = setInterval(() => {
-            setHeroIdx(prev => (prev + 1) % heroShowcaseItems.length);
-        }, 5000);
-        return () => clearInterval(interval);
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            setTypedHeroWord(heroWords[0]);
+            return undefined;
+        }
+
+        const target = heroWords[heroWordIndex];
+        const complete = !deletingHeroWord && typedHeroWord === target;
+        const empty = deletingHeroWord && typedHeroWord === '';
+        const timer = setTimeout(() => {
+            if (complete) {
+                setDeletingHeroWord(true);
+            } else if (empty) {
+                setDeletingHeroWord(false);
+                setHeroWordIndex(index => (index + 1) % heroWords.length);
+            } else {
+                setTypedHeroWord(target.slice(0, typedHeroWord.length + (deletingHeroWord ? -1 : 1)));
+            }
+        }, complete ? 1400 : empty ? 250 : deletingHeroWord ? 45 : 85);
+
+        return () => clearTimeout(timer);
+    }, [typedHeroWord, heroWordIndex, deletingHeroWord]);
+
+    useEffect(() => {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+        const timer = setInterval(() => {
+            setHeroSlide(current => {
+                setPreviousHeroSlide(current);
+                return (current + 1) % heroSlides.length;
+            });
+        }, 5200);
+        return () => clearInterval(timer);
+    }, []);
+
+    const selectHeroSlide = index => {
+        if (index === heroSlide) return;
+        setPreviousHeroSlide(heroSlide);
+        setHeroSlide(index);
+    };
+
+    useEffect(() => {
+        const media = gsap.matchMedia();
+        media.add('(prefers-reduced-motion: no-preference)', () => {
+            const ctx = gsap.context(() => {
+                gsap.fromTo('.hero-text-stagger',
+                { opacity: 0, y: 40 },
+                    { opacity: 1, y: 0, duration: 1.05, ease: 'power3.out', stagger: 0.12, delay: 0.15 }
+                );
+            }, heroRef);
+            return () => ctx.revert();
+        });
+        return () => media.revert();
+    }, []);
+
+    useEffect(() => {
+        const media = gsap.matchMedia();
+        media.add('(prefers-reduced-motion: no-preference)', () => {
+            const ctx = gsap.context(() => {
+                gsap.utils.toArray('.museum-plate').forEach((plate, index) => {
+                    gsap.fromTo(plate,
+                        { autoAlpha: 0, y: 70 },
+                        {
+                            autoAlpha: 1,
+                            y: 0,
+                            duration: 1,
+                            delay: index % 2 * 0.08,
+                            ease: 'power3.out',
+                            scrollTrigger: { trigger: plate, start: 'top 86%', once: true }
+                        }
+                    );
+                    const image = plate.querySelector('img');
+                    if (image) {
+                        gsap.fromTo(image,
+                            { yPercent: -3 },
+                            { yPercent: 3, ease: 'none', scrollTrigger: { trigger: plate, start: 'top bottom', end: 'bottom top', scrub: 1 } }
+                        );
+                    }
+                });
+            }, exhibitionRef);
+            return () => ctx.revert();
+        });
+        return () => media.revert();
     }, []);
 
     useEffect(() => {
@@ -126,13 +188,6 @@ export default function Home() {
         setSearchParams(newParams);
     };
 
-    const clearAllFilters = () => {
-        setSearchParams({});
-    };
-
-    const activeFilterCount = [currentStatus, currentCategory].filter(Boolean).length;
-    const currentItem = heroShowcaseItems[heroIdx];
-
     // Format currency
     const formatCurrency = value => `${Number(value || 0).toLocaleString('vi-VN')} đ`;
 
@@ -150,24 +205,23 @@ export default function Home() {
         return `${days > 0 ? `${days}d ` : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
 
-    // Auction Card Component
-    const AuctionItem = ({ auc, variant = 'medium', className = '' }) => {
-        const isActive = auc.status === 'ACTIVE';
-        const isPending = auc.status === 'PENDING';
-        
+    const AuctionListItem = ({ auc, index }) => {
         const coverImageUrl = (auc.images && auc.images.length > 0) 
             ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
             : (auc.coverImage || auc.cover_image);
+        const isOpen = auc.status === 'ACTIVE' || auc.status === 'PENDING';
+        const priceLabel = auc.status === 'CLOSED' ? 'Giá chốt' : auc.status === 'PENDING' ? 'Giá khởi điểm' : 'Giá hiện tại';
 
         return (
-            <Link to={`/auctions/${auc.id}`} className={`group block h-full ${className}`}>
-                <div className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/30 h-full flex flex-col`}>
-                    <div className="relative flex-grow min-h-[160px] aspect-[4/3] overflow-hidden bg-[#F8F1E6]">
+        <Link to={`/auctions/${auc.id}`} className="group block">
+            <article className="overflow-hidden rounded-2xl border border-[#1c1815]/10 bg-[#fffdf8] shadow-[0_12px_38px_rgba(28,24,21,0.055)] transition-all duration-400 hover:border-[#9A6A2F]/30 hover:shadow-[0_20px_50px_rgba(28,24,21,0.1)]">
+                <div className="grid md:grid-cols-[210px_1fr_220px] md:items-stretch">
+                    <div className="relative h-56 overflow-hidden bg-[#F8F1E6] md:h-full md:min-h-[178px]">
                         {coverImageUrl ? (
                             <img 
                                 src={coverImageUrl} 
                                 alt={auc.productName || auc.product_name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.035]"
                                 loading="lazy"
                             />
                         ) : (
@@ -175,542 +229,284 @@ export default function Home() {
                                 <Gavel className="h-12 w-12 text-[#9A6A2F]/30" />
                             </div>
                         )}
-                        
-                        {/* Status Badge */}
-                        <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${statusColors[auc.status] || statusColors.CLOSED}`}>
-                            {getStatusText(auc.status)}
-                        </div>
-
-                        {/* Countdown for ACTIVE and PENDING */}
-                        {(isActive || isPending) && (
-                            <div className="absolute bottom-3 left-3 right-3 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 flex items-center justify-between">
-                                <span className="flex items-center gap-2 text-xs text-white/70">
-                                    <Clock className="h-3.5 w-3.5 text-[#E8C58F]" />
-                                    {isActive ? 'Còn lại' : 'Mở sau'}
-                                </span>
-                                <span className="font-mono text-sm font-bold text-[#E8C58F]">
-                                    {getCountdown(auc)}
-                                </span>
-                            </div>
-                        )}
+                        <span className="absolute bottom-3 left-3 rounded-full border border-white/60 bg-white/78 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#1c1815] backdrop-blur-md">
+                            Lot {String(index + 1).padStart(3, '0')}
+                        </span>
                     </div>
 
-                    <div className="p-4">
-                        {(auc.categoryName || auc.category_name) && (
-                            <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
-                                {auc.categoryName || auc.category_name}
-                            </p>
-                        )}
-                        <h3 className="text-sm font-medium text-[#2F2418] line-clamp-1 group-hover:text-[#9A6A2F] transition-colors">
-                            {auc.productName || auc.product_name}
-                        </h3>
-                        
-                        <div className="mt-3 flex items-end justify-between">
-                            <div>
-                                <p className="text-[10px] uppercase tracking-wider text-[#2F2418]/40">
-                                    Giá hiện tại
-                                </p>
-                                <p className="text-lg font-semibold text-[#9A6A2F]">
-                                    {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-xs text-[#2F2418]/50">
-                                <Users className="h-3.5 w-3.5" />
-                                <span>{Number(auc.bidCount || auc.bid_count || 0)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </Link>
-        );
-    };
-
-    // List View Component
-    const AuctionListItem = ({ auc, className = '' }) => {
-        const coverImageUrl = (auc.images && auc.images.length > 0) 
-            ? (auc.images.find(img => img.isCover)?.url || auc.images[0].url)
-            : (auc.coverImage || auc.cover_image);
-
-        return (
-        <Link to={`/auctions/${auc.id}`} className={`group block ${className}`}>
-            <div className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-[#9A6A2F]/10 hover:border-[#9A6A2F]/30">
-                <div className="flex flex-col sm:flex-row">
-                    <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 overflow-hidden bg-[#F8F1E6]">
-                        {coverImageUrl ? (
-                            <img 
-                                src={coverImageUrl} 
-                                alt={auc.productName || auc.product_name} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                loading="lazy"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                                <Gavel className="h-12 w-12 text-[#9A6A2F]/30" />
-                            </div>
-                        )}
-                        
-                        <div className={`absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-medium border backdrop-blur-sm ${statusColors[auc.status] || statusColors.CLOSED}`}>
-                            {getStatusText(auc.status)}
-                        </div>
-                    </div>
-
-                    <div className="flex-1 p-4 flex flex-col justify-between">
+                    <div className="flex min-w-0 flex-col justify-between p-5 md:p-6">
                         <div>
-                            {(auc.categoryName || auc.category_name) && (
-                                <p className="text-xs uppercase tracking-wider text-[#9A6A2F] mb-1">
-                                    {auc.categoryName || auc.category_name}
-                                </p>
-                            )}
-                            <h3 className="text-base font-medium text-[#2F2418] group-hover:text-[#9A6A2F] transition-colors">
+                            <div className="mb-2.5 flex items-center gap-3 text-[9px] font-bold uppercase tracking-[0.2em] text-[#9A6A2F]">
+                                <span>{auc.categoryName || auc.category_name || 'Tuyển chọn'}</span>
+                                <span className="h-px w-6 bg-[#9A6A2F]/35" />
+                                <span className="text-[#746b62]">The Curator</span>
+                            </div>
+                            <h3 className="truncate text-xl font-semibold leading-tight text-[#1c1815] transition-colors group-hover:text-[#9A6A2F]">
                                 {auc.productName || auc.product_name}
                             </h3>
-                            
-                            {(auc.status === 'ACTIVE' || auc.status === 'PENDING') && (
-                                <div className="mt-2 flex items-center gap-2 text-sm text-[#2F2418]/60">
-                                    <Clock className="h-4 w-4 text-[#9A6A2F]" />
-                                    <span>{auc.status === 'ACTIVE' ? 'Còn lại' : 'Mở sau'}:</span>
-                                    <span className="font-mono font-bold text-[#9A6A2F]">
-                                        {getCountdown(auc)}
-                                    </span>
-                                </div>
-                            )}
                         </div>
 
-                        <div className="mt-3 flex items-end justify-between">
-                            <div>
-                                <p className="text-[10px] uppercase tracking-wider text-[#2F2418]/40">
-                                    Giá hiện tại
-                                </p>
-                                <p className="text-xl font-semibold text-[#9A6A2F]">
-                                    {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-1.5 text-sm text-[#2F2418]/50">
-                                    <Users className="h-4 w-4" />
-                                    <span>{Number(auc.bidCount || auc.bid_count || 0)} lượt</span>
-                                </div>
-                                <ArrowRight className="h-5 w-5 text-[#9A6A2F]/50 group-hover:text-[#9A6A2F] transition-colors" />
-                            </div>
+                        <div className="mt-5 flex flex-wrap items-center gap-3 text-[11px] text-[#746b62]">
+                            <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] ${statusColors[auc.status] || statusColors.CLOSED}`}>
+                                {getStatusText(auc.status)}
+                            </span>
+                            {isOpen && (
+                                <span className="flex items-center gap-1.5">
+                                    <Clock className="h-3.5 w-3.5 text-[#9A6A2F]" />
+                                    <span>{auc.status === 'ACTIVE' ? 'Còn' : 'Mở sau'}</span>
+                                    <strong className="font-mono text-[#1c1815]">{getCountdown(auc)}</strong>
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1.5">
+                                <Users className="h-3.5 w-3.5" />
+                                {Number(auc.bidCount || auc.bid_count || 0)} lượt
+                            </span>
                         </div>
                     </div>
+
+                    <div className="flex items-center justify-between border-t border-[#1c1815]/10 bg-[#f7f1e8] p-5 md:flex-col md:items-stretch md:justify-center md:border-l md:border-t-0 md:p-6">
+                        <div>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#746b62]">{priceLabel}</p>
+                            <p className="mt-1.5 text-xl font-bold text-[#1c1815]">
+                                {formatCurrency(auc.currentPrice != null ? auc.currentPrice : auc.current_price)}
+                            </p>
+                        </div>
+                        <span className="mt-0 inline-flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-[#9A6A2F] md:mt-5">
+                            Xem phiên
+                            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+                        </span>
+                    </div>
                 </div>
-            </div>
+            </article>
         </Link>
         );
     };
 
     return (
-        <div>
+        <div className="home-page">
             {/* ══════════ HERO ══════════ */}
-            <section className="relative bg-slate-950 overflow-hidden">
-                {/* Background image with overlay */}
-                <div className="absolute inset-0">
-                    {heroShowcaseItems.map((item, i) => (
-                        <div
-                            key={item.id}
-                            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
-                            style={{ opacity: i === heroIdx ? 1 : 0 }}
-                        >
-                            <img 
-                                src={item.image} 
-                                alt="" 
-                                className={`w-full h-full object-cover ${i === heroIdx ? 'cinematic-hero-image' : ''}`}
+            <section ref={heroRef} className="auction-live-hero">
+                <span className="auction-hero-index" aria-hidden="true">01</span>
+                <div className="auction-live-shell">
+                    <div className="auction-live-copy">
+                        <div className="hero-text-stagger auction-live-kicker">
+                            <span><Gavel /></span>
+                            Live auction marketplace · 24/7
+                        </div>
+
+                        <h1 className="hero-text-stagger auction-live-title">
+                            Đấu giá dành cho
+                            <span className="auction-typewriter">{typedHeroWord}<i aria-hidden="true" /></span>
+                        </h1>
+
+                        <p className="hero-text-stagger auction-live-description">
+                            Mỗi phiên đấu là một cơ hội thật. Theo dõi trực tiếp, đặt giá minh bạch và giao dịch an toàn trên mọi thiết bị.
+                        </p>
+
+                        <div className="hero-text-stagger auction-live-actions">
+                            <a href="#auction-floor">
+                                Vào sàn đấu <ArrowRight />
+                            </a>
+                            <Link to="/auctions/create">Tạo phiên mới</Link>
+                        </div>
+                    </div>
+
+                    <div className="hero-text-stagger auction-live-stage">
+                        <div className="auction-live-frame">
+                            <img
+                                src={heroSlides[previousHeroSlide][0]}
+                                alt=""
+                                className="auction-hero-slide-base"
                             />
-                        </div>
-                    ))}
-                    <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/80 to-slate-950/40" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/30" />
-                </div>
-                
-                <div className="relative max-w-7xl mx-auto px-4 md:px-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center min-h-[520px] md:min-h-[600px] py-16 md:py-20">
-                        {/* Left - Text */}
-                        <div>
-                            <p className="hero-line-reveal text-amber-400 text-sm font-semibold tracking-[0.2em] uppercase mb-5">
-                                Sàn đấu giá đồ cổ trực tuyến
-                            </p>
-                            
-                            <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold text-white leading-[1.15] mb-6">
-                                <span className="hero-line-reveal delay-1">Khám phá vẻ đẹp</span><br />
-                                <span className="hero-line-reveal delay-2 text-amber-400">vượt thời gian</span>
-                            </h1>
-                            
-                            <p className="hero-copy-reveal text-slate-300 text-lg leading-relaxed mb-8 max-w-lg">
-                                Sưu tầm những vật phẩm cổ quý hiếm từ khắp nơi. Đấu giá minh bạch, thanh toán an toàn qua Escrow.
-                            </p>
-                            
-                            <div className="hero-copy-reveal flex flex-wrap gap-4 mb-12">
-                                <a 
-                                    href="#auction-floor" 
-                                    className="magnetic-button inline-flex items-center gap-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold px-7 py-3.5 rounded-lg transition-all duration-300 text-sm shadow-lg hover:shadow-xl hover:scale-105"
-                                    onClick={ripple}
-                                    {...magneticProps}
-                                >
-                                    <Gavel className="w-4.5 h-4.5" /> Xem đấu giá
-                                </a>
-                                <Link 
-                                    to="/auctions/create" 
-                                    className="magnetic-button inline-flex items-center gap-2.5 border border-white/20 text-white hover:bg-white/10 px-7 py-3.5 rounded-lg font-semibold transition-all duration-300 text-sm hover:scale-105"
-                                    onClick={ripple}
-                                    {...magneticProps}
-                                >
-                                    Đăng bán <ArrowRight className="w-4 h-4" />
-                                </Link>
-                            </div>
-
-                            {/* Trust signals */}
-                            <div className="hero-copy-reveal flex flex-wrap gap-6 text-sm text-slate-400">
-                                <span className="flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-emerald-400" /> Escrow bảo mật
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Truck className="w-4 h-4 text-blue-400" /> Vận chuyển cẩn thận
-                                </span>
-                                <span className="flex items-center gap-2">
-                                    <Lock className="w-4 h-4 text-amber-400" /> eKYC xác thực
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Right - Featured item card */}
-                        <div className="hidden lg:block">
-                            <div className="relative ml-auto max-w-sm">
-                                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
-                                    <div className="aspect-[4/5] overflow-hidden relative">
-                                        {heroShowcaseItems.map((item, i) => (
-                                            <img 
-                                                key={item.id}
-                                                src={item.image} 
-                                                alt={item.name}
-                                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === heroIdx ? 'cinematic-hero-image' : ''}`}
-                                                style={{ opacity: i === heroIdx ? 1 : 0 }}
-                                            />
-                                        ))}
-                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                                            <p className="text-white font-semibold text-lg leading-snug mb-1">{currentItem.name}</p>
-                                            <p className="text-amber-300 text-sm">Ước tính: {currentItem.estimate}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Carousel indicators */}
-                                <div className="flex justify-center gap-2 mt-4">
-                                    {heroShowcaseItems.map((_, i) => (
-                                        <button 
-                                            key={i}
-                                            onClick={() => setHeroIdx(i)}
-                                            className={`h-1 rounded-full transition-all duration-300 ${i === heroIdx ? 'w-8 bg-amber-400' : 'w-4 bg-white/20 hover:bg-white/40'}`}
+                            <img
+                                key={heroSlide}
+                                src={heroSlides[heroSlide][0]}
+                                alt={heroSlides[heroSlide][1]}
+                                className="auction-hero-slide-reveal"
+                                fetchPriority={heroSlide === 0 ? 'high' : 'auto'}
+                            />
+                            <div className="auction-image-meta">
+                                <span><i /> Đang mở phiên</span>
+                                <div className="auction-slide-dots" aria-label="Chuyển ảnh giới thiệu">
+                                    {heroSlides.map(([, alt], index) => (
+                                        <button
+                                            key={alt}
+                                            type="button"
+                                            className={index === heroSlide ? 'is-active' : ''}
+                                            onClick={() => selectHeroSlide(index)}
+                                            aria-label={`Ảnh ${index + 1}`}
                                         />
                                     ))}
                                 </div>
+                                <strong>Đặt giá trực tiếp · Escrow bảo vệ</strong>
                             </div>
                         </div>
+                        <p className="auction-image-caption">Nhiều danh mục.<br />Một trải nghiệm liền mạch.</p>
                     </div>
                 </div>
             </section>
-
-            {/* ══════════ FEATURES BAR ══════════ */}
-            <section className="border-y border-[#9A6A2F]/15 bg-[#F8F1E6]">
-                <div className="max-w-7xl mx-auto px-4 md:px-6 py-10">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 md:gap-10">
-                        <div className="flex items-start gap-4 border-l border-[#9A6A2F]/35 pl-5">
-                            <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] flex items-center justify-center shrink-0">
-                                <Award className="w-5 h-5 text-[#9A6A2F]" />
-                            </div>
+            <section className="home-standard-strip">
+                <div className="mx-auto grid max-w-[90rem] grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                    {[
+                        [Award, '01', 'Tuyển chọn', 'Thẩm định bởi chuyên gia'],
+                        [ShieldCheck, '02', 'Bảo chứng', 'Escrow cho mọi giao dịch'],
+                        [Clock, '03', 'Trực tiếp', 'Đặt giá theo thời gian thực'],
+                        [Truck, '04', 'An tâm', 'Vận chuyển có bảo hiểm'],
+                    ].map(([Icon, number, title, copy]) => (
+                        <div key={title} className="home-standard-item">
+                            <span className="home-standard-icon">
+                                <Icon className="h-[18px] w-[18px]" />
+                            </span>
                             <div>
-                                <h3 className="font-serif text-[#2F2418] text-lg mb-1">Đồ cổ chính hãng</h3>
-                                <p className="text-[#2F2418]/55 text-sm leading-relaxed">Mỗi vật phẩm được xác thực bởi chuyên gia trước khi lên sàn</p>
+                                <span className="home-standard-number">{number}</span>
+                                <h3>{title}</h3>
+                                <p>{copy}</p>
                             </div>
                         </div>
-                        <div className="flex items-start gap-4 border-l border-[#9A6A2F]/35 pl-5">
-                            <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] flex items-center justify-center shrink-0">
-                                <ShieldCheck className="w-5 h-5 text-[#9A6A2F]" />
-                            </div>
-                            <div>
-                                <h3 className="font-serif text-[#2F2418] text-lg mb-1">Thanh toán Escrow</h3>
-                                <p className="text-[#2F2418]/55 text-sm leading-relaxed">Tiền được giữ an toàn cho đến khi bạn nhận hàng và xác nhận</p>
-                            </div>
-                        </div>
-                        <div className="flex items-start gap-4 border-l border-[#9A6A2F]/35 pl-5">
-                            <div className="w-11 h-11 border border-[#9A6A2F]/40 bg-[#FFF8ED] flex items-center justify-center shrink-0">
-                                <Clock className="w-5 h-5 text-[#9A6A2F]" />
-                            </div>
-                            <div>
-                                <h3 className="font-serif text-[#2F2418] text-lg mb-1">Đấu giá thời gian thực</h3>
-                                <p className="text-[#2F2418]/55 text-sm leading-relaxed">Theo dõi và đặt giá trực tiếp, đếm ngược từng giây</p>
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </section>
 
-            {/* ══════════ AUCTION FLOOR ══════════ */}
-            <section className="bg-[#F8F1E6]" id="auction-floor">
-                {/* Section Header */}
-                <div className="bg-[#EFE2CF] relative overflow-hidden border-b border-[#9A6A2F]/15">
-                    <div className="absolute inset-0 opacity-10">
-                        <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(154,106,47,0.28) 0%, transparent 50%), radial-gradient(circle at 80% 50%, rgba(245,230,200,0.10) 0%, transparent 48%)'}} />
-                    </div>
-                    <div className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-14 relative">
-                        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-                            <div>
-                                <p className="text-[#9A6A2F] text-xs font-semibold tracking-[0.28em] uppercase mb-3">Phiên đấu giá</p>
-                                <h2 className="font-serif text-3xl md:text-5xl text-[#2F2418] mb-3">
-                                    Sàn Đấu Giá
-                                </h2>
-                                <p className="text-[#2F2418]/55 text-sm max-w-md leading-relaxed">Khám phá và đấu giá những vật phẩm quý hiếm từ các nhà sưu tầm trên khắp Việt Nam</p>
-                            </div>
-                            
-                            <div className="flex items-center gap-3">
-                                {/* View Toggle */}
-                                <div className="hidden sm:flex rounded-lg border border-[#9A6A2F]/20 p-1 bg-white/50">
-                                    <button
-                                        onClick={() => setViewMode('grid')}
-                                        className={`p-1.5 rounded transition-colors ${
-                                            viewMode === 'grid' 
-                                                ? 'bg-[#9A6A2F] text-white' 
-                                                : 'text-[#2F2418]/40 hover:text-[#2F2418]'
-                                        }`}
-                                    >
-                                        <Grid className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => setViewMode('list')}
-                                        className={`p-1.5 rounded transition-colors ${
-                                            viewMode === 'list' 
-                                                ? 'bg-[#9A6A2F] text-white' 
-                                                : 'text-[#2F2418]/40 hover:text-[#2F2418]'
-                                        }`}
-                                    >
-                                        <List className="h-4 w-4" />
-                                    </button>
-                                </div>
-                                
-                                {/* Mobile Filter Toggle */}
-                                <button 
-                                    onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
-                                    className="md:hidden inline-flex items-center gap-2 text-sm font-medium text-[#2F2418] bg-white/[0.04] border border-[#9A6A2F]/25 px-4 py-2.5 relative self-start backdrop-blur-sm hover:border-[#9A6A2F]/60 transition-colors"
-                                >
-                                    <SlidersHorizontal className="w-4 h-4" /> Bộ lọc
-                                    {activeFilterCount > 0 && (
-                                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#9A6A2F] text-[#F8F1E6] text-[10px] rounded-full flex items-center justify-center font-bold">{activeFilterCount}</span>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Status Filter Tabs */}
-                        <div className="flex flex-wrap gap-1 border-b border-white/10 -mb-px">
-                            {statusFilters.map(sf => (
-                                <button
-                                    key={sf.value}
-                                    onClick={() => updateFilter('status', sf.value)}
-                                    className={`px-5 py-3 text-sm font-medium border-b-2 transition-all ${
-                                        currentStatus === sf.value
-                                            ? 'border-[#9A6A2F] text-[#9A6A2F]'
-                                            : 'border-transparent text-[#2F2418]/45 hover:text-[#2F2418] hover:border-[#2F2418]/25'
-                                    }`}
-                                >
-                                    {sf.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+            <section ref={exhibitionRef} className="museum-archive" aria-labelledby="exhibition-title">
+                <div className="museum-archive-topline">
+                    <span>Marketplace Highlights</span>
+                    <span>Featured Selection No. 01</span>
+                    <span>Vietnam · 2026</span>
                 </div>
 
-                <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-16">
-                    <div className="flex flex-col lg:flex-row gap-8 lg:gap-10">
-                        {/* ── Sidebar Filters ── */}
-                        <aside className="hidden lg:block w-64 shrink-0">
-                            <div className="sticky top-24 space-y-6">
-                                {/* Active filters summary */}
-                                {activeFilterCount > 0 && (
-                                    <div className="bg-[#EFE2CF] rounded-lg p-4">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-semibold text-[#2F2418] uppercase tracking-wider">
-                                                Đang lọc ({activeFilterCount})
-                                            </span>
-                                            <button 
-                                                onClick={clearAllFilters}
-                                                className="text-xs text-[#9A6A2F] hover:text-[#2F2418] transition-colors"
-                                            >
-                                                Xóa tất cả
-                                            </button>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {currentStatus && (
-                                                <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#9A6A2F] rounded">
-                                                    {statusFilters.find(s => s.value === currentStatus)?.label}
-                                                </span>
-                                            )}
-                                            {currentCategory && (
-                                                <span className="px-2 py-1 text-xs bg-[#9A6A2F]/20 text-[#9A6A2F] rounded">
-                                                    {categories.find(c => String(c.id) === String(currentCategory))?.name}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Categories */}
-                                <div>
-                                    <h3 className="text-xs font-semibold text-[#9A6A2F] uppercase tracking-[0.24em] mb-4 flex items-center gap-2">
-                                        <Filter className="w-4 h-4" /> Danh mục
-                                    </h3>
-                                    <ul className="space-y-0.5">
-                                        <li>
-                                            <button 
-                                                onClick={() => updateFilter('category_id', '')} 
-                                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                                                    currentCategory === '' 
-                                                        ? 'bg-[#9A6A2F] text-[#F8F1E6] font-semibold' 
-                                                        : 'text-[#2F2418]/55 hover:bg-white/[0.04] hover:text-[#2F2418]'
-                                                }`}
-                                            >
-                                                Tất cả danh mục
-                                            </button>
-                                        </li>
-                                        {categories.map(c => (
-                                            <li key={c.id}>
-                                                <button 
-                                                    onClick={() => updateFilter('category_id', c.id)} 
-                                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
-                                                        String(currentCategory) === String(c.id) 
-                                                            ? 'bg-[#9A6A2F] text-[#F8F1E6] font-semibold' 
-                                                            : 'text-[#2F2418]/55 hover:bg-white/[0.04] hover:text-[#2F2418]'
-                                                    }`}
-                                                >
-                                                    {c.name}
-                                                    <ChevronRight className="w-3.5 h-3.5 opacity-30" />
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-
-                                {/* Results count */}
-                                <div className="pt-4 border-t border-[#9A6A2F]/10">
-                                    <p className="text-sm text-[#2F2418]/50">
-                                        <span className="text-[#9A6A2F] font-semibold">{auctions.length}</span> phiên đấu giá
-                                    </p>
-                                </div>
-                            </div>
-                        </aside>
-
-                        {/* Mobile Filter Panel */}
-                        {mobileFilterOpen && (
-                            <div className="lg:hidden bg-[#FFF8ED] border border-[#9A6A2F]/20 p-5 shadow-[0_25px_80px_rgba(47,36,24,0.10)]">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-semibold text-[#2F2418] text-sm">Bộ lọc</h3>
-                                    <button onClick={() => setMobileFilterOpen(false)} className="p-1 hover:bg-white/[0.06]">
-                                        <X className="w-5 h-5 text-[#2F2418]/55" />
-                                    </button>
-                                </div>
-                                <div>
-                                    <h4 className="text-xs font-semibold text-[#9A6A2F] uppercase tracking-[0.22em] mb-3">Danh mục</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button 
-                                            onClick={() => updateFilter('category_id', '')}
-                                            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                                                currentCategory === '' 
-                                                    ? 'bg-[#9A6A2F] text-[#F8F1E6]' 
-                                                    : 'bg-white/[0.04] text-[#2F2418]/60 hover:bg-white/[0.08]'
-                                            }`}
-                                        >
-                                            Tất cả
-                                        </button>
-                                        {categories.map(c => (
-                                            <button 
-                                                key={c.id}
-                                                onClick={() => updateFilter('category_id', c.id)}
-                                                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                                                    String(currentCategory) === String(c.id) 
-                                                        ? 'bg-[#9A6A2F] text-[#F8F1E6]' 
-                                                        : 'bg-white/[0.04] text-[#2F2418]/60 hover:bg-white/[0.08]'
-                                                }`}
-                                            >
-                                                {c.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* ── Auction Grid ── */}
-                        <div ref={sectionRef} className="flex-grow min-w-0">
-                            {loading ? (
-                                <Skeleton.List count={6} />
-                            ) : auctions.length > 0 ? (
-                                viewMode === 'grid' ? (
-                                    <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 auto-rows-[minmax(0,1fr)]">
-                                        {auctions.map((auc, index) => {
-                                            // Bento Grid Pattern
-                                            let bentoClass = "bento-item";
-                                            let variant = "medium";
-                                            if (index === 0) {
-                                                bentoClass += " sm:col-span-2 sm:row-span-2";
-                                                variant = "tall";
-                                            } else if (index === 3 || index === 7) {
-                                                bentoClass += " lg:col-span-2";
-                                                variant = "wide";
-                                            } else if (index === 6) {
-                                                bentoClass += " sm:col-span-2 lg:col-span-1 lg:row-span-2";
-                                                variant = "tall";
-                                            }
-                                            
-                                            return (
-                                                <AuctionItem key={auc.id} auc={auc} variant={variant} className={bentoClass} />
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
-                                    <div ref={listRef} className="space-y-4">
-                                        {auctions.map((auc) => (
-                                            <AuctionListItem key={auc.id} auc={auc} className="list-item" />
-                                        ))}
-                                    </div>
-                                )
-                            ) : (
-                                <EmptyState 
-                                    icon={Search}
-                                    title="Không tìm thấy phiên đấu giá"
-                                    description="Thử thay đổi bộ lọc hoặc quay lại sau nhé!"
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section ref={ctaRef} className="bg-[#F8F1E6] px-4 md:px-6 pb-24">
-                <div className={`relative max-w-7xl mx-auto overflow-hidden border border-[#9A6A2F]/20 transition-all duration-700 ${ctaVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    <div className="absolute inset-0">
-                        <img 
-                            src="https://images.unsplash.com/photo-1513519245088-0e12902e35ca?w=1400&h=500&fit=crop&q=80" 
-                            alt="" 
-                            className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-[#EFE2CF]/86" />
-                        <div className="absolute inset-0 bg-gradient-to-r from-[#EFE2CF] via-[#EFE2CF]/80 to-transparent" />
-                    </div>
-                    
-                    <div className="relative px-8 md:px-20 py-16 md:py-24 text-left max-w-3xl">
-                        <p className="text-[#9A6A2F] text-xs font-semibold tracking-[0.28em] uppercase mb-5">Hợp tác cùng chúng tôi</p>
-                        <h2 className="font-serif text-3xl md:text-5xl text-[#2F2418] mb-5">
-                            Bạn có đồ cổ muốn bán?
-                        </h2>
-                        <p className="text-[#2F2418]/62 max-w-xl mb-9 text-sm md:text-base leading-8">
-                            Tạo phiên đấu giá miễn phí và tiếp cận hàng nghìn nhà sưu tầm trên khắp Việt Nam.
+                <div className="museum-archive-layout">
+                    <aside className="museum-archive-intro">
+                        <p>Nhiều lĩnh vực · Một nền tảng</p>
+                        <h2 id="exhibition-title">Mọi giá trị đều có<br /><em>một phiên đấu xứng đáng.</em></h2>
+                        <div className="museum-rule" />
+                        <p className="museum-archive-description">
+                            Nghệ thuật, thời trang, công nghệ, xe, đồ sưu tầm hay tài sản giá trị đều được kiểm duyệt thông tin trước khi mở phiên.
                         </p>
-                        <Link 
-                            to="/auctions/create" 
-                            className="magnetic-button inline-flex items-center gap-3 bg-[#9A6A2F] hover:bg-[#2F2418] text-[#F8F1E6] font-bold px-8 py-4 transition-all duration-300 text-xs uppercase tracking-[0.2em] hover:scale-105 hover:shadow-xl"
-                            onClick={ripple}
-                            {...magneticProps}
-                        >
-                            Tạo phiên đấu giá <ArrowRight className="w-4 h-4" />
+
+                        <div className="museum-assurance">
+                            <div><ShieldCheck /><span><strong>Thông tin minh bạch</strong>Hồ sơ sản phẩm được xác thực</span></div>
+                            <div><Award /><span><strong>Kiểm duyệt rõ ràng</strong>Tiêu chuẩn phù hợp từng danh mục</span></div>
+                        </div>
+
+                        <div className="museum-seal">
+                            <span>TC</span>
+                            <p>Verified listings<br />The Curator</p>
+                        </div>
+                    </aside>
+
+                    <div className="museum-album">
+                        {[
+                            ['https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=800&q=80', 'Bình nguyệt men lam', 'Gốm sứ · Thế kỷ XIX', 'TC–CER–019'],
+                            ['https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80', 'Tủ sơn son thếp vàng', 'Nội thất cung đình', 'TC–FUR–041'],
+                            ['https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=800&q=80', 'Tượng Quan Âm đồng cổ', 'Điêu khắc · Đồng patina', 'TC–SCU–026'],
+                            ['https://images.unsplash.com/photo-1577083552431-6e5fd01988a5?auto=format&fit=crop&w=800&q=80', 'Trống đồng Đông Sơn', 'Khảo cổ · Văn hóa Việt', 'TC–ARC–008'],
+                            ['https://images.unsplash.com/photo-1578662996442-48f60103fc96?auto=format&fit=crop&w=800&q=80', 'Sơn mài phong cảnh', 'Mỹ thuật Đông Dương', 'TC–ART–057'],
+                            ['https://images.unsplash.com/photo-1503602642458-232111445657?auto=format&fit=crop&w=800&q=80', 'Ghế học giả gỗ trắc', 'Thiết kế · Đầu thế kỷ XX', 'TC–FUR–063'],
+                        ].map(([image, title, category, code], index) => (
+                            <figure key={image} className={`museum-plate museum-plate-${index + 1}`}>
+                                <div className="museum-plate-image">
+                                    <img src={image} alt={title} loading="lazy" />
+                                    <span>{String(index + 1).padStart(2, '0')}</span>
+                                </div>
+                                <figcaption>
+                                    <p>{category}</p>
+                                    <h3>{title}</h3>
+                                    <span>Listing No. {code}</span>
+                                </figcaption>
+                            </figure>
+                        ))}
+
+                        <div className="museum-provenance-card museum-plate">
+                            <p>Featured selection</p>
+                            <strong>06</strong>
+                            <span>sản phẩm nổi bật<br />trong bộ sưu tập số 01</span>
+                            <div>
+                                <span>Documented</span>
+                                <span>Inspected</span>
+                                <span>Protected</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section className="home-catalogue relative overflow-hidden py-20 md:py-28" id="auction-floor">
+                <div className="absolute -right-32 top-10 h-80 w-80 rounded-full bg-[#b96f52]/10 blur-3xl" aria-hidden="true" />
+                <div className="absolute -left-20 bottom-20 h-72 w-72 rounded-full bg-[#647d76]/10 blur-3xl" aria-hidden="true" />
+
+                <div className="relative mx-auto max-w-[90rem] px-6 md:px-8">
+                    <div className="grid gap-10 border-b border-[#1c1815]/12 pb-12 lg:grid-cols-12 lg:items-end">
+                        <div className="lg:col-span-8">
+                            <p className="mb-5 text-[10px] font-bold uppercase tracking-[0.34em] text-[#9A6A2F]">Phiên đấu nổi bật · 2026</p>
+                            <h2 className="home-editorial-title max-w-4xl text-[clamp(3.3rem,7vw,6.6rem)] font-medium leading-[0.82] tracking-[-0.045em] text-[#1c1815]">
+                                Những phiên đấu<br />
+                                <span className="italic text-[#9A6A2F]">đáng được chờ đợi.</span>
+                            </h2>
+                        </div>
+                        <div className="lg:col-span-4 lg:pb-1">
+                            <p className="max-w-sm text-sm leading-7 text-[#746b62]">
+                                Từ nghệ thuật, thời trang, công nghệ đến phương tiện và đồ sưu tầm — cơ hội mới luôn được cập nhật mỗi ngày.
+                            </p>
+                            <div className="mt-6 flex items-center justify-between border-t border-[#1c1815]/12 pt-4">
+                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#746b62]">
+                                    {auctions.length} phiên
+                                </span>
+                                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#9A6A2F]">Đang cập nhật</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 overflow-x-auto py-8">
+                        {statusFilters.map(sf => (
+                            <button key={sf.value} onClick={() => updateFilter('status', sf.value)} className={`shrink-0 rounded-full px-5 py-2.5 text-xs font-bold transition-colors ${currentStatus === sf.value ? 'bg-[#1c1815] text-white' : 'border border-[#1c1815]/10 bg-white/45 text-[#746b62] hover:border-[#9A6A2F]/30 hover:text-[#9A6A2F]'}`}>
+                                {sf.label}
+                            </button>
+                        ))}
+                        {categories.slice(0, 4).map(c => (
+                            <button key={c.id} onClick={() => updateFilter('category_id', c.id)} className={`shrink-0 rounded-full px-5 py-2.5 text-xs font-bold transition-colors ${String(currentCategory) === String(c.id) ? 'bg-[#9A6A2F] text-white' : 'border border-[#1c1815]/10 bg-white/45 text-[#746b62] hover:border-[#9A6A2F]/30 hover:text-[#9A6A2F]'}`}>
+                                {c.name}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div ref={sectionRef}>
+                        {loading ? (
+                            <Skeleton.List count={6} />
+                        ) : (
+                            auctions.length ? (
+                                <div className="space-y-5">
+                                    {auctions.map((auc, index) => (
+                                        <AuctionListItem key={auc.id} auc={auc} index={index} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="rounded-2xl border border-[#1c1815]/10 bg-white/45 px-6 py-16 text-center">
+                                    <Gavel className="mx-auto h-8 w-8 text-[#9A6A2F]/50" />
+                                    <p className="mt-4 text-sm font-semibold text-[#1c1815]">Chưa có phiên đấu giá phù hợp.</p>
+                                    <p className="mt-2 text-xs text-[#746b62]">Thử chọn trạng thái hoặc danh mục khác.</p>
+                                </div>
+                            )
+                        )}
+                    </div>
+                </div>
+            </section>
+
+            <section ref={ctaRef} className="bg-[#f2ece2] px-6 pb-24 md:px-8 md:pb-32">
+                <div className={`relative mx-auto grid max-w-[90rem] overflow-hidden rounded-[2rem] bg-[#1c1815] text-white transition-all duration-700 lg:grid-cols-2 ${ctaVisible ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'}`}>
+                    <div className="relative min-h-[360px] overflow-hidden lg:order-2">
+                        <img src="https://images.unsplash.com/photo-1577083288073-40892c0860a4?auto=format&fit=crop&w=1800&q=85" alt="Không gian thẩm định và ký gửi cổ vật" className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-[#1c1815] via-transparent to-transparent lg:hidden" />
+                    </div>
+                    <div className="flex flex-col justify-center px-8 py-14 sm:px-14 lg:px-16 lg:py-20">
+                        <p className="mb-6 text-[10px] font-bold uppercase tracking-[0.34em] text-[#d5b47a]">Private Consignment</p>
+                        <h2 className="home-editorial-title text-4xl font-medium leading-[0.92] text-white sm:text-6xl">
+                            Một hiện vật quý<br />xứng đáng một sân khấu đúng.
+                        </h2>
+                        <p className="mt-6 max-w-lg text-sm leading-7 text-white/58">
+                            Đội ngũ giám tuyển đồng hành từ thẩm định, định giá đến khi phiên đấu khép lại.
+                        </p>
+                        <Link to="/auctions/create" className="magnetic-button mt-9 inline-flex w-fit items-center gap-4 rounded-full bg-[#faf7f1] px-7 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[#1c1815] transition-all hover:bg-[#d5b47a]" onClick={ripple} {...magneticProps}>
+                            Bắt đầu ký gửi <ArrowRight className="h-4 w-4" />
                         </Link>
                     </div>
                 </div>

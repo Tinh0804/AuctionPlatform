@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import useAuthStore from '@/shared/store/useAuthStore';
-import { LayoutDashboard, Users, ShoppingBag, FolderOpen, Scale, Bell, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingBag, FolderOpen, Scale, Bell, LogOut } from 'lucide-react';
 export default function AdminLayout() {
     const { user, logout } = useAuthStore();
     const navigate = useNavigate();
@@ -13,11 +13,10 @@ export default function AdminLayout() {
         { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
         { name: 'Người dùng', path: '/admin/users', icon: Users },
         { name: 'Phiên đấu giá', path: '/admin/auctions', icon: Scale },
-        { name: 'Sản phẩm', path: '/admin/products', icon: ShoppingBag },
         { name: 'Danh mục', path: '/admin/categories', icon: FolderOpen },
+        { name: 'Đơn hàng', path: '/admin/orders', icon: ShoppingBag },
         { name: 'Khiếu nại', path: '/admin/disputes', icon: Scale },
         { name: 'Thông báo', path: '/admin/notifications', icon: Bell },
-        { name: 'Cài đặt', path: '/admin/settings', icon: Settings },
     ];
 
     const handleLogout = () => {

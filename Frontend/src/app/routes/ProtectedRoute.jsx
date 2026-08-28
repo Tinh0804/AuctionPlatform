@@ -4,6 +4,7 @@
 // Moved from: src/components/ProtectedRoute.jsx
 // ============================================================
 import { Navigate, useLocation } from 'react-router-dom';
+import { TOKEN_KEY } from '@/config/constants';
 
 /**
  * @param {Object} props
@@ -11,7 +12,7 @@ import { Navigate, useLocation } from 'react-router-dom';
  * @param {string[]} [props.allowedRoles] - Nếu truyền vào, kiểm tra thêm role từ localStorage
  */
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(TOKEN_KEY);
   const location = useLocation();
 
   if (!token) {

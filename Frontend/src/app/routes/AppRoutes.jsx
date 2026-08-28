@@ -35,6 +35,11 @@ import CreateAuction from '@/pages/seller/CreateAuction';
 import CreateDisputePage from '@/pages/bidder/profile/CreateDisputePage';
 import AdminDisputesPage from '@/pages/admin/AdminDisputesPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
+import AdminUsersPage from '@/pages/admin/AdminUsersPage';
+import AdminCategoriesPage from '@/pages/admin/AdminCategoriesPage';
+import AdminAuctionsPage from '@/pages/admin/AdminAuctionsPage';
+import AdminOrdersPage from '@/pages/admin/AdminOrdersPage';
+import AdminNotificationsPage from '@/pages/admin/AdminNotificationsPage';
 import AdminLoginPage from '@/pages/admin/AdminLoginPage';
 import AdminLayout from '@/app/layouts/AdminLayout';
 
@@ -56,7 +61,12 @@ const AppRoutes = () => {
       {/* ── Admin Layout ── */}
       <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
         <Route index element={<AdminDashboardPage />} />
+        <Route path="users" element={<AdminUsersPage />} />
         <Route path="disputes" element={<AdminDisputesPage />} />
+        <Route path="categories" element={<AdminCategoriesPage />} />
+        <Route path="auctions" element={<AdminAuctionsPage />} />
+        <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="notifications" element={<AdminNotificationsPage />} />
       </Route>
 
       {/* ── Main Layout ── */}
@@ -85,9 +95,6 @@ const AppRoutes = () => {
 
         {/* Protected: Seller */}
         <Route path="auctions/create" element={<ProtectedRoute><CreateAuction /></ProtectedRoute>} />
-
-        <Route path="admin/disputes" element={<ProtectedRoute><AdminDisputesPage /></ProtectedRoute>} />
-
 
         {/* 404 */}
         <Route path="*" element={<NotFound />} />

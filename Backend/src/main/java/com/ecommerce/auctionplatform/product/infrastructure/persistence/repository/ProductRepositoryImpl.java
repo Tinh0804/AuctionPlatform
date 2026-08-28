@@ -30,4 +30,9 @@ public class ProductRepositoryImpl implements ProductRepository {
     public List<Product> findAll() {
         return jpaRepository.findAll().stream().map(mapper::toDomain).toList();
     }
+
+    @Override
+    public long countByCategoryId(UUID categoryId) {
+        return jpaRepository.countByCategoryId(categoryId);
+    }
 }

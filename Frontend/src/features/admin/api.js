@@ -1,4 +1,46 @@
 import apiClient from '@/shared/api/apiClient';
 
-export const getOverviewStats = (period = 'week') =>
-    apiClient.get(`/admin/stats/overview?period=${period}`).then(r => r.data);
+export const adminApi = {
+  getOverviewStats: (period = 'week') =>
+    apiClient.get(`/admin/stats/overview?period=${period}`).then(r => r.data),
+
+  getAllUsers: (params) => apiClient.get('/admin/users', { params }).then(r => r.data),
+  getUserDetail: (id) => apiClient.get(`/admin/users/${id}`).then(r => r.data),
+  toggleUserStatus: (id) => apiClient.put(`/admin/users/${id}/toggle-active`).then(r => r.data),
+  toggleWalletStatus: (id) => apiClient.put(`/admin/users/${id}/wallet/toggle-status`).then(r => r.data),
+  updateVerificationStatus: (id, status) =>
+    apiClient.put(`/admin/users/${id}/verification?status=${status}`).then(r => r.data),
+  updateUser: (id, data) => apiClient.put(`/admin/users/${id}`, data).then(r => r.data),
+  deleteUser: (id) => apiClient.delete(`/admin/users/${id}`).then(r => r.data),
+
+  getAllCategories: () => apiClient.get('/auctions/categories').then(r => r.data),
+  createCategory: (data) => apiClient.post('/admin/categories', data).then(r => r.data),
+  updateCategory: (id, data) => apiClient.put(`/admin/categories/${id}`, data).then(r => r.data),
+  deleteCategory: (id) => apiClient.delete(`/admin/categories/${id}`).then(r => r.data),
+
+  getAllAuctions: (params) => apiClient.get('/admin/auctions', { params }).then(r => r.data),
+  getAuctionDetail: (id) => apiClient.get(`/auctions/${id}`).then(r => r.data),
+  updateAuctionStatus: (id, status) =>
+    apiClient.put(`/admin/auctions/${id}/status?status=${status}`).then(r => r.data),
+  updateAuction: (id, data) => apiClient.put(`/admin/auctions/${id}`, data).then(r => r.data),
+  deleteAuction: (id) => apiClient.delete(`/admin/auctions/${id}`).then(r => r.data),
+
+  getAllDisputes: (params) => apiClient.get('/admin/disputes', { params }).then(r => r.data),
+  getDisputeDetail: (id) => apiClient.get(`/admin/disputes/${id}`).then(r => r.data),
+  resolveDispute: (id, data) => apiClient.post(`/admin/disputes/${id}/resolve`, data).then(r => r.data),
+
+  getAllOrders: (params) => apiClient.get('/admin/orders', { params }).then(r => r.data),
+  getOrderDetail: (id) => apiClient.get(`/admin/orders/${id}`).then(r => r.data),
+  cancelOrder: (id) => apiClient.post(`/admin/orders/${id}/cancel`).then(r => r.data),
+  forcePayOrder: (id) => apiClient.post(`/admin/orders/${id}/pay`).then(r => r.data),
+
+  getAllNotifications: (params) => apiClient.get('/admin/notifications', { params }).then(r => r.data),
+  getAdminNotifications: () => apiClient.get('/admin/notifications/my').then(r => r.data),
+  getUnreadCount: () => apiClient.get('/admin/notifications/unread-count').then(r => r.data),
+  sendNotification: (data) => apiClient.post('/admin/notifications/send', data).then(r => r.data),
+  markNotificationRead: (id) => apiClient.put(`/admin/notifications/${id}/read`).then(r => r.data),
+  markAllNotificationsRead: () => apiClient.put('/admin/notifications/read-all').then(r => r.data),
+  deleteNotification: (id) => apiClient.delete(`/admin/notifications/${id}`).then(r => r.data),
+};
+
+export const getOverviewStats = adminApi.getOverviewStats;

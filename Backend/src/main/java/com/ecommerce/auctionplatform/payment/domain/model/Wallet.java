@@ -41,6 +41,11 @@ public class Wallet {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void toggleOperationalStatus() {
+        this.status = this.status == WalletStatus.ACTIVE ? WalletStatus.FROZEN : WalletStatus.ACTIVE;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void freezeBalance(BigDecimal amount) {
         requirePositive(amount);
         if (this.availableBalance.compareTo(amount) < 0) {

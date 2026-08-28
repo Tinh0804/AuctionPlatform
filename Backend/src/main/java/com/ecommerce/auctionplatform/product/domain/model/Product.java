@@ -51,6 +51,13 @@ public class Product {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void moveToCategory(Category category) {
+        if (category != null) {
+            this.category = category;
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
     public void approve() {
         this.status = ProductStatus.APPROVED;
         this.updatedAt = LocalDateTime.now();

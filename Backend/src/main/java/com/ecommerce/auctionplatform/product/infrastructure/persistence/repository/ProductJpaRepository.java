@@ -8,4 +8,5 @@ import java.util.UUID;
 
 @Repository
 interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID> {
+    long countByCategoryId(UUID categoryId);
 }

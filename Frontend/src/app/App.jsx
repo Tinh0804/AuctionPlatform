@@ -4,6 +4,7 @@ import { ToastProvider } from '@/shared/ui/Toast';
 import AppRoutes from '@/app/routes/AppRoutes';
 import useAuthStore from '@/shared/store/useAuthStore';
 import { getMyInfo } from '@/features/auth/api';
+import { Toaster } from 'react-hot-toast';
 
 // Scroll to top on route change (instant, not smooth)
 function ScrollToTop() {
@@ -32,6 +33,7 @@ function App() {
 
   return (
     <ToastProvider>
+      <Toaster position="top-right" />
       <Router>
         <ScrollToTop />
         <AppRoutes />

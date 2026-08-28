@@ -5,6 +5,8 @@ import com.ecommerce.auctionplatform.identity.domain.model.User;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import com.ecommerce.auctionplatform.identity.domain.valueobject.UserSearchCriteria;
+import com.ecommerce.auctionplatform.shared.domain.model.PageResult;
 
 public interface UserRepository {
     User save(User user);
@@ -13,6 +15,9 @@ public interface UserRepository {
     Optional<User> findByAccountId(UUID accountId);
     Optional<User> findFirstByAccountRoleId(UUID roleId);
     Optional<User> findFirstByAccountRoleName(String roleName);
+    List<User> findAll();
+    List<User> findByAccountRoleName(String roleName);
+    PageResult<User> searchNonAdmin(UserSearchCriteria criteria);
     boolean existsByPhone(String phone);
     boolean existsByEmail(String email);
 }

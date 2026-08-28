@@ -36,6 +36,16 @@ public class UserDirectoryService implements UserDirectoryUseCase {
         return userRepository.findFirstByAccountRoleName(PredefinedRole.ADMIN.name()).map(this::toProfile);
     }
 
+    @Override
+    public java.util.List<UserProfile> findAll() {
+        return userRepository.findAll().stream().map(this::toProfile).toList();
+    }
+
+    @Override
+    public java.util.List<UserProfile> findByRoleName(String roleName) {
+        return userRepository.findByAccountRoleName(roleName).stream().map(this::toProfile).toList();
+    }
+
     private UserProfile toProfile(User user) {
         return new UserProfile(
                 user.getId(),

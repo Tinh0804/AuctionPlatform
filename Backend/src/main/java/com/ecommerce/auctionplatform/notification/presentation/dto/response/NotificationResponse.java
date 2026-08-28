@@ -11,6 +11,8 @@ public record NotificationResponse(
         String referenceType,
         UUID referenceId,
         Boolean isRead,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        UUID recipientId,
+        String recipientName
 ) {
 }

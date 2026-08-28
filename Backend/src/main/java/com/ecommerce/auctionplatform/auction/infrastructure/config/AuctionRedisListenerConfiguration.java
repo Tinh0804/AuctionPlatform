@@ -7,7 +7,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Configuration
 public class AuctionRedisListenerConfiguration {
     @Bean
@@ -18,6 +20,12 @@ public class AuctionRedisListenerConfiguration {
     ) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+        try {
+            connectionFactory.getConnection().setConfig("notify-keyspace-events", "Ex");
+            log.info("Enabled Redis keyspace expiry notifications");
+        } catch (Exception exception) {
+            log.warn("Could not enable Redis keyspace expiry notifications dynamically: {}", exception.getMessage());
+        }
         container.addMessageListener(expirationListener, new PatternTopic("__keyevent@*__:expired"));
         return container;
     }

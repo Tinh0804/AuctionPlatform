@@ -31,4 +31,12 @@ public class Account {
     ProviderType provider = ProviderType.LOCAL;
 
     String providerId;
+
+    public void toggleActive() {
+        this.isActive = !Boolean.TRUE.equals(this.isActive);
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+    }
 }
