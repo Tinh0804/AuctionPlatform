@@ -17,6 +17,8 @@ spring:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
       database: ${REDIS_DATABASE:1}
+      repositories:
+        enabled: false
   cache:
     type: redis
   datasource:
