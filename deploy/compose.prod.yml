@@ -28,7 +28,7 @@ services:
       - max_connections=50
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../Backend/database.sql:/docker-entrypoint-initdb.d/001-bootstrap.sql:ro
+      - ./database.sql:/docker-entrypoint-initdb.d/001-bootstrap.sql:ro
     networks:
       - data
     healthcheck:
