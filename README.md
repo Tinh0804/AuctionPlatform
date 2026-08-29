@@ -18,6 +18,42 @@
 
 ---
 
+## 📸 Ảnh minh họa (Demo)
+
+### Giao diện Người dùng
+
+| Trang chủ | Phiên đấu giá |
+| :---: | :---: |
+| ![Trang chủ](Frontend/public/screenshots/user/home.png) | ![Phiên đấu giá](Frontend/public/screenshots/user/auction.png) |
+
+<details>
+<summary><b>🖱️ Xem thêm giao diện Người dùng</b></summary>
+<br>
+
+| Đơn hàng | Hồ sơ | Ví điện tử |
+| :---: | :---: | :---: |
+| ![Đơn hàng](Frontend/public/screenshots/user/order.png) | ![Hồ sơ](Frontend/public/screenshots/user/profile.png) | ![Ví điện tử](Frontend/public/screenshots/user/wallet.png) |
+
+</details>
+
+### Giao diện Quản trị viên
+
+| Bảng điều khiển | Quản lý đấu giá |
+| :---: | :---: |
+| ![Bảng điều khiển](Frontend/public/screenshots/admin/dashboard.png) | ![Quản lý đấu giá](Frontend/public/screenshots/admin/auction.png) |
+
+<details>
+<summary><b>🖱️ Xem thêm giao diện Quản trị viên</b></summary>
+<br>
+
+| Người dùng | Danh mục | Khiếu nại |
+| :---: | :---: | :---: |
+| ![Quản lý người dùng](Frontend/public/screenshots/admin/user.png) | ![Quản lý danh mục](Frontend/public/screenshots/admin/category.png) | ![Quản lý khiếu nại](Frontend/public/screenshots/admin/dispute.png) |
+
+</details>
+
+---
+
 ## 🔑 Tài khoản Dùng thử (Demo Accounts)
 
 Hệ thống đã chuẩn bị sẵn 3 tài khoản mẫu với đầy đủ dữ liệu và quyền hạn để trải nghiệm toàn bộ luồng nghiệp vụ:
