@@ -33,6 +33,8 @@ build/
 .vscode/
 
 *.yaml
+!src/main/resources/application.yaml
+!src/test/resources/application-test.yaml
 .env
 
 # Local credentials and service-account keys must never be committed.
