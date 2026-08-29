@@ -84,6 +84,15 @@ sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/renew-ssl.sh
   0 3 * * 1 DEPLOY_HOME=/srv/auction /srv/auction/current/deploy/scripts/renew-ssl.sh >> /var/log/ssl-renew.log 2>&1
   ```
 
+### Sao chép (Sync) Dữ liệu từ GCP VM về Máy Local (Chạy từ máy Local)
+```bash
+bash deploy/scripts/sync-db-from-vm.sh
+# Hoặc truyền trực tiếp:
+bash deploy/scripts/sync-db-from-vm.sh <GCP_VM_IP> <GCP_VM_USER> <PATH_TO_SSH_KEY>
+```
+* Tự động SSH vào VM, xuất toàn bộ dữ liệu PostgreSQL từ container trên VM và tải về máy local tại `deploy/backups/`.
+* Tùy chọn tự động cập nhật đè vào `deploy/database.sql` và `Backend/database.sql` để đồng bộ môi trường dev.
+
 ---
 
 ## 4. Quản lý theo Từng Phân lớp (Layered Compose)
