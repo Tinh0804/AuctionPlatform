@@ -1,128 +1,84 @@
 name: CD Pipeline
-run-name: ${{ github.actor }}
-on:
-  workflow_run: 
-    workflows:
-      - "CI Pipeline" 
-    types: 
-      - completed 
-    branches: ['main','master','test']
 
-jobs: 
-  deploy-backend: 
-    name: Deploy Backend 
+on:
+  workflow_run:
+    workflows: [CI Pipeline]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Tested backend image tag (40-character Git SHA)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gcp-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-backend:
+    name: Deploy backend stack to GCP VM
+    if: >-
+      vars.GCP_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }} 
-    steps: 
-      - name: Checkout code
+    environment: production
+    env:
+      DEPLOY_SHA: ${{ inputs.image_tag || github.event.workflow_run.head_sha }}
+    steps:
+      - name: Validate immutable image tag
+        run: |
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "DEPLOY_SHA must be a full 40-character Git SHA" >&2
+            exit 1
+          }
+
+      - name: Checkout the exact release
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_branch }} #tự động nhận code nhánh kích hoạt CD
+          ref: ${{ env.DEPLOY_SHA }}
 
-      # - name: Copy docker-compose to EC2
-      #   uses: appleboy/scp-action@master
-      #   with:
-      #     host: ${{ secrets.SSH_ROOT }}
-      #     username: ${{ secrets.SSH_USERNAME }}
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     port: 22
-      #     source: "Backend/docker-compose.yml"
-      #     target: "/home/ec2-user/ridebook"
-      #     strip_components: 1
-
-      # - name: Deploy to EC2
-      #   uses: appleboy/ssh-action@v1.0.3
-      #   with: 
-      #     host: ${{ secrets.SSH_ROOT }}
-      #     username: ${{ secrets.SSH_USERNAME }} 
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }} 
-      #     port: 22
-      #     script: |
-      #       echo "Start Deploying EC2"
-      #       # Sửa đường dẫn chuẩn cho Amazon Linux 2023
-      #       mkdir -p /home/ec2-user/ridebook
-      #       cd /home/ec2-user/ridebook
-            
-      #       # Ghi mã định danh phiên bản code
-      #       echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" > .env
-      #       echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-            
-      #       # Ghi toàn bộ nội dung file .env từ Github Secrets
-      #       echo "${{ secrets.ENV_PROD }}" >> .env
-            
-      #       # Khởi động Docker Compose
-      #       docker-compose pull 
-      #       docker-compose up -d --force-recreate 
-            
-      #       # Dọn dẹp rác hệ thống để tránh đầy ổ cứng
-      #       docker-image prune -f 
-      #       echo "Deploy Backend EC2 Successfully"
-          # 1. Copy docker-compose sang Google Cloud VM
-      - name: Copy docker-compose to GCP VM
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.GCP_VM_IP }}          # Thay bằng Secret IP của GCP (35.220.141.228)
-          username: ${{ secrets.GCP_VM_USER }}    # Thay bằng 'ubuntu'
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }} # Khóa bí mật gcp_backend_key của bạn
-          port: 22
-          source: "Backend/docker-compose.yml"
-          target: "/home/ubuntu/auctionplatform"          
-          strip_components: 1
-
-      - name: Cleanup old Auction images
-        uses: appleboy/ssh-action@v1.0.3
-        with: 
-          host: ${{ secrets.GCP_VM_IP }}
-          username: ${{ secrets.GCP_VM_USER }} 
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }} 
-          port: 22
-          script: |
-            echo "🧹 Cleaning up old Auction images..."
-            
-            # Xóa các image auction cũ (giữ lại 2 image gần nhất)
-            sudo docker images | grep "tinh08042005/auction-backend" | grep -v "latest" | tail -n +3 | awk '{print $3}' | xargs -r sudo docker rmi -f 2>/dev/null || true
-            
-            # Xóa dangling images
-            sudo docker image prune -f
-            
-            echo "✅ Cleanup completed"
-
-      # 2. SSH vào GCP VM và khởi chạy Docker Compose
-      - name: Deploy to GCP VM
-        uses: appleboy/ssh-action@v1.0.3
-        with: 
-          host: ${{ secrets.GCP_VM_IP }}
-          username: ${{ secrets.GCP_VM_USER }} 
-          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }} 
-          port: 22
-          script: |
-            echo "Start Deploying to Google Cloud VM"
-            
-            # Khởi tạo thư mục làm việc của user ubuntu
-            mkdir -p /home/ubuntu/auctionplatform
-            cd /home/ubuntu/auctionplatform
-            
-            # Ghi mã định danh phiên bản code vào file .env
-            echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" > .env
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME }}" >> .env
-            
-            # Ghi toàn bộ nội dung file .env từ Github Secrets
-            echo "${{ secrets.ENV_PROD }}" >> .env
-            
-            # Dọn dẹp rác Docker cho đúng cú pháp chuẩn
-            sudo docker image prune -f
-            
-            # Khởi động Docker Compose với quyền sudo (Cần thiết trên Ubuntu mặc định)
-            sudo docker compose pull
-            sudo docker compose up -d --force-recreate 
-            
-            echo "Deploy Backend GCP Successfully"
-
-  deploy-frontend:
-    name: Deploy Frontend
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    steps:
-      - name: Trigger Vercel Deployment
+      - name: Prepare SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.GCP_SSH_KNOWN_HOSTS }}
         run: |
-          curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}" -d ""
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/gcp_deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/gcp_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Package deployment files
+        run: tar -czf "$RUNNER_TEMP/auction-deploy.tgz" deploy Backend/database.sql
+
+      - name: Copy release bundle to VM
+        run: |
+          scp -i "$HOME/.ssh/gcp_deploy" \
+            -P "${{ secrets.GCP_SSH_PORT || '22' }}" \
+            "$RUNNER_TEMP/auction-deploy.tgz" \
+            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:/tmp/auction-deploy-${DEPLOY_SHA}.tgz"
+
+      - name: Backup, deploy, health-check and activate release
+        run: |
+          ssh -i "$HOME/.ssh/gcp_deploy" \
+            -p "${{ secrets.GCP_SSH_PORT || '22' }}" \
+            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}" \
+            "DEPLOY_SHA='${DEPLOY_SHA}' bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          release_dir="/srv/auction/releases/$DEPLOY_SHA"
+          archive="/tmp/auction-deploy-$DEPLOY_SHA.tgz"
+
+          sudo mkdir -p "$release_dir"
+          sudo tar --no-same-owner -xzf "$archive" -C "$release_dir"
+          sudo DEPLOY_HOME=/srv/auction \
+            APP_ENV_FILE=/srv/auction/.env \
+            bash "$release_dir/deploy/scripts/deploy.sh" "$DEPLOY_SHA"
+          sudo ln -sfn "$release_dir" /srv/auction/current
+          rm -f "$archive"
+          REMOTE

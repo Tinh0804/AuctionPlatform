@@ -45,6 +45,8 @@ public class SecurityConfig {
                         "/auth/login",
                         "/auth/register",
                         "/auth/refresh",
+                        "/actuator/health",
+                        "/actuator/health/**",
                         "/customer/register",
                         "/drivers/register",
                         "/error"
