@@ -1,106 +1,101 @@
-# GCP VM production deployment
+# GCP VM Production Deployment Guide
 
-The production stack is defined in `compose.prod.yml`. Only the backend image
-is built by CI. PostgreSQL, Redis, and Nginx use official images and run on the
-same VM without exposing their internal ports.
+Hệ thống triển khai trên máy ảo GCP VM (1 VM ~ 4GB RAM) sử dụng Docker Compose với mô hình phân lớp rõ ràng:
+- **Tầng Dữ liệu (Stateful):** PostgreSQL 15 & Redis 7 (sử dụng External Volume bảo toàn dữ liệu).
+- **Tầng Ứng dụng (Stateless):** Spring Boot 3 Backend (port nội bộ `8080`) và Nginx Reverse Proxy (ports `80` & `443`).
 
-The backend listens on port `8080` inside the private Compose network. Nginx is
-the only public entry point on ports `80` and `443`. The configured memory
-limits total about 2.9 GiB (backend 1.4 GiB, PostgreSQL 1.1 GiB, Redis 256 MiB,
-Nginx 128 MiB), leaving room for Docker and the operating system on a 4 GiB VM.
+---
 
-## Safety rules
+## 1. Cấu trúc Thư mục Triển khai
 
-- Never run `docker compose down -v` or `docker volume prune`.
-- `POSTGRES_VOLUME_NAME` must be the exact existing volume name.
-- Keep `/srv/auction/.env` on the VM with mode `600`; do not commit it.
-- Keep Flyway disabled until V1/V2 pass a rehearsal on a restored backup.
-- The first adoption of the legacy PostgreSQL container is manual. Routine CD
-  deliberately refuses to continue while that container is still running.
-
-## One-time VM preparation
-
-1. Copy `.env.example` to `/srv/auction/.env` and fill in secrets.
-2. Identify the live PostgreSQL mount:
-
-   ```bash
-   docker inspect postgres_auction \
-     --format '{{range .Mounts}}{{printf "%s %s %s -> %s\n" .Type .Name .Source .Destination}}{{end}}'
-   ```
-
-3. Put the exact named-volume value in `POSTGRES_VOLUME_NAME`. If the output is
-   a bind mount, stop and adapt the compose volume mapping first.
-4. Ensure the current PostgreSQL major version matches `POSTGRES_IMAGE`.
-5. Ensure the existing TLS certificate is under
-   `/etc/letsencrypt/live/api.auctionplatform.tinhlelaptrinh.id.vn`.
-6. Create `/srv/auction/certbot/www` and restrict `/srv/auction/.env`:
-
-   ```bash
-   sudo mkdir -p /srv/auction/certbot/www /srv/auction/backups/postgres
-   sudo chmod 600 /srv/auction/.env
-   ```
-
-If the backend repository is private on Docker Hub, log in to Docker Hub once
-on the VM before enabling automated deployment.
-
-## GitHub configuration
-
-Configure these repository secrets:
-
-- `DOCKER_USERNAME` and `DOCKER_PASSWORD`
-- `GCP_VM_IP`, `GCP_VM_USER`, and optionally `GCP_SSH_PORT`
-- `GCP_SSH_PRIVATE_KEY`
-- `GCP_SSH_KNOWN_HOSTS`, captured from a trusted copy of the VM host key
-
-Create a protected GitHub Environment named `production`. Keep the repository
-variable `GCP_DEPLOY_ENABLED` unset or `false` during the one-time database
-adoption. Change it to `true` only after the volume, backup, restored rehearsal,
-TLS certificate, and first manual cutover have all been verified.
-
-## Database rehearsal
-
-Run `backup-postgres.sh`, restore the dump to an isolated PostgreSQL 15
-instance, then start the backend against that clone with:
-
-```dotenv
-FLYWAY_ENABLED=true
-FLYWAY_BASELINE_ON_MIGRATE=true
-FLYWAY_BASELINE_VERSION=0
+```text
+deploy/
+├── .env.example              # Mẫu biến môi trường production
+├── compose.prod.yml          # Compose tổng hợp toàn bộ stack (cho CI/CD)
+├── compose.infra.yml         # Tầng lưu trữ: PostgreSQL + Redis
+├── compose.app.yml           # Tầng ứng dụng: Backend + Nginx
+├── nginx/
+│   ├── nginx.conf            # Cấu hình chính Nginx (Worker, Event, Log, Rate limit)
+│   └── conf.d/
+│       └── api.conf          # Reverse Proxy, SSL TLS 1.2/1.3, Healthcheck /healthz
+└── scripts/
+    ├── lib/
+    │   └── common.sh         # Thư viện hàm tiện ích dùng chung (logging, read_env, lock)
+    ├── preflight.sh          # Kiểm tra môi trường, volume, disk, SSL trước deploy
+    ├── backup-postgres.sh    # Dump dữ liệu PostgreSQL + verify + SHA256
+    ├── restore-postgres.sh   # Khôi phục dữ liệu từ bản dump an toàn
+    ├── rollback.sh           # Rollback backend image khẩn cấp khi gặp lỗi
+    ├── renew-ssl.sh          # Tự động gia hạn chứng chỉ Let's Encrypt & reload Nginx
+    └── deploy.sh             # Điều phối toàn bộ luồng zero-downtime deploy
 ```
 
-Check migrated row counts for `users`, `products`, `images`, `product_images`,
-`disputes`, and `dispute_evidences`. Migration V1 removes the legacy `images`
-table after copying its data, so production must not be the first test.
+---
 
-After the first successful production migration, keep `FLYWAY_ENABLED=true`
-and set `FLYWAY_BASELINE_ON_MIGRATE=false`.
+## 2. Quy tắc An toàn Bắt buộc
 
-## One-time PostgreSQL adoption
+- **TUYỆT ĐỐI KHÔNG** chạy `docker compose down -v` hoặc `docker volume prune`.
+- Biến `POSTGRES_VOLUME_NAME` trong `/srv/auction/.env` phải khớp chính xác tên volume thật.
+- File `/srv/auction/.env` trên VM phải được phân quyền `chmod 600`.
+- Luôn giữ `FLYWAY_ENABLED=false` cho đến khi quá trình chạy thử nghiệm migration trên bản backup thành công.
 
-During the approved maintenance window:
+---
 
-1. Run and verify a new backup.
-2. Stop the legacy backend so no writes can occur.
-3. Stop the legacy PostgreSQL container.
-4. Remove only the stopped legacy container, never its volume.
-5. Run `preflight.sh` again and start the `postgres` service from the new
-   compose file using the same external volume.
-6. Verify `pg_isready` and critical row counts before starting the backend.
+## 3. Hướng dẫn Sử dụng các Script Vận hành
 
-The exact stop/remove commands must be chosen only after inspecting the VM.
-They are intentionally not automated in this repository.
-
-## Routine deployment
-
+### Triển khai Phiên bản Mới (Routine Deployment)
 ```bash
-sudo bash deploy/scripts/deploy.sh <tested-git-sha>
+sudo DEPLOY_HOME=/srv/auction APP_ENV_FILE=/srv/auction/.env bash deploy/scripts/deploy.sh <tested-git-sha>
+```
+* Tự động chạy preflight check.
+* Tự động sao lưu PostgreSQL có kiểm tra tính toàn vẹn và mã băm SHA256.
+* Pull image mới, khởi động Backend và chờ Healthcheck UP.
+* Nếu lỗi, tự động kích hoạt rollback về phiên bản trước.
+
+### Rollback Phiên bản Backend Khẩn cấp
+```bash
+# Rollback về phiên bản ghi nhận gần nhất trong /srv/auction/current-image-tag
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/rollback.sh
+
+# Hoặc chỉ định rõ một Git SHA muốn rollback tới:
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/rollback.sh <specific-git-sha>
 ```
 
-The script serializes deployments, verifies the volume and TLS files, creates a
-checked PostgreSQL backup, pulls the immutable backend image, waits for service
-health, tests the public HTTPS endpoint, and keeps the previous tagged image for
-rollback. It never removes Docker volumes.
+### Sao lưu Cơ sở Dữ liệu Thủ công
+```bash
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/backup-postgres.sh
+```
+* File backup được lưu tại `/srv/auction/backups/postgres/<db_name>_<timestamp>.dump` kèm file `.sha256`.
 
-Backups in `/srv/auction/backups/postgres` protect the cutover, but they are on
-the same VM disk. Copy verified dumps to a GCS bucket or another machine for
-disaster recovery and monitor free disk space.
+### Khôi phục Cơ sở Dữ liệu từ Bản Dump
+```bash
+# Yêu cầu xác nhận trước khi phục hồi
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/restore-postgres.sh /srv/auction/backups/postgres/auctiondb_20260828T120000Z.dump
+
+# Hoặc tự động xác nhận với cờ -y
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/restore-postgres.sh /path/to/backup.dump -y
+```
+
+### Gia hạn Chứng chỉ SSL & Reload Nginx
+```bash
+sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/renew-ssl.sh
+```
+* Có thể đưa vào Cronjob trên server để tự động chạy hàng tuần:
+  ```crontab
+  0 3 * * 1 DEPLOY_HOME=/srv/auction /srv/auction/current/deploy/scripts/renew-ssl.sh >> /var/log/ssl-renew.log 2>&1
+  ```
+
+---
+
+## 4. Quản lý theo Từng Phân lớp (Layered Compose)
+
+Nếu cần bảo trì riêng từng tầng mà không ảnh hưởng tầng còn lại:
+
+* **Chỉ khởi động Tầng Cơ sở Dữ liệu & Cache (Stateful):**
+  ```bash
+  docker compose --env-file /srv/auction/.env -f deploy/compose.infra.yml up -d
+  ```
+
+* **Chỉ cập nhật/khởi động Tầng Ứng dụng & Proxy (Stateless):**
+  ```bash
+  docker compose --env-file /srv/auction/.env -f deploy/compose.app.yml up -d
+  ```

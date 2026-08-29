@@ -1,26 +1,15 @@
 #!/usr/bin/env bash
+# backup-postgres.sh - Create a verified, sha256-checksummed PostgreSQL dump
 set -Eeuo pipefail
 
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 DEPLOY_HOME=${DEPLOY_HOME:-/srv/auction}
 ENV_FILE=${APP_ENV_FILE:-$DEPLOY_HOME/.env}
 BACKUP_DIR=${BACKUP_DIR:-$DEPLOY_HOME/backups/postgres}
 
-fail() {
-  printf 'ERROR: %s\n' "$1" >&2
-  exit 1
-}
-
-read_env_value() {
-  local key=$1
-  awk -F= -v wanted="$key" '
-    $1 == wanted {
-      value=substr($0, index($0, "=") + 1)
-      sub(/\r$/, "", value)
-      print value
-      exit
-    }
-  ' "$ENV_FILE"
-}
+# shellcheck source=deploy/scripts/lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
 [ -f "$ENV_FILE" ] || fail "Production env file not found: $ENV_FILE"
 
@@ -35,7 +24,10 @@ if [ -z "$container_id" ]; then
   container_id=$(docker ps --filter "name=^/${legacy_container}$" --format '{{.ID}}' | head -n 1)
 fi
 
-[ -n "$container_id" ] || fail "No running PostgreSQL container was found"
+if [ -z "$container_id" ]; then
+  log_warn "No running PostgreSQL container was found. Skipping backup (Initial deployment on fresh VM)."
+  exit 0
+fi
 
 container_env=$(docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container_id")
 db_user=$(printf '%s\n' "$container_env" | awk -F= '$1 == "POSTGRES_USER" {print substr($0, index($0, "=") + 1); exit}')
@@ -51,7 +43,10 @@ backup_file=$BACKUP_DIR/${db_name}_${timestamp}.dump
 partial_file=${backup_file}.partial
 trap 'rm -f "$partial_file"' EXIT
 
+log_info "Verifying database connection in container '$container_id'..."
 docker exec "$container_id" pg_isready -U "$db_user" -d "$db_name" >/dev/null
+
+log_info "Running pg_dump for database '$db_name'..."
 docker exec "$container_id" pg_dump \
   --username "$db_user" \
   --dbname "$db_name" \
@@ -59,7 +54,9 @@ docker exec "$container_id" pg_dump \
   --no-owner \
   --no-privileges > "$partial_file"
 
-[ -s "$partial_file" ] || fail "pg_dump produced an empty backup"
+[ -s "$partial_file" ] || fail "pg_dump produced an empty backup file."
+
+log_info "Verifying backup integrity with pg_restore --list..."
 docker exec -i "$container_id" pg_restore --list < "$partial_file" >/dev/null
 mv "$partial_file" "$backup_file"
 trap - EXIT
@@ -67,4 +64,4 @@ trap - EXIT
 sha256sum "$backup_file" > "${backup_file}.sha256"
 chmod 600 "$backup_file" "${backup_file}.sha256"
 
-printf 'Verified PostgreSQL backup created: %s\n' "$backup_file"
+log_success "Verified PostgreSQL backup created: $backup_file"

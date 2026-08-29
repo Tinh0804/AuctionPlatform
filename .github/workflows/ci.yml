@@ -87,7 +87,7 @@ jobs:
             nginx:1.27-alpine nginx -t
 
       - name: Validate deployment scripts
-        run: bash -n deploy/scripts/*.sh
+        run: bash -n deploy/scripts/*.sh deploy/scripts/lib/*.sh
 
   backend-image:
     name: Build and push backend image once

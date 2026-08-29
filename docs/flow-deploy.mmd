@@ -1,0 +1,29 @@
+flowchart TD
+    subgraph CI["1. GitHub Actions CI (ci.yml)"]
+        A[Git Push / PR to main] --> B1[Job: backend-test\nmvnw verify]
+        A --> B2[Job: frontend-build\nnpm ci && npm run build]
+        A --> B3[Job: deployment-config\nValidate Compose + Nginx -t + Bash -n]
+        B1 & B3 --> C{Push to main?}
+        C -- Yes --> D[Job: backend-image\nBuild Docker image & Push to Docker Hub\nTag: sha-commit]
+    end
+
+    subgraph CD["2. GitHub Actions CD (cd.yml)"]
+        D --> E[Trigger CD Pipeline\nCheck GCP_DEPLOY_ENABLED == true]
+        E --> F[SSH Setup & Package deploy bundle\nauction-deploy-sha.tgz]
+        F --> G[SCP bundle to GCP VM /tmp]
+        G --> H[SSH Remote Execution\nExtract to /srv/auction/releases/sha]
+    end
+
+    subgraph VM["3. GCP VM Execution (deploy.sh)"]
+        H --> I[Flock Lock\nChống trùng lặp deploy]
+        I --> J[preflight.sh\nCheck Docker, Volume, Disk space, SSL Certs]
+        J --> K[backup-postgres.sh\nDump + Verify pg_restore list + SHA256]
+        K --> L[docker compose pull backend]
+        L --> M[Start postgres & redis -> Wait healthy]
+        M --> N[Start new backend container -> Wait healthy]
+        N -- Failed --> O[rollback_backend to previous_tag]
+        N -- OK --> P[Start nginx -> Health check]
+        P --> Q[Public HTTPS Healthcheck /healthz]
+        Q -- Failed --> O
+        Q -- OK --> R[Save current-image-tag\nSymlink /srv/auction/current\nPrune old docker images]
+    end

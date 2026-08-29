@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# preflight.sh - Validate environment, certificates, volumes and dependencies before deployment
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -7,26 +8,10 @@ DEPLOY_HOME=${DEPLOY_HOME:-/srv/auction}
 ENV_FILE=${APP_ENV_FILE:-$DEPLOY_HOME/.env}
 COMPOSE_FILE=${COMPOSE_FILE:-$REPO_ROOT/deploy/compose.prod.yml}
 
-fail() {
-  printf 'ERROR: %s\n' "$1" >&2
-  exit 1
-}
+# shellcheck source=deploy/scripts/lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-read_env_value() {
-  local key=$1
-  awk -F= -v wanted="$key" '
-    $1 == wanted {
-      value=substr($0, index($0, "=") + 1)
-      sub(/\r$/, "", value)
-      print value
-      exit
-    }
-  ' "$ENV_FILE"
-}
-
-for command_name in docker awk curl df flock sha256sum; do
-  command -v "$command_name" >/dev/null 2>&1 || fail "$command_name is not installed"
-done
+check_required_tools docker awk curl df flock sha256sum
 
 docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is required"
 [ -f "$ENV_FILE" ] || fail "Production env file not found: $ENV_FILE"
@@ -34,8 +19,12 @@ docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is required"
 
 postgres_volume=$(read_env_value POSTGRES_VOLUME_NAME)
 [ -n "$postgres_volume" ] || fail "POSTGRES_VOLUME_NAME is missing from $ENV_FILE"
-docker volume inspect "$postgres_volume" >/dev/null 2>&1 \
-  || fail "PostgreSQL volume does not exist: $postgres_volume"
+
+if ! docker volume inspect "$postgres_volume" >/dev/null 2>&1; then
+  log_info "PostgreSQL volume '$postgres_volume' does not exist yet. Creating it for initial deployment..."
+  docker volume create "$postgres_volume" >/dev/null
+  log_success "Created PostgreSQL volume: $postgres_volume"
+fi
 
 legacy_container=$(read_env_value POSTGRES_CONTAINER_NAME)
 legacy_container=${legacy_container:-postgres_auction}
@@ -49,7 +38,7 @@ if docker container inspect "$legacy_container" >/dev/null 2>&1; then
   mount_rest=${mount_record#*|}
   mount_name=${mount_rest%%|*}
   if [ "$mount_type" != "volume" ]; then
-    fail "$legacy_container uses a bind mount. Adapt compose.prod.yml before cutover; do not continue automatically."
+    fail "$legacy_container uses a bind mount. Adapt compose files before cutover; do not continue automatically."
   fi
   [ "$mount_name" = "$postgres_volume" ] \
     || fail "Configured volume '$postgres_volume' differs from live volume '$mount_name'"
@@ -63,12 +52,12 @@ if docker container inspect "$legacy_container" >/dev/null 2>&1; then
 fi
 
 available_kb=$(df -Pk "$DEPLOY_HOME" | awk 'NR == 2 {print $4}')
-[ "${available_kb:-0}" -ge 2097152 ] || fail "At least 2 GiB free disk space is required"
+[ "${available_kb:-0}" -ge 2097152 ] || fail "At least 2 GiB free disk space is required on $DEPLOY_HOME"
 
 certificate_dir=/etc/letsencrypt/live/api.auctionplatform.tinhlelaptrinh.id.vn
 [ -f "$certificate_dir/fullchain.pem" ] || fail "TLS certificate not found at $certificate_dir/fullchain.pem"
 [ -f "$certificate_dir/privkey.pem" ] || fail "TLS private key not found at $certificate_dir/privkey.pem"
 
-IMAGE_TAG=preflight docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --quiet
+IMAGE_TAG=preflight compose config --quiet
 
-printf 'Preflight passed. PostgreSQL volume: %s\n' "$postgres_volume"
+log_success "Preflight passed. PostgreSQL volume: $postgres_volume"
