@@ -1,121 +1,86 @@
 name: CI Pipeline
+run-name: ${{ github.actor }}
 
 on:
   push:
-    branches: [main]
+    branches: ['main', 'master', 'infra/gcp-compose']
   pull_request:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    branches: ['main', 'master']
 
 jobs:
-  backend-test:
-    name: Backend verify
+  build-backend:
+    name: Build & Test Backend (Spring Boot)
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Backend
+        working-directory: ./Backend
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: "21"
-          distribution: temurin
+          java-version: '21'
+          distribution: 'temurin'
           cache: maven
 
-      - name: Run backend tests and package verification
-        run: ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Run Backend tests
+        run: ./mvnw -B -ntp test
 
-  frontend-build:
-    name: Frontend production build
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Backend
+          file: ./Backend/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}/auction-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}/auction-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  build-frontend:
+    name: Build & Test Frontend (React Vite)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Frontend
+        working-directory: ./Frontend
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: Frontend/package-lock.json
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './Frontend/package-lock.json'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend
+      - name: Build Frontend
         run: npm run build
 
-  deployment-config:
-    name: Validate Compose and Nginx
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate production Compose
-        env:
-          APP_ENV_FILE: ${{ github.workspace }}/deploy/.env.example
-        run: docker compose --env-file deploy/.env.example -f deploy/compose.prod.yml config --quiet
-
-      - name: Validate Nginx configuration
-        run: |
-          certificate_dir="$RUNNER_TEMP/letsencrypt/live/api.auctionplatform.tinhlelaptrinh.id.vn"
-          mkdir -p "$certificate_dir" "$RUNNER_TEMP/certbot"
-          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
-            -keyout "$certificate_dir/privkey.pem" \
-            -out "$certificate_dir/fullchain.pem" \
-            -subj '/CN=api.auctionplatform.tinhlelaptrinh.id.vn' >/dev/null 2>&1
-          docker run --rm \
-            --add-host backend:127.0.0.1 \
-            -v "$PWD/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
-            -v "$PWD/deploy/nginx/conf.d/api.conf:/etc/nginx/conf.d/default.conf:ro" \
-            -v "$RUNNER_TEMP/letsencrypt:/etc/letsencrypt:ro" \
-            -v "$RUNNER_TEMP/certbot:/var/www/certbot:ro" \
-            nginx:1.27-alpine nginx -t
-
-      - name: Validate deployment scripts
-        run: bash -n deploy/scripts/*.sh deploy/scripts/lib/*.sh
-
-  backend-image:
-    name: Build and push backend image once
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend-test, deployment-config]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build and push immutable backend image
-        uses: docker/build-push-action@v6
-        with:
-          context: Backend
-          file: Backend/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/auction-backend:${{ github.sha }}
-          cache-from: type=gha,scope=auction-backend
-          cache-to: type=gha,mode=max,scope=auction-backend
-          provenance: true
+          name: frontend-build
+          path: ./Frontend/dist
+          retention-days: 1

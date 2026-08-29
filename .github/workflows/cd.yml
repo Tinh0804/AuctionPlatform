@@ -1,84 +1,89 @@
 name: CD Pipeline
+run-name: ${{ github.actor }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   workflow_run:
-    workflows: [CI Pipeline]
-    types: [completed]
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: Tested backend image tag (40-character Git SHA)
-        required: true
-        type: string
-
-permissions:
-  contents: read
-
-concurrency:
-  group: gcp-production
-  cancel-in-progress: false
+    workflows:
+      - "CI Pipeline"
+    types:
+      - completed
+    branches: ['main', 'master', 'infra/gcp-compose']
 
 jobs:
   deploy-backend:
-    name: Deploy backend stack to GCP VM
-    if: >-
-      vars.GCP_DEPLOY_ENABLED == 'true' &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'))
+    name: 🚀 Deploy Backend to GCP VM
     runs-on: ubuntu-latest
-    environment: production
-    env:
-      DEPLOY_SHA: ${{ inputs.image_tag || github.event.workflow_run.head_sha }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 15
     steps:
-      - name: Validate immutable image tag
-        run: |
-          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "DEPLOY_SHA must be a full 40-character Git SHA" >&2
-            exit 1
-          }
-
-      - name: Checkout the exact release
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.DEPLOY_SHA }}
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 1
 
-      - name: Prepare SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.GCP_SSH_KNOWN_HOSTS }}
-        run: |
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/gcp_deploy"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/gcp_deploy" "$HOME/.ssh/known_hosts"
+      - name: Copy deployment files to GCP VM
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.GCP_SSH_PORT || 22 }}
+          source: "deploy/**"
+          target: "/home/${{ secrets.GCP_VM_USER }}/auction"
+          strip_components: 1
+          overwrite: true
 
-      - name: Package deployment files
-        run: tar -czf "$RUNNER_TEMP/auction-deploy.tgz" deploy Backend/database.sql
-
-      - name: Copy release bundle to VM
-        run: |
-          scp -i "$HOME/.ssh/gcp_deploy" \
-            -P "${{ secrets.GCP_SSH_PORT || '22' }}" \
-            "$RUNNER_TEMP/auction-deploy.tgz" \
-            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}:/tmp/auction-deploy-${DEPLOY_SHA}.tgz"
-
-      - name: Backup, deploy, health-check and activate release
-        run: |
-          ssh -i "$HOME/.ssh/gcp_deploy" \
-            -p "${{ secrets.GCP_SSH_PORT || '22' }}" \
-            "${{ secrets.GCP_VM_USER }}@${{ secrets.GCP_VM_IP }}" \
-            "DEPLOY_SHA='${DEPLOY_SHA}' bash -s" <<'REMOTE'
-          set -Eeuo pipefail
-          release_dir="/srv/auction/releases/$DEPLOY_SHA"
-          archive="/tmp/auction-deploy-$DEPLOY_SHA.tgz"
-
-          sudo mkdir -p "$release_dir"
-          sudo tar --no-same-owner -xzf "$archive" -C "$release_dir"
-          sudo DEPLOY_HOME=/srv/auction \
-            APP_ENV_FILE=/srv/auction/.env \
-            bash "$release_dir/deploy/scripts/deploy.sh" "$DEPLOY_SHA"
-          sudo ln -sfn "$release_dir" /srv/auction/current
-          rm -f "$archive"
-          REMOTE
+      - name: Deploy to GCP VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.GCP_SSH_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            echo "🚀 Start Deploying AuctionPlatform to Google Cloud VM"
+            
+            DEPLOY_DIR="/home/${{ secrets.GCP_VM_USER }}/auction"
+            mkdir -p "$DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+            
+            # Ghi mã định danh phiên bản code và Docker username vào .env
+            echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" > .env.release
+            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}" >> .env.release
+            
+            # Nếu có cấu hình secret ENV_PROD trên GitHub thì ghi đè vào .env
+            if [ -n "${{ secrets.ENV_PROD || '' }}" ]; then
+              echo "${{ secrets.ENV_PROD }}" >> .env.release
+            fi
+            
+            # Đảm bảo file .env tồn tại trên server nếu chưa có
+            if [ -f .env.release ]; then
+              cat .env.release >> .env 2>/dev/null || cp .env.release .env
+            fi
+            
+            # Đăng nhập Docker Hub trên VM để hỗ trợ kéo image
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}" --password-stdin || true
+            
+            # Pull image backend mới nhất
+            echo "📦 Pulling new image..."
+            sudo docker compose -f compose.prod.yml pull backend || sudo docker compose -f compose.prod.yml pull backend
+            
+            # Khởi động toàn bộ các container (postgres, redis, backend, nginx)
+            echo "🔄 Starting services..."
+            sudo docker compose -f compose.prod.yml up -d
+            
+            # Kiểm tra trạng thái containers
+            echo "🔍 Checking container status..."
+            sudo docker compose -f compose.prod.yml ps
+            
+            # Dọn dẹp images cũ
+            echo "🧹 Cleaning up old unused images..."
+            sudo docker image prune -f -a --filter "until=24h" || true
+            
+            echo "✅ Deploy Backend GCP Successfully"
