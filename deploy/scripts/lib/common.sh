@@ -46,9 +46,91 @@ read_env_value() {
   ' "$env_path"
 }
 
+# Read the first non-empty line from a release metadata file.
+read_release_tag() {
+  local tag_file=$1
+  [ -f "$tag_file" ] || return 1
+  awk 'NF {print; exit}' "$tag_file"
+}
+
+# Replace release metadata atomically so an interrupted deployment cannot leave
+# a partially-written image tag behind.
+write_release_tag() {
+  local tag_file=$1
+  local tag=$2
+  local tag_dir temp_file
+
+  tag_dir=$(dirname "$tag_file")
+  mkdir -p "$tag_dir"
+  temp_file=$(mktemp "${tag_file}.tmp.XXXXXX")
+  printf '%s\n' "$tag" > "$temp_file"
+  chmod 600 "$temp_file"
+  mv "$temp_file" "$tag_file"
+}
+
+# Resolve the backend repository without a tag. BACKEND_REPOSITORY is useful
+# for one-off maintenance; production normally reads BACKEND_IMAGE from .env.
+resolve_backend_repository() {
+  local repository last_component docker_username
+
+  repository=${BACKEND_REPOSITORY:-}
+  if [ -z "$repository" ]; then
+    repository=$(read_env_value BACKEND_IMAGE 2>/dev/null || true)
+  fi
+  if [ -z "$repository" ]; then
+    docker_username=$(read_env_value DOCKER_USERNAME 2>/dev/null || true)
+    repository=${docker_username:-tinh08042005}/auction-backend
+  fi
+
+  repository=${repository%@*}
+  last_component=${repository##*/}
+  case "$last_component" in
+    *:*) repository=${repository%:*} ;;
+  esac
+
+  [ -n "$repository" ] || fail "Could not resolve the backend image repository."
+  printf '%s\n' "$repository"
+}
+
+# Print the tag only when an image reference belongs to the expected repository.
+image_tag_for_repository() {
+  local image_ref=$1
+  local repository=$2
+
+  case "$image_ref" in
+    "$repository":*) printf '%s\n' "${image_ref#"$repository:"}" ;;
+    *) return 1 ;;
+  esac
+}
+
 # Wrapper for docker compose with the configured environment and compose file
 compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+# Discover the immutable tag used by the currently running Compose backend.
+running_backend_tag() {
+  local repository=$1
+  local container_id image_ref
+
+  container_id=$(compose ps -q backend 2>/dev/null | head -n 1 || true)
+  [ -n "$container_id" ] || return 1
+  image_ref=$(docker container inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || true)
+  [ -n "$image_ref" ] || return 1
+  image_tag_for_repository "$image_ref" "$repository"
+}
+
+# Rotate current/previous metadata only after a release has passed health checks.
+record_successful_release() {
+  local new_tag=$1
+  local current_before=$2
+  local current_tag_file=$3
+  local previous_tag_file=$4
+
+  if [ -n "$current_before" ] && [ "$current_before" != "$new_tag" ]; then
+    write_release_tag "$previous_tag_file" "$current_before"
+  fi
+  write_release_tag "$current_tag_file" "$new_tag"
 }
 
 # Check if required CLI tools exist on the host

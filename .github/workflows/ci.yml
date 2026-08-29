@@ -18,6 +18,32 @@ on:
       - '.github/workflows/**'
 
 jobs:
+  validate-deployment:
+    name: Validate Deployment Safety
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deployment shell syntax
+        run: |
+          bash -n \
+            deploy/scripts/lib/common.sh \
+            deploy/scripts/deploy.sh \
+            deploy/scripts/rollback.sh \
+            deploy/scripts/cleanup-backend-images.sh \
+            deploy/tests/cleanup-backend-images-test.sh
+
+      - name: Test backend image retention
+        run: bash deploy/tests/cleanup-backend-images-test.sh
+
+      - name: Validate production Compose configuration
+        env:
+          # Service env_file paths are resolved relative to compose.prod.yml.
+          RUNTIME_ENV_FILE: .env.example
+          DB_PASSWORD: compose-validation-only
+        run: docker compose --env-file deploy/.env.example -f deploy/compose.prod.yml config --quiet
+
   build-backend:
     name: Build & Test Backend (Spring Boot)
     permissions:

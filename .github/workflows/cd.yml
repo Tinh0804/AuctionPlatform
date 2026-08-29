@@ -52,45 +52,41 @@ jobs:
             DEPLOY_DIR="/home/${{ secrets.GCP_VM_USER }}/auction"
             mkdir -p "$DEPLOY_DIR"
             cd "$DEPLOY_DIR"
-            
-            # Ghi mã định danh phiên bản code và Docker username vào .env
-            echo "IMAGE_TAG=${{ github.event.workflow_run.head_sha }}" > .env.release
-            echo "DOCKER_USERNAME=${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}" >> .env.release
-            
-            # Nếu có cấu hình secret ENV_PROD trên GitHub thì ghi đè vào .env
+
+            RELEASE_TAG="${{ github.event.workflow_run.head_sha }}"
+            DOCKER_NAMESPACE="${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}"
+            BACKEND_REPOSITORY="$DOCKER_NAMESPACE/auction-backend"
+
+            # ENV_PROD là nguồn cấu hình chính. Nếu secret chưa được cấu hình,
+            # giữ lại cấu hình hiện tại trên VM và chỉ cập nhật metadata release.
             if [ -n "${{ secrets.ENV_PROD || '' }}" ]; then
-              echo "${{ secrets.ENV_PROD }}" >> .env.release
-            fi
-            
-            # Đảm bảo file .env tồn tại trên server nếu chưa có
-            if [ -f .env.release ]; then
-              cat .env.release >> .env 2>/dev/null || cp .env.release .env
-            fi
-            
-            # Đăng nhập Docker Hub trên VM để hỗ trợ kéo image
-            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "${{ secrets.DOCKER_USERNAME || vars.DOCKER_NAMESPACE }}" --password-stdin || true
-            
-            # Pull image backend mới nhất
-            echo "📦 Pulling new image..."
-            sudo docker compose -f compose.prod.yml pull backend || sudo docker compose -f compose.prod.yml pull backend
-            
-            # Kiểm tra trạng thái của Postgres và Redis
-            INFRA_RUNNING=$(sudo docker compose -f compose.prod.yml ps --filter "status=running" --services 2>/dev/null | grep -E '^(postgres|redis)$' | wc -l || echo "0")
-            
-            if [ "$INFRA_RUNNING" -lt 2 ]; then
-              echo "⚡ Phát hiện cơ sở hạ tầng (Postgres / Redis) chưa chạy đầy đủ. Khởi động toàn bộ dịch vụ..."
-              sudo docker compose -f compose.prod.yml up -d
+              printf '%s\n' "${{ secrets.ENV_PROD }}" > .env.release
+            elif [ -f .env ]; then
+              cp .env .env.release
             else
-              echo "✅ Postgres và Redis đã đang chạy ổn định. Chỉ cập nhật và deploy duy nhất Backend (không làm gián đoạn DB/Redis)!"
-              sudo docker compose -f compose.prod.yml up -d --no-deps backend
+              echo "❌ Missing both GitHub ENV_PROD and the existing VM .env file" >&2
+              exit 1
             fi
-            
-            # Kiểm tra trạng thái containers
-            echo "🔍 Checking container status..."
-            sudo docker compose -f compose.prod.yml ps
-            
-            # Dọn dẹp images cũ
-            echo "🧹 Cleaning up old unused images..."
-            sudo docker image prune -f -a --filter "until=24h" || true
-            
-            echo "✅ Deploy Backend GCP Successfully"
+
+            # Loại bỏ release key cũ rồi ghi đúng một giá trị mới. File được
+            # thay thế atomically để không tăng kích thước sau mỗi lần deploy.
+            ENV_NEXT=$(mktemp "$DEPLOY_DIR/.env.next.XXXXXX")
+            awk -F= '$1 != "IMAGE_TAG" && $1 != "DOCKER_USERNAME" && $1 != "BACKEND_IMAGE"' \
+              .env.release > "$ENV_NEXT"
+            printf 'IMAGE_TAG=%s\nDOCKER_USERNAME=%s\nBACKEND_IMAGE=%s\n' \
+              "$RELEASE_TAG" "$DOCKER_NAMESPACE" "$BACKEND_REPOSITORY" >> "$ENV_NEXT"
+            chmod 600 "$ENV_NEXT"
+            mv "$ENV_NEXT" .env
+            rm -f .env.release
+
+            # Đăng nhập Docker Hub trên VM để hỗ trợ kéo image
+            echo "${{ secrets.DOCKER_PASSWORD }}" | sudo docker login -u "$DOCKER_NAMESPACE" --password-stdin
+
+            # deploy.sh thực hiện backup, health check, rollback và chỉ cleanup
+            # backend images sau khi phiên bản mới đã vượt qua public health check.
+            sudo env \
+              DEPLOY_HOME="$DEPLOY_DIR" \
+              APP_ENV_FILE="$DEPLOY_DIR/.env" \
+              COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml" \
+              BACKEND_REPOSITORY="$BACKEND_REPOSITORY" \
+              bash "$DEPLOY_DIR/scripts/deploy.sh" "$RELEASE_TAG"

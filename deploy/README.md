@@ -25,6 +25,7 @@ deploy/
     ├── backup-postgres.sh    # Dump dữ liệu PostgreSQL + verify + SHA256
     ├── restore-postgres.sh   # Khôi phục dữ liệu từ bản dump an toàn
     ├── rollback.sh           # Rollback backend image khẩn cấp khi gặp lỗi
+    ├── cleanup-backend-images.sh # Chỉ giữ current + previous backend image
     ├── renew-ssl.sh          # Tự động gia hạn chứng chỉ Let's Encrypt & reload Nginx
     └── deploy.sh             # Điều phối toàn bộ luồng zero-downtime deploy
 ```
@@ -50,15 +51,33 @@ sudo DEPLOY_HOME=/srv/auction APP_ENV_FILE=/srv/auction/.env bash deploy/scripts
 * Tự động sao lưu PostgreSQL có kiểm tra tính toàn vẹn và mã băm SHA256.
 * Pull image mới, khởi động Backend và chờ Healthcheck UP.
 * Nếu lỗi, tự động kích hoạt rollback về phiên bản trước.
+* Sau khi public health check thành công, chỉ giữ image hiện tại và image thành công liền trước.
 
 ### Rollback Phiên bản Backend Khẩn cấp
 ```bash
-# Rollback về phiên bản ghi nhận gần nhất trong /srv/auction/current-image-tag
+# Rollback về phiên bản thành công liền trước trong /srv/auction/previous-image-tag
 sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/rollback.sh
 
 # Hoặc chỉ định rõ một Git SHA muốn rollback tới:
 sudo DEPLOY_HOME=/srv/auction bash deploy/scripts/rollback.sh <specific-git-sha>
 ```
+
+Sau rollback thành công, hai tag metadata được hoán đổi để có thể roll-forward lại
+phiên bản vừa rời khỏi. Cleanup không chạy trước health check và không tác động tới
+image PostgreSQL, Redis, Nginx hoặc repository khác.
+
+### Dọn Backend Image Thủ công
+```bash
+sudo DEPLOY_HOME=/srv/auction \
+  APP_ENV_FILE=/srv/auction/.env \
+  bash deploy/scripts/cleanup-backend-images.sh
+```
+
+Script ưu tiên giữ `current-image-tag`, `previous-image-tag` và image của backend
+đang chạy. Trong lần chạy đầu tiên chưa có đủ metadata, script tự chọn các image
+backend mới nhất cho đủ hai bản. Chỉ stopped container tham chiếu tới backend
+repository này và không dùng image được giữ mới bị xóa; container/image
+của PostgreSQL, Redis, Nginx và repository khác không bị tác động.
 
 ### Sao lưu Cơ sở Dữ liệu Thủ công
 ```bash

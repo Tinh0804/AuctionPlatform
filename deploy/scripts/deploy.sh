@@ -13,6 +13,7 @@ DEPLOY_HOME=${DEPLOY_HOME:-/srv/auction}
 ENV_FILE=${APP_ENV_FILE:-$DEPLOY_HOME/.env}
 COMPOSE_FILE=${COMPOSE_FILE:-$REPO_ROOT/deploy/compose.prod.yml}
 CURRENT_TAG_FILE=$DEPLOY_HOME/current-image-tag
+PREVIOUS_TAG_FILE=$DEPLOY_HOME/previous-image-tag
 LOCK_FILE=$DEPLOY_HOME/deploy.lock
 
 # shellcheck source=deploy/scripts/lib/common.sh
@@ -20,15 +21,22 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 acquire_deploy_lock "$LOCK_FILE"
 
-previous_tag=''
-if [ -f "$CURRENT_TAG_FILE" ]; then
-  previous_tag=$(head -n 1 "$CURRENT_TAG_FILE")
+backend_repository=$(resolve_backend_repository)
+current_before=$(read_release_tag "$CURRENT_TAG_FILE" 2>/dev/null || true)
+if [ -z "$current_before" ]; then
+  current_before=$(running_backend_tag "$backend_repository" 2>/dev/null || true)
 fi
 
 do_rollback() {
-  if [ -n "$previous_tag" ]; then
-    log_warn "Deployment step failed. Triggering automatic rollback to previous tag: $previous_tag"
-    bash "$SCRIPT_DIR/rollback.sh" "$previous_tag" || log_error "Rollback attempt failed."
+  if [ -n "$current_before" ]; then
+    log_warn "Deployment step failed. Triggering automatic rollback to previous tag: $current_before"
+    DEPLOY_LOCK_HELD=true \
+      DEPLOY_HOME="$DEPLOY_HOME" \
+      APP_ENV_FILE="$ENV_FILE" \
+      COMPOSE_FILE="$COMPOSE_FILE" \
+      BACKEND_REPOSITORY="$backend_repository" \
+      ROLLBACK_CURRENT_TAG="$current_before" \
+      bash "$SCRIPT_DIR/rollback.sh" "$current_before" || log_error "Rollback attempt failed."
   else
     log_warn "Deployment step failed. No previous tag available for automatic rollback."
   fi
@@ -72,10 +80,16 @@ if ! curl --fail --silent --show-error --retry 8 --retry-delay 5 "$health_url" >
   exit 1
 fi
 
-printf '%s\n' "$IMAGE_TAG" > "$CURRENT_TAG_FILE"
-chmod 600 "$CURRENT_TAG_FILE"
+record_successful_release "$IMAGE_TAG" "$current_before" "$CURRENT_TAG_FILE" "$PREVIOUS_TAG_FILE"
 
-log_info "Pruning unused Docker images..."
-docker image prune -f >/dev/null || true
+log_info "Keeping the current and previous successful backend images..."
+if ! DEPLOY_LOCK_HELD=true \
+  DEPLOY_HOME="$DEPLOY_HOME" \
+  APP_ENV_FILE="$ENV_FILE" \
+  COMPOSE_FILE="$COMPOSE_FILE" \
+  BACKEND_REPOSITORY="$backend_repository" \
+  bash "$SCRIPT_DIR/cleanup-backend-images.sh"; then
+  log_warn "Deployment succeeded, but old backend image cleanup failed."
+fi
 
 log_success "Deployment succeeded with image tag: $IMAGE_TAG"

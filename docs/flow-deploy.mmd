@@ -25,5 +25,5 @@ flowchart TD
         N -- OK --> P[Start nginx -> Health check]
         P --> Q[Public HTTPS Healthcheck /healthz]
         Q -- Failed --> O
-        Q -- OK --> R[Save current-image-tag\nSymlink /srv/auction/current\nPrune old docker images]
+        Q -- OK --> R[Rotate current/previous image tags\nKeep two backend images only]
     end
