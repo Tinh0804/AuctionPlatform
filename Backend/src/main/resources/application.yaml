@@ -41,7 +41,6 @@ spring:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     show-sql: ${JPA_SHOW_SQL:false}
     format-sql: true
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
   lifecycle:
     timeout-per-shutdown-phase: 30s
   security:
