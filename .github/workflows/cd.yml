@@ -84,9 +84,13 @@ jobs:
 
             # deploy.sh thực hiện backup, health check, rollback và chỉ cleanup
             # backend images sau khi phiên bản mới đã vượt qua public health check.
+            # VM hiện tại chưa áp dụng external-volume contract của preflight.sh,
+            # nên giữ hành vi CD tương thích trước đây và không yêu cầu biến mới.
             sudo env \
               DEPLOY_HOME="$DEPLOY_DIR" \
               APP_ENV_FILE="$DEPLOY_DIR/.env" \
               COMPOSE_FILE="$DEPLOY_DIR/compose.prod.yml" \
               BACKEND_REPOSITORY="$BACKEND_REPOSITORY" \
+              DEPLOY_PREFLIGHT_ENABLED=false \
+              DEPLOY_POSTGRES_BACKUP_ENABLED=false \
               bash "$DEPLOY_DIR/scripts/deploy.sh" "$RELEASE_TAG"

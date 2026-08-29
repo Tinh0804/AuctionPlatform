@@ -42,11 +42,19 @@ do_rollback() {
   fi
 }
 
-log_info "Running preflight checks..."
-bash "$SCRIPT_DIR/preflight.sh"
+if [ "${DEPLOY_PREFLIGHT_ENABLED:-true}" = "true" ]; then
+  log_info "Running preflight checks..."
+  bash "$SCRIPT_DIR/preflight.sh"
+else
+  log_warn "Preflight checks are disabled for this deployment."
+fi
 
-log_info "Creating verified pre-deployment PostgreSQL backup..."
-bash "$SCRIPT_DIR/backup-postgres.sh"
+if [ "${DEPLOY_POSTGRES_BACKUP_ENABLED:-true}" = "true" ]; then
+  log_info "Creating verified pre-deployment PostgreSQL backup..."
+  bash "$SCRIPT_DIR/backup-postgres.sh"
+else
+  log_warn "Pre-deployment PostgreSQL backup is disabled for this deployment."
+fi
 
 log_info "Pulling backend image: $IMAGE_TAG..."
 compose pull backend

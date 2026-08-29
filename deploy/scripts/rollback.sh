@@ -35,7 +35,7 @@ fi
 [ -n "$target_tag" ] \
   || fail "No target rollback image tag specified and no previous-image-tag found."
 
-flyway_enabled=$(read_env_value FLYWAY_ENABLED)
+flyway_enabled=$(read_env_value FLYWAY_ENABLED 2>/dev/null || true)
 flyway_enabled=$(printf '%s' "${flyway_enabled:-false}" | tr '[:upper:]' '[:lower:]')
 
 if [ "$flyway_enabled" = "true" ]; then
